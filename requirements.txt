@@ -1,0 +1,6 @@
+prettytable==3.3.0
+PyJWT==2.8.0
+ska-src-authn-api==0.1.5
+ska-src-data-management-api==0.1.8
+ska-src-permissions-api==0.1.4
+ska-src-site-capabilities-api==0.1.4
