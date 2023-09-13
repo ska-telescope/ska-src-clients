@@ -11,7 +11,7 @@ with open('VERSION') as f:
     version = f.read()
 
 data_files = [
-    ('etc', glob.glob('etc/*')),
+    ('etc', ['etc/config.ini']),
 ]
 scripts = glob.glob('bin/*')
 

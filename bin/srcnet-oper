@@ -1,0 +1,141 @@
+#!/usr/bin/env python
+
+import argparse
+import configparser
+import os
+import pprint
+
+from ska_src_clients.monitoring.api import APIMonitoring
+from ska_src_clients.session.oidc import OIDCSession
+
+
+def add_args_for_monitoring_health(monitoring_parser_subparsers):
+    monitoring_health_parser = monitoring_parser_subparsers.add_parser("health")
+    monitoring_health_parser.add_argument('service')
+
+
+def add_args_for_monitoring_ping(monitoring_parser_subparsers):
+    monitoring_ping_parser = monitoring_parser_subparsers.add_parser("ping")
+    monitoring_ping_parser.add_argument('service')
+
+
+def add_args_for_token_exchange(token_parser_subparsers):
+    token_exchange_parser = token_parser_subparsers.add_parser("exchange")
+    token_exchange_parser.add_argument('service')
+    token_exchange_parser.add_argument('-v', help="version", type=str, default='latest')
+
+
+def add_args_for_token_get(token_parser_subparsers):
+    token_get_parser = token_parser_subparsers.add_parser("get")
+    token_get_parser.add_argument('service')
+
+
+def add_args_for_token_ls(token_parser_subparsers):
+    token_get_parser = token_parser_subparsers.add_parser("ls")
+
+
+def add_args_for_token_inspect(token_parser_subparsers):
+    token_inspect_parser = token_parser_subparsers.add_parser("inspect")
+    token_inspect_parser.add_argument('service')
+
+
+def add_args_for_token_request(token_parser_subparsers):
+    token_get_parser = token_parser_subparsers.add_parser("request")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', help="path to configuration file", type=str, default=[
+        'etc/srcnet-clients.ini', '/usr/local/etc/srcnet-clients.ini'])
+
+    subparsers = parser.add_subparsers(help='', dest='command')
+
+    token_parser = subparsers.add_parser("token")
+    monitoring_parser = subparsers.add_parser("monitoring")
+
+    # token
+    token_parser_subparsers = token_parser.add_subparsers(help="token operations", dest='subcommand')
+
+    ## exchange
+    add_args_for_token_exchange(token_parser_subparsers)
+
+    ## get
+    add_args_for_token_get(token_parser_subparsers)
+
+    ## ls
+    add_args_for_token_ls(token_parser_subparsers)
+
+    ## ls
+    add_args_for_token_inspect(token_parser_subparsers)
+
+    ## request
+    add_args_for_token_request(token_parser_subparsers)
+
+    # status
+    monitoring_parser_subparsers = monitoring_parser.add_subparsers(
+        help="service monitoring operations", dest='subcommand')
+
+    ## health
+    add_args_for_monitoring_health(monitoring_parser_subparsers)
+
+    ## ping
+    add_args_for_monitoring_ping(monitoring_parser_subparsers)
+
+    args = parser.parse_args()
+
+    config = configparser.ConfigParser()
+    if not isinstance(args.c, list):
+        args.c = [args.c]
+
+    for file in args.c:
+        if os.path.exists(file):
+            try:
+                config.read(args.c)
+                break
+            except:
+                continue
+
+    if 'general' not in config:
+        print("A valid configuration could not be read.")
+        exit()
+
+    # Set up session.
+    session = OIDCSession(config=config)
+    session.load_tokens_from_disk()
+
+    if args.command == 'token':
+        if args.subcommand == 'exchange':
+            session.exchange_token(service=args.service, version=args.v)
+        elif args.subcommand == 'get':
+            access_token = session.get_token(service=args.service)
+            if access_token:
+                print(access_token)
+            else:
+                print("Token for service {} not found.".format(args.service))
+        elif args.subcommand == 'ls':
+            session.list_tokens()
+        elif args.subcommand == 'inspect':
+            session.inspect_token(service=args.service)
+        elif args.subcommand == 'request':
+            print("Please log in to: {}".format(session.get_login_url()))
+            authorisation_code = input("Enter the authorisation code: ")
+            state = input("Enter the state: ")
+            session.request_token(code=authorisation_code, state=state)
+        else:
+            print(token_parser.print_help())
+    elif args.command == 'monitoring':
+        api_monitoring = APIMonitoring(session=session)
+        if args.subcommand == 'health':
+            if args.service == 'all':
+                api_monitoring.get_service_healths(list(session.clients.keys()))
+            else:
+                api_monitoring.get_service_healths(args.service)
+        elif args.subcommand == 'ping':
+            if args.service == 'all':
+                api_monitoring.ping_services(list(session.clients.keys()))
+            else:
+                api_monitoring.ping_services(args.service)
+        else:
+            print(monitoring_parser.print_help())
+    else:
+        print(parser.print_help())

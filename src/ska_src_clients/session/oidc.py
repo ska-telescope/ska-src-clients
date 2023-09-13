@@ -2,15 +2,16 @@ import datetime
 import glob
 import json
 import os
+import pprint
 import random
-import time
 from functools import wraps
 
 import jwt
 from prettytable import PrettyTable
 
-from ska_src_authn_api.client.authentication import AuthenticationClient
 from ska_src_clients.common.exceptions import handle_client_exceptions
+from ska_src_clients.common.utility import remove_expired_tokens
+from ska_src_clients.session.session import Session
 
 
 def check_authentication_api_aliveness(func):
@@ -18,33 +19,17 @@ def check_authentication_api_aliveness(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         instance = args[0]
-        instance.authentication_client.ping().raise_for_status()
+        instance.get_client_by_service_name('authn-api').ping()
         return func(*args, **kwargs)
     return wrapper
 
 
-def remove_expired_tokens(func):
-    """ Decorator to remove expired tokens. """
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        instance = args[0]
-        access_tokens = dict(instance.access_tokens)
-        for aud, attributes in access_tokens.items():
-            if attributes.get('expires_at') < time.time():
-                instance.access_tokens.pop(aud)
-                if attributes.get('path_on_disk'):
-                    os.remove(attributes.get('path_on_disk'))
-        return func(*args, **kwargs)
-    return wrapper
-
-
-class OIDCSession:
-    def __init__(self, authn_api_url):
+class OIDCSession(Session):
+    def __init__(self, config):
+        super().__init__(config)
         self.stored_token_directory = "/tmp/srcnet/user"
         self.access_tokens = {}
-        self.authentication_client = AuthenticationClient(authn_api_url)
 
-    @handle_client_exceptions
     def _add_token_to_internal_cache(self, token, path_on_disk=None):
         access_token = token.get('access_token')
         access_token_decoded = jwt.decode(access_token, options={"verify_signature": False})
@@ -55,7 +40,6 @@ class OIDCSession:
                 'path_on_disk': path_on_disk if path_on_disk else 'INTERNAL'
             }
 
-    @handle_client_exceptions
     def _save_token_to_disk(self, token):
         os.makedirs(self.stored_token_directory, exist_ok=True)
 
@@ -80,9 +64,7 @@ class OIDCSession:
     @check_authentication_api_aliveness
     @remove_expired_tokens
     def get_login_url(self):
-        login_response = self.authentication_client.login()
-        login_response.raise_for_status()
-
+        login_response = self.get_client_by_service_name('authn-api').login()
         return login_response.json().get('authorization_uri')
 
     @handle_client_exceptions
@@ -93,23 +75,24 @@ class OIDCSession:
             print("A valid access token for service {} already exists.".format(service))
             return
         # select any valid token randomly
-        if self.access_tokens:
-            token_to_exchange = random.choice(list(self.access_tokens.values())).get('access_token')
+        if not self.access_tokens:
+            print("No access tokens exist to exchange. Login first.")
+            return
 
-        token_exchange_response = self.authentication_client.exchange_token(service=service, token=token_to_exchange)
-        token_exchange_response.raise_for_status()
+        token_to_exchange = random.choice(list(self.access_tokens.values())).get('access_token')
+
+        token_exchange_response = self.get_client_by_service_name('authn-api').exchange_token(
+            service=service, token=token_to_exchange)
         token = token_exchange_response.json()
 
         self._add_token_to_internal_cache(token)
         if store_to_disk:
             self._save_token_to_disk(token)
 
-
     @handle_client_exceptions
     @remove_expired_tokens
     def get_token(self, service):
         return self.access_tokens.get(service, {}).get('access_token')
-
 
     @handle_client_exceptions
     @remove_expired_tokens
@@ -133,9 +116,20 @@ class OIDCSession:
     @handle_client_exceptions
     @check_authentication_api_aliveness
     @remove_expired_tokens
+    def inspect_token(self, service):
+        access_token_for_service = self.access_tokens.get(service, {}).get('access_token')
+        if not access_token_for_service:
+            print("No access token exists for service {}".format(service))
+            return
+
+        access_token_decoded = jwt.decode(access_token_for_service, options={"verify_signature": False})
+        pprint.pprint(access_token_decoded)
+
+    @handle_client_exceptions
+    @check_authentication_api_aliveness
+    @remove_expired_tokens
     def request_token(self, code, state, store_to_disk=True):
-        token_response = self.authentication_client.token(code=code, state=state)
-        token_response.raise_for_status()
+        token_response = self.get_client_by_service_name('authn-api').token(code=code, state=state)
         token = token_response.json().get('token')
 
         self._add_token_to_internal_cache(token)
