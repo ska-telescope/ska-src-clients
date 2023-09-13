@@ -46,7 +46,8 @@ def add_args_for_token_request(token_parser_subparsers):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', help="path to configuration file", type=str, default=[
-        'etc/srcnet-clients.ini', '/usr/local/etc/srcnet-clients.ini'])
+        'etc/srcnet-clients-config.ini',
+        '/usr/local/etc/srcnet-clients-config.ini'])
 
     subparsers = parser.add_subparsers(help='', dest='command')
 

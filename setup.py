@@ -11,7 +11,7 @@ with open('VERSION') as f:
     version = f.read()
 
 data_files = [
-    ('etc', ['etc/config.ini']),
+    ('etc', ['etc/srcnet-clients-config.ini']),
 ]
 scripts = glob.glob('bin/*')
 

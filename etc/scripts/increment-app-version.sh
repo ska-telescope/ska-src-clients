@@ -13,6 +13,3 @@ esac
 
 echo $tag > ../../VERSION
 
-# Change the helm chart application version
-yq w -i ../helm/Chart.yaml appVersion $tag
-
