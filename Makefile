@@ -1,6 +1,6 @@
 bump-and-commit:
 	@cd etc/scripts && bash increment-app-version.sh `git branch | grep "*" | awk -F'[*-]' '{ print $$2 }' | tr -d ' '`
-	@git add VERSION etc/helm/Chart.yaml
+	@git add VERSION
 	@git commit
 
 major-branch:
