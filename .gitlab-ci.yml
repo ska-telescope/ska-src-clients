@@ -16,6 +16,7 @@ pages:
   artifacts:
     paths:
     - doc/_build/html
+  publish: doc/_build/html
   only:
   - main
 
