@@ -1,0 +1,9 @@
+apis:
+  authn-api:
+    url: https://authn.srcdev.skao.int/api/v1
+  data-management-api:
+    url: https://data-management.srcdev.skao.int/api/v1
+  permissions-api:
+    url: https://permissions.srcdev.skao.int/api/v1
+  site-capabilities-api:
+    url: https://site-capabilities.srcdev.skao.int/api/v1
