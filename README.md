@@ -65,3 +65,7 @@ recipe is as follows:
 
 Note that the CI pipeline will fail if python packages with the same semantic version are committed to the GitLab 
 Package Registry.
+
+## Reference
+
+The command line reference can be found [here](https://ska-telescope.gitlab.io/src/src-service-apis/ska-src-clients/index.html).
