@@ -3,6 +3,9 @@ bump-and-commit:
 	@git add VERSION
 	@git commit
 
+docs:
+	@cd doc && make clean && make html
+
 major-branch:
 	@test -n "$(NAME)"
 	@echo "making major branch \"$(NAME)\""

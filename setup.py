@@ -11,7 +11,7 @@ with open('VERSION') as f:
     version = f.read()
 
 data_files = [
-    ('etc', ['etc/srcnet-clients-config.ini']),
+    ('etc', ['etc/srcnet-clients-config.yml']),
 ]
 scripts = glob.glob('bin/*')
 
@@ -22,7 +22,7 @@ setup(
     url='',
     author='rob barnsley',
     author_email='rob.barnsley@skao.int',
-    packages=['ska_src_clients.common', 'ska_src_clients.monitoring', 'ska_src_clients.session'],
+    packages=['ska_src_clients.client', 'ska_src_clients.common', 'ska_src_clients.session'],
     package_dir={'': 'src'},
     data_files=data_files,
     scripts=scripts,

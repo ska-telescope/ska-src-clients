@@ -1,142 +1,336 @@
 #!/usr/bin/env python
 
 import argparse
-import configparser
+import datetime
+import json
+import logging
 import os
 import sys
+import yaml
 
-from ska_src_clients.monitoring.api import APIMonitoring
+import pprint
+from box import Box
+from prettytable import PrettyTable
+
 from ska_src_clients.session.oidc import OIDCSession
 
 
-def add_args_for_monitoring_health(monitoring_parser_subparsers):
-    monitoring_health_parser = monitoring_parser_subparsers.add_parser("health")
-    monitoring_health_parser.add_argument('service')
+def make_parsers(return_all_parsers=False):
+    def add_api_commands_to_subparsers(subparsers):
+        api_parser = subparsers.add_parser('api', help="API operations")
+        api_parser_subparsers = api_parser.add_subparsers(help="API operations", dest='subcommand')
 
+        # api health
+        api_health_parser = api_parser_subparsers.add_parser("health", help="Get the API health")
+        api_health_parser.add_argument('service', help="The service name")
 
-def add_args_for_monitoring_ping(monitoring_parser_subparsers):
-    monitoring_ping_parser = monitoring_parser_subparsers.add_parser("ping")
-    monitoring_ping_parser.add_argument('service')
+        # api ls
+        api_parser_subparsers.add_parser("ls", help="List APIs")
 
+        # api ping
+        api_health_parser = api_parser_subparsers.add_parser("ping", help="Ping the API")
+        api_health_parser.add_argument('service', help="The service name")
 
-def add_args_for_token_exchange(token_parser_subparsers):
-    token_exchange_parser = token_parser_subparsers.add_parser("exchange")
-    token_exchange_parser.add_argument('service')
-    token_exchange_parser.add_argument('-v', help="version", type=str, default='latest')
+        return (api_parser,)
 
+    def add_config_commands_to_subparsers(subparsers):
+        config_parser = subparsers.add_parser("config", help="Configuration file operations")
+        config_parser_subparsers = config_parser.add_subparsers(help="Configuration file operations", dest='subcommand')
 
-def add_args_for_token_get(token_parser_subparsers):
-    token_get_parser = token_parser_subparsers.add_parser("get")
-    token_get_parser.add_argument('service')
+        # config get
+        config_parser_parser = config_parser_subparsers.add_parser("get", help="Get a configuration file")
+        config_parser_parser.add_argument('--section', required=False, help="Configuration file section to return")
 
+        return (config_parser,)
 
-def add_args_for_token_ls(token_parser_subparsers):
-    token_get_parser = token_parser_subparsers.add_parser("ls")
+    def add_data_commands_to_subparsers(subparsers):
+        data_parser = subparsers.add_parser("data", help="Data operations")
+        data_parser_subparsers = data_parser.add_subparsers(help="Data operations", dest='subcommand')
 
+        # data ls
+        data_parser_parser = data_parser_subparsers.add_parser("ls", help="List data identifiers in a namespace")
+        data_parser_parser.add_argument('--namespace', required=True, help="The data namespace")
+        data_parser_parser.add_argument('--name', required=False, default='*', help="The data identifier name "
+                                                                                    "(wildcards allowed)")
+        data_parser_parser.add_argument('--detail', required=False, action="store_true", help="More detail?")
+        data_parser_parser.add_argument('--filters', required=False, default=None, help="Filters (Rucio only)")
+        data_parser_parser.add_argument('--limit', required=False, default=100, help="Number of identifiers to return "
+                                                                                     "in result")
 
-def add_args_for_token_inspect(token_parser_subparsers):
-    token_inspect_parser = token_parser_subparsers.add_parser("inspect")
-    token_inspect_parser.add_argument('service')
+        # namespace
+        data_namespace_parser = data_parser_subparsers.add_parser("namespace", help="Data namespace operations")
+        data_namespace_parser_subparsers = data_namespace_parser.add_subparsers(help="Data namespace operations",
+                                                                                dest='subsubcommand')
 
+        # namespace ls
+        data_namespace_parser_subparsers.add_parser("ls", help="List namespaces")
 
-def add_args_for_token_request(token_parser_subparsers):
-    token_get_parser = token_parser_subparsers.add_parser("request")
+        return (data_parser, data_namespace_parser)
 
+    def add_metadata_commands_to_subparsers(subparsers):
+        metadata_parser = subparsers.add_parser("metadata", help="Metadata operations")
+        metadata_parser_subparsers = metadata_parser.add_subparsers(help="Metadata operations", dest='subcommand')
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+        # metadata get
+        metadata_parser_parser = metadata_parser_subparsers.add_parser("get", help="Get metadata for a data identifier")
+        metadata_parser_parser.add_argument('--namespace', required=True, help="The data identifier's namespace")
+        metadata_parser_parser.add_argument('--name', required=True, help="The data identifier's name")
+        metadata_parser_parser.add_argument('--store', required=False, default="file", help="The metadata store to use")
+        metadata_parser_parser.add_argument('--showempty', required=False, action="store_true", help="Show empty keys?")
+
+        # metadata set
+        metadata_parser_parser = metadata_parser_subparsers.add_parser("set", help="Set metadata for a data identifier")
+        metadata_parser_parser.add_argument('--namespace', required=True, help="The data identifier's namespace")
+        metadata_parser_parser.add_argument('--name', required=True, help="The data identifier's name")
+        metadata_parser_parser.add_argument('--metadata', required=True, help="Metadata to set (JSON)")
+
+        return (metadata_parser,)
+
+    def add_service_commands_to_subparsers(subparsers):
+        service_parser = subparsers.add_parser("service", help="Service operations")
+        service_parser_subparsers = service_parser.add_subparsers(help="Service operations", dest='subcommand')
+
+        # service ls
+        service_parser_subparsers.add_parser("ls", help="List services")
+
+        return (service_parser,)
+
+    def add_storage_commands_to_subparsers(subparsers):
+        storage_parser = subparsers.add_parser("storage", help="Storage operations")
+        storage_parser_subparsers = storage_parser.add_subparsers(help="Storage operations", dest='subcommand')
+
+        # storage ls
+        storage_parser_subparsers.add_parser("ls", help="List storages")
+
+        return (storage_parser,)
+
+    def add_token_commands_to_subparsers(subparsers):
+        token_parser = subparsers.add_parser("token", help="Token operations")
+        token_parser_subparsers = token_parser.add_subparsers(help="Token operations", dest='subcommand')
+
+        # token exchange
+        token_exchange_parser = token_parser_subparsers.add_parser("exchange", help="Exchange an existing token for a "
+                                                                                    "different service")
+        token_exchange_parser.add_argument('service', help="The service name to exchange for")
+
+        # token get
+        token_get_parser = token_parser_subparsers.add_parser("get", help="Get contents of an existing token")
+        token_get_parser.add_argument('service', help="The service name")
+
+        # token ls
+        token_parser_subparsers.add_parser("ls", help="List existing tokens")
+
+        # token inspect
+        token_inspect_parser = token_parser_subparsers.add_parser("inspect", help="Inspect an existing token")
+        token_inspect_parser.add_argument('service', help="The service name")
+
+        # token request
+        token_parser_subparsers.add_parser("request", help="Request a new token")
+
+        return (token_parser,)
+
+    parser = argparse.ArgumentParser(description="Command line utilities to interface with SRCNet APIs.")
+
     parser.add_argument('-c', help="path to configuration file", type=str, default=[
-        'etc/srcnet-clients-config.ini',
-        os.path.join(sys.prefix, 'etc/srcnet-clients-config.ini')])
+        'etc/srcnet-clients-config.yml',
+        os.path.join(sys.prefix, 'etc/srcnet-clients-config.yml')])
+    parser.add_argument("--debug", help="debug mode", action='store_true')
+    parser.add_argument("--json", help="output as json", action='store_true')
 
     subparsers = parser.add_subparsers(help='', dest='command')
 
-    token_parser = subparsers.add_parser("token")
-    monitoring_parser = subparsers.add_parser("monitoring")
+    parsers = [
+        parser,
+        *add_api_commands_to_subparsers(subparsers),
+        *add_config_commands_to_subparsers(subparsers),
+        *add_data_commands_to_subparsers(subparsers),
+        *add_metadata_commands_to_subparsers(subparsers),
+        *add_service_commands_to_subparsers(subparsers),
+        *add_storage_commands_to_subparsers(subparsers),
+        *add_token_commands_to_subparsers(subparsers)
+    ]
+    parsers_by_prog = {}
+    for parser in parsers:
+        parsers_by_prog[parser.prog] = parser
 
-    # token
-    token_parser_subparsers = token_parser.add_subparsers(help="token operations", dest='subcommand')
+    if return_all_parsers:
+        return Box(parsers_by_prog)
+    return parsers[0]
 
-    ## exchange
-    add_args_for_token_exchange(token_parser_subparsers)
 
-    ## get
-    add_args_for_token_get(token_parser_subparsers)
+if __name__ == "__main__":
+    parsers = make_parsers(return_all_parsers=True)
+    args = parsers.srcnet_oper.parse_args()
 
-    ## ls
-    add_args_for_token_ls(token_parser_subparsers)
+    # Set up a logger.
+    if args.debug:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(asctime)s [%(name)s] %(module)10s %(levelname)5s %(process)d\t%(message)s")
+    else:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s [%(name)s] %(module)10s %(levelname)5s %(process)d\t%(message)s")
 
-    ## ls
-    add_args_for_token_inspect(token_parser_subparsers)
-
-    ## request
-    add_args_for_token_request(token_parser_subparsers)
-
-    # status
-    monitoring_parser_subparsers = monitoring_parser.add_subparsers(
-        help="service monitoring operations", dest='subcommand')
-
-    ## health
-    add_args_for_monitoring_health(monitoring_parser_subparsers)
-
-    ## ping
-    add_args_for_monitoring_ping(monitoring_parser_subparsers)
-
-    args = parser.parse_args()
-
-    config = configparser.ConfigParser()
     if not isinstance(args.c, list):
         args.c = [args.c]
 
-    for file in args.c:
-        if os.path.exists(file):
+    for file_path in args.c:
+        if os.path.exists(file_path):
             try:
-                config.read(args.c)
+                with open(file_path, 'r') as file:
+                    config = yaml.safe_load(file)
                 break
-            except:
+            except yaml.YAMLError:
                 continue
 
-    if 'general' not in config:
-        print("A valid configuration could not be read.")
+    if config is not None:
+        if 'apis' not in config:
+            logging.critical("Unable to find apis key in config file. This is required.")
+            exit()
+    else:
+        logging.critical("Config file is empty.")
         exit()
 
-    # Set up session.
+    # Instantiate and set up the session.
     session = OIDCSession(config=config)
     session.load_tokens_from_disk()
 
-    if args.command == 'token':
-        if args.subcommand == 'exchange':
-            session.exchange_token(service=args.service, version=args.v)
-        elif args.subcommand == 'get':
-            access_token = session.get_token(service=args.service)
-            if access_token:
-                print(access_token)
-            else:
-                print("Token for service {} not found.".format(args.service))
+    output = {
+        'raw': None,
+        'tabulated': None
+    }
+    if args.command == 'api':
+        if args.subcommand == 'health':
+            client = session.client_factory.get_client_from_service_name(args.service)
+            output['raw'] = client.health().json()
         elif args.subcommand == 'ls':
-            session.list_tokens()
+            output['raw'] = sorted(list(config.get("apis").keys()))
+        elif args.subcommand == 'ping':
+            client = session.client_factory.get_client_from_service_name(args.service)
+            output['raw'] = client.ping().json()
+        else:
+            parsers.srcnet_oper_api.print_help()
+    elif args.command == 'config':
+        if args.subcommand == 'get':
+            if args.section:
+                output['raw'] = config.get(args.section)
+                if not output['raw']:
+                    output['raw'] = "Section with name {} not found".format(args.section)
+            else:
+                output['raw'] = config
+        else:
+            parsers.srcnet_oper_config.print_help()
+    elif args.command == 'data':
+        if args.subcommand == 'namespace':
+            if args.subsubcommand == 'ls':
+                client = session.client_factory.get_data_management_client(is_authenticated=True)
+                output['raw'] = client.list_namespaces().json()
+            else:
+                parsers.srcnet_oper_data_namespace.print_help()
+        elif args.subcommand == 'ls':
+            client = session.client_factory.get_data_management_client(is_authenticated=True)
+            output['raw'] = client.list_files_in_namespace(namespace=args.namespace, name=args.name, detail=args.detail,
+                                                           filters=args.filters, limit=args.limit).json()
+        else:
+            parsers.srcnet_oper_data.print_help()
+    elif args.command == 'metadata':
+        if args.subcommand == 'get':
+            client = session.client_factory.get_data_management_client(is_authenticated=True)
+            plugins = []
+            if ',' in args.store:
+                stores = args.store.split(',')
+            else:
+                stores = args.store
+            if 'file' in stores:
+                plugins.append("DID_COLUMN")
+            if 'science' in stores:
+                plugins.append("POSTGRES_JSON")
+
+            outputs = {}
+            for plugin in plugins:
+                outputs[plugin] = client.get_metadata(namespace=args.namespace, name=args.name, plugin=plugin).json()
+            if outputs:
+                output['raw'] = outputs
+
+                # make a nice table
+                table = PrettyTable()
+                table.field_names = ["Store", "Key", "Value"]
+                table.align = 'l'
+
+                for plugin, metadata in outputs.items():
+                    for key, value in metadata.items():
+                        if value is None and not args.showempty:
+                            continue
+                        table.add_row([
+                            plugin,
+                            key,
+                            value
+                        ])
+                output['tabulated'] = table
+        elif args.subcommand == 'set':
+            client = session.client_factory.get_data_management_client(is_authenticated=True)
+            output['raw'] = client.set_metadata(namespace=args.namespace, name=args.name, metadata=args.metadata).json()
+        else:
+            parsers.srcnet_oper_metadata.print_help()
+    elif args.command == 'service':
+        if args.subcommand == 'ls':
+            client = session.client_factory.get_site_capabilities_client(is_authenticated=True)
+            output['raw'] = client.get_services().json()
+        else:
+            parsers.srcnet_oper_service.print_help()
+    elif args.command == 'storage':
+        if args.subcommand == 'ls':
+            client = session.client_factory.get_site_capabilities_client(is_authenticated=True)
+            output['raw'] = client.get_storages().json()
+        else:
+            parsers.srcnet_oper_storage.print_help()
+    elif args.command == 'token':
+        if args.subcommand == 'exchange':
+            session.exchange_token(service_name=args.service, version="latest")
+        elif args.subcommand == 'get':
+            access_token = session.get_access_token(service_name=args.service)
+            if access_token:
+                output['raw'] = access_token
+            else:
+                output['raw'] = "Token for service {} not found.".format(args.service)
+        elif args.subcommand == 'ls':
+            output['raw'] = session.list_access_tokens()
+
+            # make a nice table
+            table = PrettyTable()
+            table.field_names = ["Service Name", "Access token", "Expires at (UTC)", "Expires at (Local)",
+                                 "Path on disk", "Has associated refresh token?"]
+            table.align = 'l'
+            table.align["Has associated refresh token?"] = 'c'
+
+            for aud, attributes in output['raw'].items():
+                table.add_row([
+                    aud,
+                    attributes.get('access_token')[0:20],
+                    datetime.datetime.fromtimestamp(attributes.get('expires_at'), datetime.timezone.utc),
+                    datetime.datetime.fromtimestamp(attributes.get('expires_at')),
+                    attributes.get('path_on_disk'),
+                    u'\u2713' if attributes.get('has_associated_refresh_token') else ''
+                ])
+            output['tabulated'] = table
         elif args.subcommand == 'inspect':
-            session.inspect_token(service=args.service)
+            output['raw'] = session.inspect_access_token(service_name=args.service)
         elif args.subcommand == 'request':
             print("Please log in to: {}".format(session.get_login_url()))
             authorisation_code = input("Enter the authorisation code: ")
             state = input("Enter the state: ")
             session.request_token(code=authorisation_code, state=state)
         else:
-            print(token_parser.print_help())
-    elif args.command == 'monitoring':
-        api_monitoring = APIMonitoring(session=session)
-        if args.subcommand == 'health':
-            if args.service == 'all':
-                api_monitoring.get_service_healths(list(session.clients.keys()))
-            else:
-                api_monitoring.get_service_healths(args.service)
-        elif args.subcommand == 'ping':
-            if args.service == 'all':
-                api_monitoring.ping_services(list(session.clients.keys()))
-            else:
-                api_monitoring.ping_services(args.service)
-        else:
-            print(monitoring_parser.print_help())
+            parsers.srcnet_oper_token.print_help()
     else:
-        print(parser.print_help())
+        parsers.srcnet_oper.print_help()
+
+    if args.json:
+        if output.get('raw'):
+            print(json.dumps(output.get('raw')))
+    else:
+        if output.get('tabulated'):
+            print(output.get('tabulated'))
+        elif output.get('raw'):
+            pprint.pprint(output.get('raw'))

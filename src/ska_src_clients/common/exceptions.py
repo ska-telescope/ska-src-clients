@@ -28,8 +28,20 @@ class CustomException(Exception):
     pass
 
 
-class InvalidClientName(CustomException):
-    def __init__(self, client_name):
-        self.message = "The client name {} is not understood.".format(*client_name)
+class InvalidAPIName(CustomException):
+    def __init__(self, api_name):
+        self.message = "The api name {} is not in the configuration file.".format(api_name)
+        super().__init__(self.message)
+
+
+class NoAPIUrlFound(CustomException):
+    def __init__(self, api_name):
+        self.message = "Could not find the api url for the api with name {}.".format(api_name)
+        super().__init__(self.message)
+
+
+class NoAccessTokenFoundForService(CustomException):
+    def __init__(self, service_name):
+        self.message = "Could not find an access token for the service with name {}.".format(service_name)
         super().__init__(self.message)
 

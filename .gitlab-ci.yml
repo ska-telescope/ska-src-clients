@@ -9,6 +9,16 @@ variables:
   API_IMAGE_NAME: $CI_REGISTRY_IMAGE/api
   GIT_SUBMODULE_STRATEGY: recursive
 
+pages:
+  stage: deploy
+  script:
+  - echo 'Nothing to do...'
+  artifacts:
+    paths:
+    - doc/_build/html
+  only:
+  - main
+
 pypi-publish:
   only:
     - main
