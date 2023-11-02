@@ -3,8 +3,6 @@ import json
 import logging
 import typing
 
-from rucio_extended_client.api.step import Step
-
 
 class Plan:
     def __init__(self, **kwargs):
