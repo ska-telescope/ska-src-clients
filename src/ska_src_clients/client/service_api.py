@@ -5,7 +5,7 @@ from ska_src_permissions_api.client.permissions import PermissionsClient
 from ska_src_site_capabilities_api.client.site_capabilities import SiteCapabilitiesClient
 
 
-class ClientFactory:
+class ServiceAPIClientFactory:
     def __init__(self, session):
         self.session = session
 

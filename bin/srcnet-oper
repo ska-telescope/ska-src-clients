@@ -12,6 +12,8 @@ import pprint
 from box import Box
 from prettytable import PrettyTable
 
+from ska_src_clients.api import DataAPI, MetadataAPI, ServicesAPI, SiteAPI
+
 from ska_src_clients.session.oidc import OIDCSession
 
 
@@ -39,7 +41,7 @@ def make_parsers(return_all_parsers=False):
 
         # config get
         config_parser_parser = config_parser_subparsers.add_parser("get", help="Get a configuration file")
-        config_parser_parser.add_argument('--section', required=False, help="Configuration file section to return")
+        config_parser_parser.add_argument('--section', help="Configuration file section to return", required=True)
 
         return (config_parser,)
 
@@ -48,41 +50,60 @@ def make_parsers(return_all_parsers=False):
         data_parser_subparsers = data_parser.add_subparsers(help="Data operations", dest='subcommand')
 
         # data ls
-        data_parser_parser = data_parser_subparsers.add_parser("ls", help="List data identifiers in a namespace")
-        data_parser_parser.add_argument('--namespace', required=True, help="The data namespace")
-        data_parser_parser.add_argument('--name', required=False, default='*', help="The data identifier name "
-                                                                                    "(wildcards allowed)")
-        data_parser_parser.add_argument('--detail', required=False, action="store_true", help="More detail?")
-        data_parser_parser.add_argument('--filters', required=False, default=None, help="Filters (Rucio only)")
-        data_parser_parser.add_argument('--limit', required=False, default=100, help="Number of identifiers to return "
-                                                                                     "in result")
+        data_ls_parser = data_parser_subparsers.add_parser("ls", help="List data identifiers in a namespace")
+        data_ls_parser.add_argument('--namespace', help="The data namespace", required=True)
+        data_ls_parser.add_argument('--name', default='*', help="The data identifier name (wildcards allowed)",
+                                    required=True)
+        data_ls_parser.add_argument('--detail', action="store_true", help="More detail?")
+        data_ls_parser.add_argument('--filters', default=None, help="Filters (Rucio only)")
+        data_ls_parser.add_argument('--limit', default=100, help="Number of identifiers to return in result")
 
-        # namespace
+        # data ingest
+        data_ingest_parser = data_parser_subparsers.add_parser("ingest", help="Data ingest operations")
+        data_ingest_parser_subparsers = data_ingest_parser.add_subparsers(help="Data ingest operations",
+                                                                          dest='subsubcommand')
+
+        # data ingest ls
+        data_ingest_parser_subparsers.add_parser("ls", help="List ingest areas")
+
+        # data ingest upload
+        data_ingest_upload_parser = data_ingest_parser_subparsers.add_parser("upload",
+                                                                             help="Upload data to ingest area")
+        data_ingest_upload_parser.add_argument('--path', help="Local path to data directory to be uploaded",
+                                               required=True)
+        data_ingest_upload_parser.add_argument('--ingest-service-id', help="The ingest service id", required=True)
+        data_ingest_upload_parser.add_argument('--namespace', help="The data namespace", required=True)
+        data_ingest_upload_parser.add_argument('--extra-metadata', help="Extra metadata to apply to each file (JSON)",
+                                               default='{}')
+        data_ingest_upload_parser.add_argument('--metadata-suffix', help="The expected metadata suffix",
+                                               default='.meta')
+
+        # data namespace
         data_namespace_parser = data_parser_subparsers.add_parser("namespace", help="Data namespace operations")
         data_namespace_parser_subparsers = data_namespace_parser.add_subparsers(help="Data namespace operations",
                                                                                 dest='subsubcommand')
 
-        # namespace ls
+        # data namespace ls
         data_namespace_parser_subparsers.add_parser("ls", help="List namespaces")
 
-        return (data_parser, data_namespace_parser)
+        return data_parser, data_namespace_parser, data_ingest_parser
 
     def add_metadata_commands_to_subparsers(subparsers):
         metadata_parser = subparsers.add_parser("metadata", help="Metadata operations")
         metadata_parser_subparsers = metadata_parser.add_subparsers(help="Metadata operations", dest='subcommand')
 
         # metadata get
-        metadata_parser_parser = metadata_parser_subparsers.add_parser("get", help="Get metadata for a data identifier")
-        metadata_parser_parser.add_argument('--namespace', required=True, help="The data identifier's namespace")
-        metadata_parser_parser.add_argument('--name', required=True, help="The data identifier's name")
-        metadata_parser_parser.add_argument('--store', required=False, default="file", help="The metadata store to use")
-        metadata_parser_parser.add_argument('--showempty', required=False, action="store_true", help="Show empty keys?")
+        metadata_get_parser = metadata_parser_subparsers.add_parser("get", help="Get metadata for a data identifier")
+        metadata_get_parser.add_argument('--namespace', help="The data identifier's namespace", required=True)
+        metadata_get_parser.add_argument('--name', help="The data identifier's name", required=True)
+        metadata_get_parser.add_argument('--store', default="file", help="The metadata store to use")
+        metadata_get_parser.add_argument('--showempty', action="store_true", help="Show empty keys?")
 
         # metadata set
-        metadata_parser_parser = metadata_parser_subparsers.add_parser("set", help="Set metadata for a data identifier")
-        metadata_parser_parser.add_argument('--namespace', required=True, help="The data identifier's namespace")
-        metadata_parser_parser.add_argument('--name', required=True, help="The data identifier's name")
-        metadata_parser_parser.add_argument('--metadata', required=True, help="Metadata to set (JSON)")
+        metadata_set_parser = metadata_parser_subparsers.add_parser("set", help="Set metadata for a data identifier")
+        metadata_set_parser.add_argument('--namespace', help="The data identifier's namespace", required=True)
+        metadata_set_parser.add_argument('--name', help="The data identifier's name", required=True)
+        metadata_set_parser.add_argument('--metadata', help="Metadata to set (JSON)", required=True)
 
         return (metadata_parser,)
 
@@ -129,7 +150,7 @@ def make_parsers(return_all_parsers=False):
 
         return (token_parser,)
 
-    parser = argparse.ArgumentParser(description="Command line utilities to interface with SRCNet APIs.")
+    parser = argparse.ArgumentParser(description="Operator command line utilities to interface with SRCNet APIs.")
 
     parser.add_argument('-c', help="path to configuration file", type=str, default=[
         'etc/srcnet-clients-config.yml',
@@ -202,13 +223,11 @@ if __name__ == "__main__":
     }
     if args.command == 'api':
         if args.subcommand == 'health':
-            client = session.client_factory.get_client_from_service_name(args.service)
-            output['raw'] = client.health().json()
+            output['raw'] = ServicesAPI(session=session).health(service=args.service)
         elif args.subcommand == 'ls':
             output['raw'] = sorted(list(config.get("apis").keys()))
         elif args.subcommand == 'ping':
-            client = session.client_factory.get_client_from_service_name(args.service)
-            output['raw'] = client.ping().json()
+            output['raw'] = ServicesAPI(session=session).ping(service=args.service)
         else:
             parsers.srcnet_oper_api.print_help()
     elif args.command == 'config':
@@ -222,21 +241,54 @@ if __name__ == "__main__":
         else:
             parsers.srcnet_oper_config.print_help()
     elif args.command == 'data':
-        if args.subcommand == 'namespace':
+        if args.subcommand == 'ingest':
             if args.subsubcommand == 'ls':
-                client = session.client_factory.get_data_management_client(is_authenticated=True)
-                output['raw'] = client.list_namespaces().json()
+                output['raw'] = DataAPI(session=session).list_ingest_services()
+
+                # make a nice table
+                table = PrettyTable()
+                table.field_names = ["Site", "Ingest ID", "Prefix", "Host", "Port", "Path"]
+                table.align = 'l'
+
+                for site, ingest_service_attributes in output['raw'].items():
+                    table.add_row([
+                        site,
+                        ingest_service_attributes.get('id'),
+                        ingest_service_attributes.get('prefix'),
+                        ingest_service_attributes.get('host'),
+                        ingest_service_attributes.get('port'),
+                        ingest_service_attributes.get('path')
+                    ])
+                output['tabulated'] = table
+            elif args.subsubcommand == 'upload':
+                DataAPI(session=session).upload(
+                    path=args.path,
+                    ingest_service_id=args.ingest_service_id,
+                    namespace=args.namespace,
+                    metadata_suffix=args.metadata_suffix,
+                    extra_metadata=args.extra_metadata,
+                    debug=args.debug
+                )
+
+            else:
+                parsers.srcnet_oper_data_ingest.print_help()
+        elif args.subcommand == 'namespace':
+            if args.subsubcommand == 'ls':
+                output['raw'] = DataAPI(session=session).list_namespaces()
             else:
                 parsers.srcnet_oper_data_namespace.print_help()
         elif args.subcommand == 'ls':
-            client = session.client_factory.get_data_management_client(is_authenticated=True)
-            output['raw'] = client.list_files_in_namespace(namespace=args.namespace, name=args.name, detail=args.detail,
-                                                           filters=args.filters, limit=args.limit).json()
+            output['raw'] = DataAPI(session=session).list_files_in_namespace(
+                namespace=args.namespace,
+                name=args.name,
+                detail=args.detail,
+                filters=args.filters,
+                limit=args.limit
+            )
         else:
             parsers.srcnet_oper_data.print_help()
     elif args.command == 'metadata':
         if args.subcommand == 'get':
-            client = session.client_factory.get_data_management_client(is_authenticated=True)
             plugins = []
             if ',' in args.store:
                 stores = args.store.split(',')
@@ -249,7 +301,11 @@ if __name__ == "__main__":
 
             outputs = {}
             for plugin in plugins:
-                outputs[plugin] = client.get_metadata(namespace=args.namespace, name=args.name, plugin=plugin).json()
+                outputs[plugin] = MetadataAPI(session=session).get_metadata(
+                    namespace=args.namespace,
+                    name=args.name,
+                    plugin=plugin
+                )
             if outputs:
                 output['raw'] = outputs
 
@@ -269,20 +325,21 @@ if __name__ == "__main__":
                         ])
                 output['tabulated'] = table
         elif args.subcommand == 'set':
-            client = session.client_factory.get_data_management_client(is_authenticated=True)
-            output['raw'] = client.set_metadata(namespace=args.namespace, name=args.name, metadata=args.metadata).json()
+            output['raw'] = MetadataAPI(session=session).set_metadata(
+                    namespace=args.namespace,
+                    name=args.name,
+                    metadata=args.metadata
+                )
         else:
             parsers.srcnet_oper_metadata.print_help()
     elif args.command == 'service':
         if args.subcommand == 'ls':
-            client = session.client_factory.get_site_capabilities_client(is_authenticated=True)
-            output['raw'] = client.get_services().json()
+            output['raw'] = SiteAPI(session=session).list_services()
         else:
             parsers.srcnet_oper_service.print_help()
     elif args.command == 'storage':
         if args.subcommand == 'ls':
-            client = session.client_factory.get_site_capabilities_client(is_authenticated=True)
-            output['raw'] = client.get_storages().json()
+            output['raw'] = SiteAPI(session=session).list_storages()
         else:
             parsers.srcnet_oper_storage.print_help()
     elif args.command == 'token':

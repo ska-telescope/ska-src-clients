@@ -28,9 +28,21 @@ class CustomException(Exception):
     pass
 
 
+class ExtraMetadataKeyConflict(CustomException):
+    def __init__(self, key):
+        self.message = "Key {} cannot be used in either in extra metadata".format(key)
+        super().__init__(self.message)
+
+
 class InvalidAPIName(CustomException):
     def __init__(self, api_name):
         self.message = "The api name {} is not in the configuration file.".format(api_name)
+        super().__init__(self.message)
+
+
+class MetadataKeyConflict(CustomException):
+    def __init__(self, key):
+        self.message = "Key {} cannot be used in either in metadata".format(key)
         super().__init__(self.message)
 
 
@@ -44,4 +56,17 @@ class NoAccessTokenFoundForService(CustomException):
     def __init__(self, service_name):
         self.message = "Could not find an access token for the service with name {}.".format(service_name)
         super().__init__(self.message)
+
+
+class StorageListFailed(CustomException):
+    def __init__(self, exception):
+        self.message = "Problem encountered while listing storage: {}".format(exception)
+        super().__init__(self.message)
+
+
+class StorageUploadFailed(CustomException):
+    def __init__(self, exception):
+        self.message = "Problem encountered while uploading to storage: {}".format(exception)
+        super().__init__(self.message)
+
 
