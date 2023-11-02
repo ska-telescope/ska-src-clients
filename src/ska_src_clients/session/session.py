@@ -1,11 +1,12 @@
-from ska_src_clients.client.client import ClientFactory
+from ska_src_clients.client.service_api import ServiceAPIClientFactory
 from ska_src_clients.common.exceptions import InvalidAPIName, NoAPIUrlFound
 
 
 class Session:
     def __init__(self, config):
+        self.config = config
         self.apis = config['apis']
-        self.client_factory = ClientFactory(session=self)
+        self.client_factory = ServiceAPIClientFactory(session=self)
 
     def get_api_url_by_service_name(self, name):
         if name not in self.apis:

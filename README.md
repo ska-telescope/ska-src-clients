@@ -18,6 +18,8 @@ For development, it helps to use symlinks to the package source rather than inst
 $ python3 -m pip install --extra-index-url https://gitlab.com/api/v4/groups/70683489/-/packages/pypi/simple -e .
 ```
 
+or use the Makefile target `make install-local`.
+
 ## Usage
 
 First you will need a token, this can be done by:

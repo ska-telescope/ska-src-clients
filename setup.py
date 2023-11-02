@@ -22,7 +22,7 @@ setup(
     url='',
     author='rob barnsley',
     author_email='rob.barnsley@skao.int',
-    packages=['ska_src_clients.client', 'ska_src_clients.common', 'ska_src_clients.session'],
+    packages=['ska_src_clients.client', 'ska_src_clients.common', 'ska_src_clients.plan', 'ska_src_clients.session'],
     package_dir={'': 'src'},
     data_files=data_files,
     scripts=scripts,

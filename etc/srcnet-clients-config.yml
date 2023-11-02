@@ -7,3 +7,14 @@ apis:
     url: https://permissions.srcdev.skao.int/api/v1
   site-capabilities-api:
     url: https://site-capabilities.srcdev.skao.int/api/v1
+
+data-management:
+  clients:
+    https:
+      package_name: ska_src_clients.client
+      module_name: data_management
+      class_name: WebDAVClient3
+    davs:
+      package_name: ska_src_clients.client
+      module_name: data_management
+      class_name: WebDAVClient3
