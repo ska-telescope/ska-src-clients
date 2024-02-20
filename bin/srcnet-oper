@@ -5,7 +5,6 @@ import datetime
 import json
 import logging
 import os
-import sys
 import yaml
 
 import pprint
@@ -40,14 +39,39 @@ def make_parsers(return_all_parsers=False):
         config_parser_subparsers = config_parser.add_subparsers(help="Configuration file operations", dest='subcommand')
 
         # config get
-        config_parser_parser = config_parser_subparsers.add_parser("get", help="Get a configuration file")
-        config_parser_parser.add_argument('--section', help="Configuration file section to return", required=True)
+        config_get_parser = config_parser_subparsers.add_parser("get", help="Get a configuration file")
+        config_get_parser.add_argument('--section', help="Configuration file section to return", required=True)
 
         return (config_parser,)
 
     def add_data_commands_to_subparsers(subparsers):
         data_parser = subparsers.add_parser("data", help="Data operations")
         data_parser_subparsers = data_parser.add_subparsers(help="Data operations", dest='subcommand')
+
+        # data download
+        data_download_parser = data_parser_subparsers.add_parser(
+            "download", help="Download a replica of a data identifier.")
+        data_download_parser.add_argument('--namespace', help="The data namespace", required=True)
+        data_download_parser.add_argument('--name', default='*', help="The data identifier name (wildcards allowed)",
+                                    required=True)
+        data_download_parser.add_argument('--sort', default="nearest_by_ip", help="The sorting algorithm to use "
+                                                                                   "(random || nearest_by_ip)")
+        data_download_parser.add_argument('--ip_address', default="", help="The ip address to geolocate the nearest "
+                                                                           "replica to. Leave blank to use the "
+                                                                           "requesting client ip "
+                                                                           "(sort == nearest_by_ip only)")
+        data_download_parser.add_argument('--output', help="The output filename")
+
+        # data locate
+        data_locate_parser = data_parser_subparsers.add_parser("locate", help="Locate replicas of data identifiers.")
+        data_locate_parser.add_argument('--namespace', help="The data namespace", required=True)
+        data_locate_parser.add_argument('--name', default='*', help="The data identifier name (wildcards allowed)",
+                                          required=True)
+        data_locate_parser.add_argument('--sort', default="nearest_by_ip", help="The sorting algorithm to use "
+                                                                                "(random || nearest_by_ip)")
+        data_locate_parser.add_argument('--ip_address', default="", help="The ip address to geolocate the nearest "
+                                                                         "requesting client ip "
+                                                                         "(sort == nearest_by_ip only)")
 
         # data ls
         data_ls_parser = data_parser_subparsers.add_parser("ls", help="List data identifiers in a namespace")
@@ -58,26 +82,6 @@ def make_parsers(return_all_parsers=False):
         data_ls_parser.add_argument('--filters', default=None, help="Filters (Rucio only)")
         data_ls_parser.add_argument('--limit', default=100, help="Number of identifiers to return in result")
 
-        # data ingest
-        data_ingest_parser = data_parser_subparsers.add_parser("ingest", help="Data ingest operations")
-        data_ingest_parser_subparsers = data_ingest_parser.add_subparsers(help="Data ingest operations",
-                                                                          dest='subsubcommand')
-
-        # data ingest ls
-        data_ingest_parser_subparsers.add_parser("ls", help="List ingest areas")
-
-        # data ingest upload
-        data_ingest_upload_parser = data_ingest_parser_subparsers.add_parser("upload",
-                                                                             help="Upload data to ingest area")
-        data_ingest_upload_parser.add_argument('--path', help="Local path to data directory to be uploaded",
-                                               required=True)
-        data_ingest_upload_parser.add_argument('--ingest-service-id', help="The ingest service id", required=True)
-        data_ingest_upload_parser.add_argument('--namespace', help="The data namespace", required=True)
-        data_ingest_upload_parser.add_argument('--extra-metadata', help="Extra metadata to apply to each file (JSON)",
-                                               default='{}')
-        data_ingest_upload_parser.add_argument('--metadata-suffix', help="The expected metadata suffix",
-                                               default='.meta')
-
         # data namespace
         data_namespace_parser = data_parser_subparsers.add_parser("namespace", help="Data namespace operations")
         data_namespace_parser_subparsers = data_namespace_parser.add_subparsers(help="Data namespace operations",
@@ -86,7 +90,24 @@ def make_parsers(return_all_parsers=False):
         # data namespace ls
         data_namespace_parser_subparsers.add_parser("ls", help="List namespaces")
 
-        return data_parser, data_namespace_parser, data_ingest_parser
+        # data upload
+        data_upload_parser = data_parser_subparsers.add_parser("upload", help="Data upload operations")
+        data_upload_parser_subparsers = data_upload_parser.add_subparsers(help="Data upload operations",
+                                                                          dest='subsubcommand')
+
+        # data upload ingest
+        data_upload_ingest_parser = data_upload_parser_subparsers.add_parser("ingest",
+                                                                             help="Upload data to ingest area")
+        data_upload_ingest_parser.add_argument('--path', help="Local path to data directory to be uploaded",
+                                               required=True)
+        data_upload_ingest_parser.add_argument('--ingest-service-id', help="The ingest service id", required=True)
+        data_upload_ingest_parser.add_argument('--namespace', help="The data namespace", required=True)
+        data_upload_ingest_parser.add_argument('--extra-metadata', help="Extra metadata to apply to each file (JSON)",
+                                               default='{}')
+        data_upload_ingest_parser.add_argument('--metadata-suffix', help="The expected metadata suffix",
+                                               default='.meta')
+
+        return data_parser, data_namespace_parser, data_upload_parser
 
     def add_metadata_commands_to_subparsers(subparsers):
         metadata_parser = subparsers.add_parser("metadata", help="Metadata operations")
@@ -107,23 +128,78 @@ def make_parsers(return_all_parsers=False):
 
         return (metadata_parser,)
 
-    def add_service_commands_to_subparsers(subparsers):
-        service_parser = subparsers.add_parser("service", help="Service operations")
-        service_parser_subparsers = service_parser.add_subparsers(help="Service operations", dest='subcommand')
+    def add_site_commands_to_subparsers(subparsers):
+        site_parser = subparsers.add_parser("site", help="Site operations")
+        site_parser_subparsers = site_parser.add_subparsers(help="Site operations", dest='subcommand')
 
-        # service ls
-        service_parser_subparsers.add_parser("ls", help="List services")
+        # site add
+        site_parser_subparsers.add_parser("add", help="Add a new site")
 
-        return (service_parser,)
+        # site edit
+        site_edit_parser = site_parser_subparsers.add_parser("edit", help="Edit an existing site")
+        site_edit_parser.add_argument('--site', help="Name of the site to edit", required=True)
 
-    def add_storage_commands_to_subparsers(subparsers):
-        storage_parser = subparsers.add_parser("storage", help="Storage operations")
-        storage_parser_subparsers = storage_parser.add_subparsers(help="Storage operations", dest='subcommand')
+        # site ls
+        site_parser_subparsers.add_parser("ls", help="List sites")
 
-        # storage ls
-        storage_parser_subparsers.add_parser("ls", help="List storages")
+        # site compute
+        site_compute_parser = site_parser_subparsers.add_parser("compute", help="Site compute operations")
+        site_compute_parser_subparsers = site_compute_parser.add_subparsers(help="Site compute operations",
+                                                                            dest='subsubcommand')
 
-        return (storage_parser,)
+        # site compute get
+        site_compute_get_parser = site_compute_parser_subparsers.add_parser(
+            "get", help="Get description of a compute element")
+        site_compute_get_parser.add_argument('--id', help="ID of the compute element to get", required=True)
+
+        # site compute ls
+        site_compute_parser_subparsers.add_parser("ls", help="List compute elements")
+
+        # site service
+        site_service_parser = site_parser_subparsers.add_parser("service", help="Site service operations")
+        site_service_parser_subparsers = site_service_parser.add_subparsers(help="Site service operations",
+                                                                            dest='subsubcommand')
+
+        # site service get
+        site_service_get_parser = site_service_parser_subparsers.add_parser(
+            "get", help="Get description of a service")
+        site_service_get_parser.add_argument('--id', help="ID of the service to get", required=True)
+
+        # site service ls
+        site_service_ls_parser = site_service_parser_subparsers.add_parser("ls", help="List services")
+        site_service_ls_parser.add_argument('--type', help="Filter for type of service")
+
+        # site service types
+        site_service_parser_subparsers.add_parser("types", help="List service types")
+
+        # site storage
+        site_storage_parser = site_parser_subparsers.add_parser("storage", help="Site storage operations")
+        site_storage_parser_subparsers = site_storage_parser.add_subparsers(help="Site storage operations",
+                                                                            dest='subsubcommand')
+
+        # site storage get
+        site_storage_get_parser = site_storage_parser_subparsers.add_parser(
+            "get", help="Get description of a storage resource")
+        site_storage_get_parser.add_argument('--id', help="ID of the storage resource to get", required=True)
+
+        # site storage ls
+        site_storage_parser_subparsers.add_parser("ls", help="List storages")
+
+        # site storage area
+        site_storage_area_parser = site_parser_subparsers.add_parser("storage-area",
+                                                                     help="Site storage area operations")
+        site_storage_area_parser_subparsers = site_storage_area_parser.add_subparsers(
+            help="Site storage area operations", dest='subsubcommand')
+
+        # site storage area get
+        site_storage_area_get_parser = site_storage_area_parser_subparsers.add_parser(
+            "get", help="Get description of a storage area resource")
+        site_storage_area_get_parser.add_argument('--id', help="ID of the storage area_resource to get", required=True)
+
+        # site storage area ls
+        site_storage_area_parser_subparsers.add_parser("ls", help="List storage areas")
+
+        return site_parser, site_compute_parser, site_service_parser, site_storage_parser, site_storage_area_parser
 
     def add_token_commands_to_subparsers(subparsers):
         token_parser = subparsers.add_parser("token", help="Token operations")
@@ -153,8 +229,9 @@ def make_parsers(return_all_parsers=False):
     parser = argparse.ArgumentParser(description="Operator command line utilities to interface with SRCNet APIs.")
 
     parser.add_argument('-c', help="path to configuration file", type=str, default=[
-        'etc/srcnet-clients-config.yml',
-        os.path.join(sys.prefix, 'etc/srcnet-clients-config.yml')])
+        'etc/srcnet-clients-config.yml', 
+        'etc/srcnet-clients-config.yml', 
+        '/usr/local/etc/srcnet-clients-config.yml'])
     parser.add_argument("--debug", help="debug mode", action='store_true')
     parser.add_argument("--json", help="output as json", action='store_true')
 
@@ -166,8 +243,7 @@ def make_parsers(return_all_parsers=False):
         *add_config_commands_to_subparsers(subparsers),
         *add_data_commands_to_subparsers(subparsers),
         *add_metadata_commands_to_subparsers(subparsers),
-        *add_service_commands_to_subparsers(subparsers),
-        *add_storage_commands_to_subparsers(subparsers),
+        *add_site_commands_to_subparsers(subparsers),
         *add_token_commands_to_subparsers(subparsers)
     ]
     parsers_by_prog = {}
@@ -241,42 +317,21 @@ if __name__ == "__main__":
         else:
             parsers.srcnet_oper_config.print_help()
     elif args.command == 'data':
-        if args.subcommand == 'ingest':
-            if args.subsubcommand == 'ls':
-                output['raw'] = DataAPI(session=session).list_ingest_services()
-
-                # make a nice table
-                table = PrettyTable()
-                table.field_names = ["Site", "Ingest ID", "Prefix", "Host", "Port", "Path"]
-                table.align = 'l'
-
-                for site, ingest_service_attributes in output['raw'].items():
-                    table.add_row([
-                        site,
-                        ingest_service_attributes.get('id'),
-                        ingest_service_attributes.get('prefix'),
-                        ingest_service_attributes.get('host'),
-                        ingest_service_attributes.get('port'),
-                        ingest_service_attributes.get('path')
-                    ])
-                output['tabulated'] = table
-            elif args.subsubcommand == 'upload':
-                DataAPI(session=session).upload(
-                    path=args.path,
-                    ingest_service_id=args.ingest_service_id,
-                    namespace=args.namespace,
-                    metadata_suffix=args.metadata_suffix,
-                    extra_metadata=args.extra_metadata,
-                    debug=args.debug
-                )
-
-            else:
-                parsers.srcnet_oper_data_ingest.print_help()
-        elif args.subcommand == 'namespace':
-            if args.subsubcommand == 'ls':
-                output['raw'] = DataAPI(session=session).list_namespaces()
-            else:
-                parsers.srcnet_oper_data_namespace.print_help()
+        if args.subcommand == 'download':
+            output['raw'] = DataAPI(session=session).download(
+                namespace=args.namespace,
+                name=args.name,
+                sort=args.sort,
+                ip_address=args.ip_address,
+                output_filename=args.output
+            )
+        elif args.subcommand == 'locate':
+            output['raw'] = DataAPI(session=session).locate(
+                namespace=args.namespace,
+                name=args.name,
+                sort=args.sort,
+                ip_address=args.ip_address
+            )
         elif args.subcommand == 'ls':
             output['raw'] = DataAPI(session=session).list_files_in_namespace(
                 namespace=args.namespace,
@@ -285,6 +340,23 @@ if __name__ == "__main__":
                 filters=args.filters,
                 limit=args.limit
             )
+        elif args.subcommand == 'upload':
+            if args.subsubcommand == 'ingest':
+                DataAPI(session=session).upload_for_ingest(
+                    path=args.path,
+                    ingest_service_id=args.ingest_service_id,
+                    namespace=args.namespace,
+                    metadata_suffix=args.metadata_suffix,
+                    extra_metadata=args.extra_metadata,
+                    debug=args.debug
+                )
+            else:
+                parsers.srcnet_oper_data_upload.print_help()
+        elif args.subcommand == 'namespace':
+            if args.subsubcommand == 'ls':
+                output['raw'] = DataAPI(session=session).list_namespaces()
+            else:
+                parsers.srcnet_oper_data_namespace.print_help()
         else:
             parsers.srcnet_oper_data.print_help()
     elif args.command == 'metadata':
@@ -332,16 +404,195 @@ if __name__ == "__main__":
                 )
         else:
             parsers.srcnet_oper_metadata.print_help()
-    elif args.command == 'service':
-        if args.subcommand == 'ls':
-            output['raw'] = SiteAPI(session=session).list_services()
+    elif args.command == 'site':
+        if args.subcommand == 'add':
+            url = SiteAPI(session=session).get_add_site_www_url()
+            access_token = session.get_access_token(service_name='site-capabilities-api')
+            print("Please navigate to: {url}?token={token}".format(url=url, token=access_token))
+        elif args.subcommand == 'edit':
+            url = SiteAPI(session=session).get_edit_site_www_url(args.site)
+            access_token = session.get_access_token(service_name='site-capabilities-api')
+            print("Please navigate to: {url}?token={token}".format(url=url, token=access_token))
+        elif args.subcommand == 'ls':
+            output['raw'] = SiteAPI(session=session).list_sites()
+        elif args.subcommand == 'compute':
+            if args.subsubcommand == 'get':
+                output['raw'] = SiteAPI(session=session).get_compute(compute_id=args.id)
+
+                # make a nice table
+                table = PrettyTable()
+                table.field_names = ["Identifier", "ID", "Latitude", "Longitude", "Description"]
+                table.align = 'l'
+
+                table.add_row([
+                    output['raw'].get('identifier'),
+                    output['raw'].get('id'),
+                    output['raw'].get('latitude'),
+                    output['raw'].get('longitude'),
+                    output['raw'].get('description')
+                ])
+                output['tabulated'] = table
+            elif args.subsubcommand == 'ls':
+                output['raw'] = SiteAPI(session=session).list_compute()
+
+                # make a nice table
+                table = PrettyTable()
+                table.field_names = ["Site", "Identifier", "ID", "Latitude", "Longitude", "Description"]
+                table.align = 'l'
+
+                for entry in output['raw']:
+                    for compute_attributes in entry.get('compute'):
+                        table.add_row([
+                            entry.get('site_name'),
+                            compute_attributes.get('identifier'),
+                            compute_attributes.get('id'),
+                            compute_attributes.get('latitude'),
+                            compute_attributes.get('longitude'),
+                            compute_attributes.get('description'),
+                        ])
+                output['tabulated'] = table
+            else:
+                parsers.srcnet_oper_site_compute.print_help()
+        elif args.subcommand == 'service':
+            if args.subsubcommand == 'get':
+                output['raw'] = SiteAPI(session=session).get_service(service_id=args.id)
+
+                # make a nice table
+                table = PrettyTable()
+                table.field_names = ["Identifier", "Type", "Version", "ID", "Prefix", "Host", "Port", "Path"]
+                table.align = 'l'
+
+                table.add_row([
+                    output['raw'].get('identifier'),
+                    output['raw'].get('type'),
+                    output['raw'].get('version'),
+                    output['raw'].get('id'),
+                    output['raw'].get('prefix'),
+                    output['raw'].get('host'),
+                    output['raw'].get('port'),
+                    output['raw'].get('path')
+                ])
+                output['tabulated'] = table
+            elif args.subsubcommand == 'ls':
+                output['raw'] = SiteAPI(session=session).list_services(service_type=args.type)
+
+                # make a nice table
+                table = PrettyTable()
+                table.field_names = ["Site", "Identifier", "Type", "Version", "ID", "Prefix", "Host", "Port", "Path"]
+                table.align = 'l'
+
+                for entry in output['raw']:
+                    for service_attributes in entry.get('services'):
+                        table.add_row([
+                            entry.get('site_name'),
+                            service_attributes.get('identifier'),
+                            service_attributes.get('type'),
+                            service_attributes.get('version'),
+                            service_attributes.get('id'),
+                            service_attributes.get('prefix'),
+                            service_attributes.get('host'),
+                            service_attributes.get('port'),
+                            service_attributes.get('path')
+
+                        ])
+                output['tabulated'] = table
+            elif args.subsubcommand == 'types':
+                output['raw'] = SiteAPI(session=session).list_service_types()
+
+                # make a nice table
+                table = PrettyTable()
+                table.field_names = ["Core or compute?", "Name"]
+                table.align = 'l'
+
+                for entry in output['raw'].get('core'):
+                    table.add_row([
+                        "Core",
+                        entry
+                    ])
+                for entry in output['raw'].get('compute'):
+                    table.add_row([
+                        "Compute",
+                        entry
+                    ])
+                output['tabulated'] = table
+            else:
+                parsers.srcnet_oper_site_service.print_help()
+        elif args.subcommand == 'storage':
+            if args.subsubcommand == 'get':
+                output['raw'] = SiteAPI(session=session).get_storage(storage_id=args.id)
+
+                # make a nice table
+                table = PrettyTable()
+                table.field_names = ["Identifier", "ID", "Latitude", "Longitude", "Size (TB)", "SRM"]
+                table.align = 'l'
+
+                table.add_row([
+                    output['raw'].get('identifier'),
+                    output['raw'].get('id'),
+                    output['raw'].get('latitude'),
+                    output['raw'].get('longitude'),
+                    output['raw'].get('size_in_terabytes'),
+                    output['raw'].get('srm')
+                ])
+                output['tabulated'] = table
+            elif args.subsubcommand == 'ls':
+                output['raw'] = SiteAPI(session=session).list_storages()
+
+                # make a nice table
+                table = PrettyTable()
+                table.field_names = ["Site", "Identifier", "ID", "Latitude", "Longitude", "Size (TB)", "SRM"]
+                table.align = 'l'
+
+                for entry in output['raw']:
+                    for storage_attributes in entry.get('storages'):
+                        table.add_row([
+                            entry.get('site_name'),
+                            storage_attributes.get('identifier'),
+                            storage_attributes.get('id'),
+                            storage_attributes.get('latitude'),
+                            storage_attributes.get('longitude'),
+                            storage_attributes.get('size_in_terabytes'),
+                            storage_attributes.get('srm')
+                        ])
+                output['tabulated'] = table
+            else:
+                parsers.srcnet_oper_site_storage.print_help()
+        elif args.subcommand == 'storage-area':
+            if args.subsubcommand == 'get':
+                output['raw'] = SiteAPI(session=session).get_storage_area(storage_area_id=args.id)
+
+                # make a nice table
+                table = PrettyTable()
+                table.field_names = ["Identifier", "ID", "Type"]
+                table.align = 'l'
+
+                table.add_row([
+                    output['raw'].get('identifier'),
+                    output['raw'].get('id'),
+                    output['raw'].get('type')
+                ])
+                output['tabulated'] = table
+            elif args.subsubcommand == 'ls':
+                output['raw'] = SiteAPI(session=session).list_storage_areas()
+
+                # make a nice table
+                table = PrettyTable()
+                table.field_names = ["Site", "Identifier", "ID", "Type"]
+                table.align = 'l'
+
+                for entry in output['raw']:
+                    for storage_attributes in entry.get('storage_areas'):
+                        table.add_row([
+                            entry.get('site_name'),
+                            storage_attributes.get('identifier'),
+                            storage_attributes.get('id'),
+                            storage_attributes.get('type')
+                        ])
+                output['tabulated'] = table
+            else:
+                parsers.srcnet_oper_site_storage_area.print_help()
         else:
-            parsers.srcnet_oper_service.print_help()
-    elif args.command == 'storage':
-        if args.subcommand == 'ls':
-            output['raw'] = SiteAPI(session=session).list_storages()
-        else:
-            parsers.srcnet_oper_storage.print_help()
+            parsers.srcnet_oper_site.print_help()
     elif args.command == 'token':
         if args.subcommand == 'exchange':
             session.exchange_token(service_name=args.service, version="latest")

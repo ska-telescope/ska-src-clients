@@ -4,7 +4,7 @@ from abc import ABC
 from webdav3.client import Client
 from webdav3.exceptions import WebDavException
 
-from ska_src_clients.common.exceptions import StorageListFailed, StorageUploadFailed
+from ska_src_clients.common.exceptions import StorageDownloadFailed, StorageListFailed, StorageUploadFailed
 
 
 class DataManagementClient(ABC):
@@ -44,6 +44,22 @@ class WebDAVClient3(DataManagementClient):
         }
         self.client = Client(options)
         self.client.verify = verify
+
+    def download(self, progress, progress_args, from_remote_path, to_local_path):
+        """ Download files from a remote path to a local path.
+
+         :param progress: Pass a callback function to track file download progress. The function must take current and
+            total as positional arguments and will be called back each time a new file chunk has been successfully
+            transmitted.
+        :param progress_args: Optional args to be passed to progress callable.
+        :param str from_remote_path: The remote path to download from.
+        :param str to_local_path: The local path to download to.
+        """
+        try:
+            self.client.download_sync(progress=progress, progress_args=progress_args, remote_path=from_remote_path,
+                                      local_path=to_local_path)
+        except WebDavException as e:
+            raise StorageDownloadFailed(e)
 
     def list(self, remote_path):
         """ List files at a remote path.
