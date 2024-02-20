@@ -67,10 +67,10 @@ class DataAPI(API):
 
         # before we call download, create callable for progress updates
         def progress_update(current, total, name, *args):
-            print("{}KB downloaded".format(round(os.path.getsize(output_filename)/1024)), end='\r')
+            print("{}KB downloaded".format(round(os.path.getsize(name)/1024)), end='\r')
 
         selected_dm_client.download(
-            progress=progress_update, progress_args=(output_filename), from_remote_path=remote_filename,
+            progress=progress_update, progress_args=(output_filename,), from_remote_path=remote_filename,
             to_local_path=output_filename)
         print('\n')
 
@@ -103,9 +103,10 @@ class DataAPI(API):
         """
         # query DM API to get a list of data replicas for this namespace/name and pick the first
         client = self.session.client_factory.get_data_management_client(is_authenticated=True)
+        replicas_with_site = client.locate_replicas_of_file(
+            namespace=namespace, name=name, sort=sort, ip_address=ip_address)
         replicas = []
-        for entry in client.locate_replicas_of_file(
-                namespace=namespace, name=name, sort=sort, ip_address=ip_address).json():
+        for entry in replicas_with_site.json():
             replicas = replicas + entry.get('replicas', [])
         return replicas
 
