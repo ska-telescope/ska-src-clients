@@ -5,6 +5,7 @@ import os
 import requests
 import time
 from functools import wraps
+from urllib.parse import urlparse, urlunparse
 
 import jwt
 
@@ -26,6 +27,16 @@ def get_authenticated_requests_session(session, service_name):
         "Authorization": "Bearer {}".format(access_token)
     })
     return requests_session
+
+
+def parts_to_url(prefix, host, port, path):
+    """ Converts parts to a URL. """
+    return urlunparse({
+        'prefix': prefix,
+        'host': host,
+        'port': port,
+        'path': path
+    })
 
 
 def remove_expired_tokens(func):
@@ -86,4 +97,14 @@ def remove_expired_tokens(func):
         return func(*args, **kwargs)
     return wrapper
 
+
+def url_to_parts(url):
+    """ Converts a string URL into consituent parts. """
+    parsed = urlparse(url)
+    return {
+        'prefix': parsed.scheme,
+        'host': parsed.hostname,
+        'port': parsed.port,
+        'path': parsed.path
+    }
 

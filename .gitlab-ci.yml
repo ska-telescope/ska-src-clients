@@ -6,19 +6,22 @@ stages:
 - deploy
 
 variables:
-  API_IMAGE_NAME: $CI_REGISTRY_IMAGE/api
   GIT_SUBMODULE_STRATEGY: recursive
 
 pages:
+  only:
+    - main
   stage: deploy
+  image:
+    name: python:latest
   script:
-  - echo 'Nothing to do...'
+  - python3 -m pip install -U sphinx
+  - python3 -m pip install .
+  - cd docs && make html
   artifacts:
     paths:
-    - doc/_build/html
-  publish: doc/_build/html
-  only:
-  - main
+      - docs/_build/html
+  publish: docs/_build/html
 
 pypi-publish:
   only:

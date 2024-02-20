@@ -3,6 +3,8 @@ import json
 import logging
 import typing
 
+from ska_src_clients.plan.step import Step
+
 
 class Plan:
     def __init__(self, **kwargs):

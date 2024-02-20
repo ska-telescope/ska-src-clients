@@ -10,9 +10,9 @@ class MetadataAPI(API):
         """ Get metadata.
 
         :param str namespace: The data namespace.
-        :param str name: The data identifier name .
+        :param str name: The data identifier name.
         :param str plugin: The name of the plugin to use (Rucio only).
-         """
+        """
         client = self.session.client_factory.get_data_management_client(is_authenticated=True)
         return client.get_metadata(namespace=namespace, name=name, plugin=plugin).json()
 
@@ -20,7 +20,7 @@ class MetadataAPI(API):
         """ Set metadata.
 
         :param str namespace: The data namespace.
-        :param str name: The data identifier name .
+        :param str name: The data identifier name.
         :param dict metadata: Dictionary of metadata to be added.
         """
         client = self.session.client_factory.get_data_management_client(is_authenticated=True)

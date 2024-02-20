@@ -1,4 +1,4 @@
-bump-and-commit:
+bump-and-commit: docs
 	@cd etc/scripts && bash increment-app-version.sh `git branch | grep "*" | awk -F'[*-]' '{ print $$2 }' | tr -d ' '`
 	@git add VERSION
 	@git commit

@@ -58,6 +58,12 @@ class NoAccessTokenFoundForService(CustomException):
         super().__init__(self.message)
 
 
+class StorageDownloadFailed(CustomException):
+    def __init__(self, exception):
+        self.message = "Problem encountered while downloading from storage: {}".format(exception)
+        super().__init__(self.message)
+
+
 class StorageListFailed(CustomException):
     def __init__(self, exception):
         self.message = "Problem encountered while listing storage: {}".format(exception)
