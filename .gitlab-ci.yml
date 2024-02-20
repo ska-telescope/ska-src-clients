@@ -16,7 +16,7 @@ pages:
     name: python:latest
   script:
   - python3 -m pip install -U sphinx
-  - python3 -m pip install .
+  - python3 -m pip install --extra-index-url https://gitlab.com/api/v4/groups/70683489/-/packages/pypi/simple .
   - cd docs && make html
   artifacts:
     paths:
