@@ -92,6 +92,17 @@ class DataAPI(API):
         client = self.session.client_factory.get_data_management_client(is_authenticated=True)
         return client.list_namespaces().json()
 
+    def list_rules_for_namespace(self, namespace, datetime_from, datetime_to, limit):
+        """ List rules for a namespace. """
+        client = self.session.client_factory.get_data_management_client(is_authenticated=True)
+        return client.list_rules_for_namespace(namespace=namespace, datetime_from=datetime_from,
+                                               datetime_to=datetime_to, limit=limit).json()
+
+    def list_rules_for_data_identifier(self, namespace, name):
+        """ List rules for a data identifier. """
+        client = self.session.client_factory.get_data_management_client(is_authenticated=True)
+        return client.list_rules_for_data_identifier(namespace=namespace, name=name).json()
+
     def locate(self, namespace, name, sort='nearest_by_ip', ip_address=None):
         """ Locate replicas of data identifier, sort by some algorithm and download.
 
