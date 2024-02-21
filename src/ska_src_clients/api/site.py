@@ -101,3 +101,8 @@ class SiteAPI(API):
         """ List storage areas across all sites. """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.list_storage_areas().json()
+
+    def list_storage_areas_topojson(self):
+        """ List storage areas across all sites in topojson format. """
+        client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
+        return client.list_storage_areas_topojson().json()

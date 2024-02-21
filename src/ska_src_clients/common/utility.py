@@ -8,6 +8,7 @@ from functools import wraps
 from urllib.parse import urlparse, urlunparse
 
 import jwt
+import plotly.graph_objects as go
 
 from ska_src_clients.common.exceptions import NoAccessTokenFoundForService
 
@@ -96,6 +97,45 @@ def remove_expired_tokens(func):
 
         return func(*args, **kwargs)
     return wrapper
+
+
+def plot_scatter_world_map(fig, data, latitude_key, longitude_key, value_key, label_key, size_offset=15):
+    """ Make a scatterplot against a world map. """
+    # calculate relative marker size
+    normalized_sizes = [
+        (entry[value_key]/max([entry[value_key] for entry in data])) * size_offset for entry in data]
+
+    # construct the plot
+    for index, entry in enumerate(data):
+        fig.add_trace(go.Scattergeo(
+            name="",
+            lat=[entry[latitude_key]],
+            lon=[entry[longitude_key]],
+            text=entry[label_key],
+            mode='markers',
+            marker=dict(
+                size=normalized_sizes[index],
+                opacity=normalized_sizes[index]/size_offset,
+                color='red',
+                line=dict(width=0.3, color='black')
+            ),
+            showlegend=False
+        ))
+    fig.update_layout(
+        geo=dict(
+            scope='world',
+            projection_type='equirectangular',
+            showland=True,
+            landcolor='rgb(230, 230, 230)',  # Light gray for land
+            showcountries=True,
+            countrycolor='rgb(160, 160, 160)',  # Dark gray for country boundaries
+            showocean=True,
+            oceancolor='rgb(200, 230, 255)',  # Light blue for ocean
+            showlakes=False
+        )
+    )
+
+    return fig
 
 
 def url_to_parts(url):

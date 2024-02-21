@@ -7,12 +7,13 @@ import logging
 import os
 import yaml
 
+import plotly.graph_objects as go
 import pprint
 from box import Box
 from prettytable import PrettyTable
 
 from ska_src_clients.api import DataAPI, MetadataAPI, ServicesAPI, SiteAPI
-
+from ska_src_clients.common.utility import plot_scatter_world_map, url_to_parts
 from ska_src_clients.session.oidc import OIDCSession
 
 
@@ -72,6 +73,7 @@ def make_parsers(return_all_parsers=False):
         data_locate_parser.add_argument('--ip_address', default="", help="The ip address to geolocate the nearest "
                                                                          "requesting client ip "
                                                                          "(sort == nearest_by_ip only)")
+        data_locate_parser.add_argument('--plot', action="store_true", help="Plot?")
 
         # data ls
         data_ls_parser = data_parser_subparsers.add_parser("ls", help="List data identifiers in a namespace")
@@ -90,6 +92,25 @@ def make_parsers(return_all_parsers=False):
         # data namespace ls
         data_namespace_parser_subparsers.add_parser("ls", help="List namespaces")
 
+        # data rules
+        data_rules_parser = data_parser_subparsers.add_parser("rules", help="Data rules operations")
+        data_rules_parser_subparsers = data_rules_parser.add_subparsers(help="Data rules operations",
+                                                                        dest='subsubcommand')
+
+        # data rules ls
+        data_rules_ls_parser = data_rules_parser_subparsers.add_parser("ls", help="List rules for a namespace")
+        data_rules_ls_parser.add_argument('--namespace', help="The data namespace", required=True)
+        data_rules_ls_parser.add_argument('--datetime_from', default="now-1h", help="Human readable datetime from")
+        data_rules_ls_parser.add_argument('--datetime_to', default="now", help="Human readable datetime to")
+        data_rules_ls_parser.add_argument('--limit', default=1000, help="Human readable datetime to")
+        data_rules_ls_parser.add_argument('--plot', action="store_true", help="Plot?")
+
+        # data rules did
+        data_rules_did_parser = data_rules_parser_subparsers.add_parser("did", help="List rules for a data identifier")
+        data_rules_did_parser.add_argument('--namespace', help="The data identifier's namespace", required=True)
+        data_rules_did_parser.add_argument('--name', help="The data identifier's namespace", required=True)
+        data_rules_did_parser.add_argument('--plot', action="store_true", help="Plot?")
+
         # data upload
         data_upload_parser = data_parser_subparsers.add_parser("upload", help="Data upload operations")
         data_upload_parser_subparsers = data_upload_parser.add_subparsers(help="Data upload operations",
@@ -107,7 +128,7 @@ def make_parsers(return_all_parsers=False):
         data_upload_ingest_parser.add_argument('--metadata-suffix', help="The expected metadata suffix",
                                                default='.meta')
 
-        return data_parser, data_namespace_parser, data_upload_parser
+        return data_parser, data_namespace_parser, data_rules_parser, data_upload_parser
 
     def add_metadata_commands_to_subparsers(subparsers):
         metadata_parser = subparsers.add_parser("metadata", help="Metadata operations")
@@ -332,6 +353,33 @@ if __name__ == "__main__":
                 sort=args.sort,
                 ip_address=args.ip_address
             )
+
+            # make a plot if requested
+            if args.plot:
+                # get the storage lat/longs
+                storages_by_site = SiteAPI(session=session).list_storages()
+                data_by_host = []
+                for site in storages_by_site:
+                    for storage in site.get('storages', []):
+                        host = storage.get('host')
+                        latitude = storage.get('latitude')
+                        longitude = storage.get('longitude')
+                        if host and latitude and longitude:
+                            count = len([entry for entry in output['raw'] if url_to_parts(entry).get('host') == host])
+                            if count > 0:
+                                data_by_host.append({
+                                    'identifier': host,
+                                    'latitude': latitude,
+                                    'longitude': longitude,
+                                    'count': count,
+                                    'label': "{}: {}".format(host, count)
+                                })
+
+                # plot
+                fig = go.Figure()
+                plot_scatter_world_map(fig=fig, data=data_by_host, latitude_key='latitude', longitude_key='longitude',
+                                       value_key='count', label_key='label', size_offset=10)
+                fig.show()
         elif args.subcommand == 'ls':
             output['raw'] = DataAPI(session=session).list_files_in_namespace(
                 namespace=args.namespace,
@@ -340,6 +388,115 @@ if __name__ == "__main__":
                 filters=args.filters,
                 limit=args.limit
             )
+        elif args.subcommand == 'rules':
+            if args.subsubcommand == 'did':
+                output['raw'] = DataAPI(session=session).list_rules_for_data_identifier(
+                    namespace=args.namespace,
+                    name=args.name
+                )
+                # make a nice table
+                table = PrettyTable()
+                table.field_names = ["Rule ID", "Scope", "Name", "RSE Expression", "Copies", "State", "Created At",
+                                     "Updated At", "Expires At", ]
+                table.align = 'l'
+
+                for entry in output['raw'].get('rules'):
+                    table.add_row([
+                        entry.get('id'),
+                        entry.get('scope'),
+                        entry.get('name'),
+                        entry.get('rse_expression'),
+                        entry.get('copies'),
+                        entry.get('state'),
+                        entry.get('created_at'),
+                        entry.get('updated_at'),
+                        entry.get('expired_at'),
+                    ])
+                output['tabulated'] = table
+
+                # make a plot if requested
+                if args.plot:
+                    # get the storage area lat/longs
+                    storage_areas_topojson = SiteAPI(session=session).list_storage_areas_topojson()
+                    geometries = storage_areas_topojson.get('objects', {}).get('sites', {}).get('geometries', [])
+                    data_by_storage_area = []
+                    for geometry in geometries:
+                        coordinates = geometry.get('coordinates')
+                        identifier = geometry.get('properties', {}).get('name')
+                        if identifier and coordinates:
+                            count = len([entry for entry in output['raw'].get('rules')
+                                         if entry.get('rse_expression') == identifier])
+                            if count > 0:
+                                data_by_storage_area.append({
+                                    'identifier': identifier,
+                                    'latitude': coordinates[1],
+                                    'longitude': coordinates[0],
+                                    'count': count,
+                                    'label': "{}: {}".format(identifier, count)
+                                })
+
+                    # plot
+                    fig = go.Figure()
+                    plot_scatter_world_map(fig=fig, data=data_by_storage_area, latitude_key='latitude',
+                                           longitude_key='longitude', value_key='count', label_key='label',
+                                           size_offset=10)
+                    fig.show()
+            elif args.subsubcommand == 'ls':
+                output['raw'] = DataAPI(session=session).list_rules_for_namespace(
+                    namespace=args.namespace,
+                    datetime_from=args.datetime_from,
+                    datetime_to=args.datetime_to,
+                    limit=args.limit
+                )
+
+                # make a nice table
+                table = PrettyTable()
+                table.field_names = ["Rule ID", "Scope", "Name", "RSE Expression", "Copies", "State", "Created At",
+                                     "Updated At", "Expires At", ]
+                table.align = 'l'
+
+                for entry in output['raw'].get('rules'):
+                    table.add_row([
+                        entry.get('id'),
+                        entry.get('scope'),
+                        entry.get('name'),
+                        entry.get('rse_expression'),
+                        entry.get('copies'),
+                        entry.get('state'),
+                        entry.get('created_at'),
+                        entry.get('updated_at'),
+                        entry.get('expired_at')
+                    ])
+                output['tabulated'] = table
+
+                # make a plot if requested
+                if args.plot:
+                    # get the storage area lat/longs
+                    storage_areas_topojson = SiteAPI(session=session).list_storage_areas_topojson()
+                    geometries = storage_areas_topojson.get('objects', {}).get('sites', {}).get('geometries', [])
+                    data_by_storage_area = []
+                    for geometry in geometries:
+                        coordinates = geometry.get('coordinates')
+                        identifier = geometry.get('properties', {}).get('name')
+                        if identifier and coordinates:
+                            count = len([entry for entry in output['raw'].get('rules')
+                                         if entry.get('rse_expression') == identifier])
+                            if count > 0:
+                                data_by_storage_area.append({
+                                    'identifier': identifier,
+                                    'latitude': coordinates[1],
+                                    'longitude': coordinates[0],
+                                    'count': count,
+                                    'label': "{}: {}".format(identifier, count)
+                                })
+
+                    # plot
+                    fig = go.Figure()
+                    plot_scatter_world_map(fig=fig, data=data_by_storage_area, latitude_key='latitude',
+                                           longitude_key='longitude', value_key='count', label_key='label')
+                    fig.show()
+            else:
+                parsers.srcnet_oper_data_rules.print_help()
         elif args.subcommand == 'upload':
             if args.subsubcommand == 'ingest':
                 DataAPI(session=session).upload_for_ingest(
