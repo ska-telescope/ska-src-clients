@@ -5,8 +5,11 @@ import datetime
 import json
 import logging
 import os
+import textwrap
+import time
 import yaml
 
+import qrcode
 import plotly.graph_objects as go
 import pprint
 from box import Box
@@ -424,15 +427,22 @@ if __name__ == "__main__":
                         coordinates = geometry.get('coordinates')
                         identifier = geometry.get('properties', {}).get('name')
                         if identifier and coordinates:
-                            count = len([entry for entry in output['raw'].get('rules')
-                                         if entry.get('rse_expression') == identifier])
-                            if count > 0:
+                            rules_for_this_identifier = [entry for entry in output['raw'].get('rules')
+                                                         if entry.get('rse_expression') == identifier]
+                            count_ALL = len(rules_for_this_identifier)
+                            count_OK = len([rule for rule in rules_for_this_identifier if rule.get('state') == 'OK'])
+                            count_REPL = len([rule for rule in rules_for_this_identifier
+                                          if rule.get('state') == 'REPLICATING'])
+                            count_STUCK = len([rule for rule in rules_for_this_identifier
+                                               if rule.get('state') == 'STUCK'])
+                            if count_ALL > 0:
                                 data_by_storage_area.append({
                                     'identifier': identifier,
                                     'latitude': coordinates[1],
                                     'longitude': coordinates[0],
-                                    'count': count,
-                                    'label': "{}: {}".format(identifier, count)
+                                    'count': count_ALL,
+                                    'label': "<b>{}</b><br>Total: {}<br>OK: {}<br>Replicating: {}<br>Stuck: {}".format(
+                                        identifier, count_ALL, count_OK, count_REPL, count_STUCK)
                                 })
 
                     # plot
@@ -479,21 +489,29 @@ if __name__ == "__main__":
                         coordinates = geometry.get('coordinates')
                         identifier = geometry.get('properties', {}).get('name')
                         if identifier and coordinates:
-                            count = len([entry for entry in output['raw'].get('rules')
-                                         if entry.get('rse_expression') == identifier])
-                            if count > 0:
+                            rules_for_this_identifier = [entry for entry in output['raw'].get('rules')
+                                                         if entry.get('rse_expression') == identifier]
+                            count_ALL = len(rules_for_this_identifier)
+                            count_OK = len([rule for rule in rules_for_this_identifier if rule.get('state') == 'OK'])
+                            count_REPL = len([rule for rule in rules_for_this_identifier
+                                          if rule.get('state') == 'REPLICATING'])
+                            count_STUCK = len([rule for rule in rules_for_this_identifier
+                                               if rule.get('state') == 'STUCK'])
+                            if count_ALL > 0:
                                 data_by_storage_area.append({
                                     'identifier': identifier,
                                     'latitude': coordinates[1],
                                     'longitude': coordinates[0],
-                                    'count': count,
-                                    'label': "{}: {}".format(identifier, count)
+                                    'count': count_ALL,
+                                    'label': "<b>{}</b><br>Total: {}<br>OK: {}<br>Replicating: {}<br>Stuck: {}".format(
+                                        identifier, count_ALL, count_OK, count_REPL, count_STUCK)
                                 })
 
                     # plot
                     fig = go.Figure()
                     plot_scatter_world_map(fig=fig, data=data_by_storage_area, latitude_key='latitude',
-                                           longitude_key='longitude', value_key='count', label_key='label')
+                                           longitude_key='longitude', value_key='count', label_key='label',
+                                           size_offset=10)
                     fig.show()
             else:
                 parsers.srcnet_oper_data_rules.print_help()
@@ -782,10 +800,52 @@ if __name__ == "__main__":
         elif args.subcommand == 'inspect':
             output['raw'] = session.inspect_access_token(service_name=args.service)
         elif args.subcommand == 'request':
-            print("Please log in to: {}".format(session.get_login_url()))
-            authorisation_code = input("Enter the authorisation code: ")
-            state = input("Enter the state: ")
-            session.request_token(code=authorisation_code, state=state)
+            device_authorization_response = session.get_device_authorization_response()
+
+            # make an ascii qr code for the complete verification uri
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                box_size=10,
+                border=4,
+            )
+            qr.add_data(device_authorization_response.get('verification_uri_complete'))
+
+            # add instructional text for user if they don't want to use qr code
+            user_instruction_text = ("Scan the QR code, or using a browser on another device, visit " +
+                                     "{verification_uri} and enter code {user_code}".format(
+                                         verification_uri=device_authorization_response.get('verification_uri'),
+                                         user_code=device_authorization_response.get('user_code')))
+
+            wrapped_string = textwrap.fill(user_instruction_text, width=50)
+
+            print()
+            print("-"*50)
+            print()
+            print(wrapped_string)
+            qr.print_ascii()
+            print("-"*50)
+            print()
+            success = False
+            max_attempts = 60
+            for attempt in range(0, max_attempts):
+                try:
+                    # the following will raise before the break if the authorization is still pending
+                    response = session.request_token(device_code=device_authorization_response.get('device_code'))
+                    success = True
+                    break
+                except Exception as e:
+                    pass
+                print("Polling for token... ({attempt}/{max_attempts})".format(
+                    attempt=attempt+1, max_attempts=max_attempts), end='\r')
+                time.sleep(5)
+            print()
+            print()
+            if success:
+                print("Successfully polled for token. You are now logged in.")
+            else:
+                print("Failed to poll for token. Please try again.")
+            print()
         else:
             parsers.srcnet_oper_token.print_help()
     else:
