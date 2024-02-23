@@ -89,14 +89,14 @@ class OIDCSession(Session):
     @handle_client_exceptions
     @check_authentication_api_aliveness
     @remove_expired_tokens
-    def get_login_url(self):
-        """ Start an authorisation_code grant flow.
+    def get_device_authorization_response(self):
+        """ Start a device code flow.
 
-        :return: An url redirecting the user to IAM.
+        :return: A device flow authorization response.
         :rtype: str
         """
-        login_response = self.client_factory.get_authn_client().login()
-        return login_response.json().get('authorization_uri')
+        login_response = self.client_factory.get_authn_client().login(flow='device')
+        return login_response.json()
 
     @handle_client_exceptions
     @check_authentication_api_aliveness
@@ -263,19 +263,22 @@ class OIDCSession(Session):
     @handle_client_exceptions
     @check_authentication_api_aliveness
     @remove_expired_tokens
-    def request_token(self, code, state, store_to_disk=True):
-        """ Complete an authorisation_code grant flow.
+    def request_token(self, device_code, store_to_disk=True):
+        """ Complete a device flow.
 
-        :param str code: The authorisation code.
-        :param str state: The authorisation state.
+        :param str device_code: The device code.
         :param bool store_to_disk: Store the token to disk for persistence.
+        :return: Either the error code as a string or True.
+        :rtype: Union[bool, dict]
         """
-        token_response = self.client_factory.get_authn_client().token(code=code, state=state)
-        token = token_response.json().get('token')
-
-        token_path_on_disk = None
-        if store_to_disk:
-            token_path_on_disk = self._save_tokens_to_disk(token)
-        self._add_tokens_to_internal_cache(token, path_on_disk=token_path_on_disk)
+        token_response = self.client_factory.get_authn_client().token(device_code=device_code).json()
+        token = token_response.get('token')
+        if token:
+            token_path_on_disk = None
+            if store_to_disk:
+                token_path_on_disk = self._save_tokens_to_disk(token)
+            self._add_tokens_to_internal_cache(token, path_on_disk=token_path_on_disk)
+            return True
+        return token_response.get('error')
 
 
