@@ -79,14 +79,10 @@ class SiteAPI(API):
     def list_service_types(self):
         """ List supported service types. """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
-        # services can be "core" or associated with a compute element, use combined
-        core_services = client.get_schema(
-            schema='core-service').json().get('properties', {}).get('type', {}).get('enum', [])
-        compute_services = client.get_schema(
-            schema='compute-service').json().get('properties', {}).get('type', {}).get('enum', [])
+        # services can be "core" or associated with a compute element, use combined result
         return {
-            'core': core_services,
-            'compute': compute_services
+            'compute': client.list_service_types_compute().json(),
+            'core': client.list_service_types_core().json()
         }
 
     def list_sites(self):
