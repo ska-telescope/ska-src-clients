@@ -191,7 +191,7 @@ def make_parsers(return_all_parsers=False):
 
         # site service ls
         site_service_ls_parser = site_service_parser_subparsers.add_parser("ls", help="List services")
-        site_service_ls_parser.add_argument('--type', help="Filter for type of service")
+        site_service_ls_parser.add_argument('--type', help="Filter for type of service (accepts wildcards)")
 
         # site service types
         site_service_parser_subparsers.add_parser("types", help="List service types")
@@ -826,12 +826,14 @@ if __name__ == "__main__":
             qr.print_ascii()
             print("-"*50)
             print()
+
+            # poll for user to complete authorisation process
             success = False
             max_attempts = 60
             for attempt in range(0, max_attempts):
                 try:
                     # the following will raise before the break if the authorization is still pending
-                    response = session.request_token(device_code=device_authorization_response.get('device_code'))
+                    session.request_token(device_code=device_authorization_response.get('device_code'))
                     success = True
                     break
                 except Exception as e:
