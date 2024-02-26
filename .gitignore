@@ -30,3 +30,6 @@ docs/_static
 docs/_templates
 
 .env
+
+# IDE
+.idea 
