@@ -1,3 +1,5 @@
+import fnmatch
+
 from ska_src_clients.api.api import API
 
 
@@ -67,7 +69,7 @@ class SiteAPI(API):
             for entry in filtered_response:
                 filtered_site_services = []
                 for service in entry.get('services'):
-                    if service.get('type') == service_type:
+                    if fnmatch.fnmatch(service.get('type'), service_type):
                         filtered_site_services.append(service)
                 entry['services'] = filtered_site_services
         else:
