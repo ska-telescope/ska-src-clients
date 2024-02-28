@@ -4,7 +4,7 @@ bump-and-commit: docs
 	@git commit
 
 docs:
-	@cd doc && make clean && make html
+	@cd docs && make clean && make html
 
 install-local:
 	@python3 -m pip uninstall -y ska-src-clients

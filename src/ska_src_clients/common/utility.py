@@ -15,6 +15,10 @@ from ska_src_clients.common.exceptions import NoAccessTokenFoundForService
 
 def get_authenticated_requests_session(session, service_name):
     """ Get a requests session with one that has a populated access token. """
+    # do we have any tokens? if not, login
+    if not session.access_tokens and not session.refresh_tokens:
+        session.start_device_flow()
+
     access_token = session.get_access_token(service_name)
     if not access_token:
         # attempt to exchange if we can't find an access token for the service
@@ -92,7 +96,7 @@ def remove_expired_tokens(func):
         from ska_src_clients.session.oidc import OIDCSession
         if isinstance(session, OIDCSession):
             logging.debug("Removing expired tokens.")
-            # remove access tokens in memory
+            # remove expired access tokens in memory
             valid_access_tokens = {}
             for aud, attributes in dict(session.access_tokens).items():
                 if attributes.get('expires_at') >= time.time():
@@ -101,7 +105,7 @@ def remove_expired_tokens(func):
                     logging.debug("Removing access token with audience {}".format(aud))
             session.access_tokens = valid_access_tokens
 
-            # remove refresh tokens in memory
+            # remove expired refresh tokens in memory
             valid_refresh_tokens = []
             refresh_tokens = list(session.refresh_tokens)
             for attributes in refresh_tokens:
