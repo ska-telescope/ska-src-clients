@@ -2,7 +2,11 @@ import glob
 import json
 import logging
 import os
+import qrcode
 import random
+import sys
+import textwrap
+import time
 from functools import wraps
 from uuid import uuid4
 
@@ -182,19 +186,20 @@ class OIDCSession(Session):
                         token_exchange_response.raise_for_status()
                         token = token_exchange_response.json()
                         break
+            else:
+                logging.critical("Exchange requested by refresh but no valid refresh tokens exist.")
         else:
             logging.debug(" - Attempting direct access token exchange")
-            # select any valid token randomly
             if not self.access_tokens:
-                logging.critical("No valid access tokens exist to exchange. Login first.")
-                return False
-
-            random_access_token = random.choice(list(self.access_tokens.values()))
-            access_token_to_exchange = random_access_token.get('token')
-            token_exchange_response = self.client_factory.get_authn_client().exchange_token(
-                service=service_name, access_token=access_token_to_exchange)
-            token_exchange_response.raise_for_status()
-            token = token_exchange_response.json()
+                logging.critical("Exchange requested but no valid access tokens exist.")
+            else:
+                # select any valid token randomly
+                random_access_token = random.choice(list(self.access_tokens.values()))
+                access_token_to_exchange = random_access_token.get('token')
+                token_exchange_response = self.client_factory.get_authn_client().exchange_token(
+                    service=service_name, access_token=access_token_to_exchange)
+                token_exchange_response.raise_for_status()
+                token = token_exchange_response.json()
 
         if token:
             token_path_on_disk = None
@@ -280,5 +285,57 @@ class OIDCSession(Session):
             self._add_tokens_to_internal_cache(token, path_on_disk=token_path_on_disk)
             return True
         return token_response.get('error')
+
+    @handle_client_exceptions
+    def start_device_flow(self, max_polling_attempts=60, wait_between_polling_s=5):
+        device_authorization_response = self.get_device_authorization_response()
+
+        # make an ascii qr code for the complete verification uri
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(device_authorization_response.get('verification_uri_complete'))
+
+        # add instructional text for user if they don't want to use qr code
+        user_instruction_text = ("Scan the QR code, or using a browser on another device, visit " +
+                                 "{verification_uri} and enter code {user_code}".format(
+                                     verification_uri=device_authorization_response.get('verification_uri'),
+                                     user_code=device_authorization_response.get('user_code')))
+
+        wrapped_string = textwrap.fill(user_instruction_text, width=50)
+
+        print()
+        print("-" * 50)
+        print()
+        print(wrapped_string)
+        qr.print_ascii()
+        print("-" * 50)
+        print()
+
+        # poll for user to complete authorisation process
+        success = False
+        max_attempts = max_polling_attempts
+        for attempt in range(0, max_attempts):
+            try:
+                # the following will raise before the break if the authorization is still pending
+                self.request_token(device_code=device_authorization_response.get('device_code'))
+                success = True
+                break
+            except Exception as e:
+                ex_type, ex_value, ex_traceback = sys.exc_info()
+                logging.debug(ex_value)
+            print("Polling for token... ({attempt}/{max_attempts})".format(
+                attempt=attempt + 1, max_attempts=max_attempts), end='\r')
+            time.sleep(wait_between_polling_s)
+        print()
+        print()
+        if success:
+            print("Successfully polled for token. You are now logged in.")
+        else:
+            print("Failed to poll for token. Please try again.")
+        print()
 
 

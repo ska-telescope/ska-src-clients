@@ -5,11 +5,8 @@ import datetime
 import json
 import logging
 import os
-import textwrap
-import time
 import yaml
 
-import qrcode
 import plotly.graph_objects as go
 import pprint
 from box import Box
@@ -634,13 +631,15 @@ if __name__ == "__main__":
 
                 # make a nice table
                 table = PrettyTable()
-                table.field_names = ["Identifier", "Type", "Version", "ID", "Prefix", "Host", "Port", "Path"]
+                table.field_names = ["Identifier", "Type", "Version", "Enabled?", "ID", "Prefix", "Host", "Port",
+                                     "Path"]
                 table.align = 'l'
 
                 table.add_row([
                     output['raw'].get('identifier'),
                     output['raw'].get('type'),
                     output['raw'].get('version'),
+                    u'\u2713' if output['raw'].get('enabled') else '',
                     output['raw'].get('id'),
                     output['raw'].get('prefix'),
                     output['raw'].get('host'),
@@ -653,7 +652,8 @@ if __name__ == "__main__":
 
                 # make a nice table
                 table = PrettyTable()
-                table.field_names = ["Site", "Identifier", "Type", "Version", "ID", "Prefix", "Host", "Port", "Path"]
+                table.field_names = ["Site", "Identifier", "Type", "Version", "Enabled?", "ID", "Prefix", "Host",
+                                     "Port", "Path"]
                 table.align = 'l'
 
                 for entry in output['raw']:
@@ -663,12 +663,12 @@ if __name__ == "__main__":
                             service_attributes.get('identifier'),
                             service_attributes.get('type'),
                             service_attributes.get('version'),
+                            u'\u2713' if service_attributes.get('enabled') else '',
                             service_attributes.get('id'),
                             service_attributes.get('prefix'),
                             service_attributes.get('host'),
                             service_attributes.get('port'),
                             service_attributes.get('path')
-
                         ])
                 output['tabulated'] = table
             elif args.subsubcommand == 'types':
@@ -800,54 +800,7 @@ if __name__ == "__main__":
         elif args.subcommand == 'inspect':
             output['raw'] = session.inspect_access_token(service_name=args.service)
         elif args.subcommand == 'request':
-            device_authorization_response = session.get_device_authorization_response()
-
-            # make an ascii qr code for the complete verification uri
-            qr = qrcode.QRCode(
-                version=1,
-                error_correction=qrcode.constants.ERROR_CORRECT_L,
-                box_size=10,
-                border=4,
-            )
-            qr.add_data(device_authorization_response.get('verification_uri_complete'))
-
-            # add instructional text for user if they don't want to use qr code
-            user_instruction_text = ("Scan the QR code, or using a browser on another device, visit " +
-                                     "{verification_uri} and enter code {user_code}".format(
-                                         verification_uri=device_authorization_response.get('verification_uri'),
-                                         user_code=device_authorization_response.get('user_code')))
-
-            wrapped_string = textwrap.fill(user_instruction_text, width=50)
-
-            print()
-            print("-"*50)
-            print()
-            print(wrapped_string)
-            qr.print_ascii()
-            print("-"*50)
-            print()
-
-            # poll for user to complete authorisation process
-            success = False
-            max_attempts = 60
-            for attempt in range(0, max_attempts):
-                try:
-                    # the following will raise before the break if the authorization is still pending
-                    session.request_token(device_code=device_authorization_response.get('device_code'))
-                    success = True
-                    break
-                except Exception as e:
-                    pass
-                print("Polling for token... ({attempt}/{max_attempts})".format(
-                    attempt=attempt+1, max_attempts=max_attempts), end='\r')
-                time.sleep(5)
-            print()
-            print()
-            if success:
-                print("Successfully polled for token. You are now logged in.")
-            else:
-                print("Failed to poll for token. Please try again.")
-            print()
+            session.start_device_flow()
         else:
             parsers.srcnet_oper_token.print_help()
     else:
