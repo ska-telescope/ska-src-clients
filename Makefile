@@ -6,6 +6,10 @@ bump-and-commit: docs
 docs:
 	@cd docs && make clean && make html
 
+install:
+	@python3 -m pip uninstall -y ska-src-clients
+	@python3 -m pip install --extra-index-url https://gitlab.com/api/v4/groups/70683489/-/packages/pypi/simple .
+
 install-local:
 	@python3 -m pip uninstall -y ska-src-clients
 	@python3 -m pip install --extra-index-url https://gitlab.com/api/v4/groups/70683489/-/packages/pypi/simple -e .
