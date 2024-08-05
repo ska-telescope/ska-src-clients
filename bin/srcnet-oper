@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import yaml
+from pathlib import Path
 
 import plotly.graph_objects as go
 import pprint
@@ -251,7 +252,7 @@ def make_parsers(return_all_parsers=False):
 
     parser.add_argument('-c', help="path to configuration file", type=str, default=[
         'etc/srcnet-clients-config.yml', 
-        'etc/srcnet-clients-config.yml', 
+        os.path.join(Path.home(), '.local', 'etc', 'srcnet-clients-config.yml'), 
         '/usr/local/etc/srcnet-clients-config.yml'])
     parser.add_argument("--debug", help="debug mode", action='store_true')
     parser.add_argument("--json", help="output as json", action='store_true')
@@ -309,11 +310,11 @@ if __name__ == "__main__":
     else:
         logging.critical("Config file is empty.")
         exit()
-
+    
     # Instantiate and set up the session.
     session = OIDCSession(config=config)
     session.load_tokens_from_disk()
-
+    
     output = {
         'raw': None,
         'tabulated': None
