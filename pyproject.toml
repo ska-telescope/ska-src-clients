@@ -1,0 +1,88 @@
+[tool.poetry]
+name = "ska-src-clients"
+version = "0.1.21"
+description = "SKA SRC Client"
+authors = ["Shraddha Bajare"]
+license = "BSD-3-Clause"
+packages = [
+    { include = "ska_src_clients", from = "src" }
+]
+include = [
+    { path = 'srcnet-clients-config.yml'}
+]
+
+[tool.setuptools]
+packages = ["ska_src_clients"]
+
+[tool.setuptools.scripts]
+scripts = [
+    "bin/*"
+]
+
+[[tool.poetry.source]]
+name = 'ska-nexus'
+url = 'https://artefact.skao.int/repository/pypi-internal/simple'
+
+[[tool.poetry.source]]
+name = "PyPI-public"
+url = 'https://pypi.org/simple'
+
+[[tool.poetry.source]]
+name = "webdavclient3"
+url = "https://github.com/ezhov-evgeny/webdav-client-python-3@98c23d1"
+
+[[tool.poetry.source]]
+name = "site_capabilities_api"
+url = "https://gitlab.com/api/v4/projects/44294004/packages/pypi/simple"
+priority = "primary"
+
+[[tool.poetry.source]]
+name = "permissions_api"
+url = "https://gitlab.com/api/v4/projects/48060714/packages/pypi/simple"
+priority = "primary"
+
+[[tool.poetry.source]]
+name = "data_management_api"
+url = "https://gitlab.com/api/v4/projects/47269526/packages/pypi/simple"
+priority = "primary"
+
+[[tool.poetry.source]]
+name = "authn_api"
+url = "https://gitlab.com/api/v4/projects/48376510/packages/pypi/simple"
+priority = "primary"
+
+
+[tool.poetry.dependencies]
+python = ">=3.8.1,<4.0.0"
+qrcode = "7.4.2"
+plotly = "5.3.1"
+prettytable = "3.3.0"
+PyJWT = "2.8.0"
+python-box = "5.4.1"
+ska-src-authn-api = "0.4.8"
+ska-src-data-management-api = "0.5.39"
+ska-src-permissions-api = "0.1.24"
+webdavclient3 = "*"
+ska-src-site-capabilities-api = "0.3.30"
+
+[tool.poetry.dev-dependencies]
+black = "^23.3.0"
+isort = "^5.10.1"
+flake8 = "^5.0.4"
+pylint = "3.1.0"
+coverage = "^6.2"
+
+[tool.poetry.group.docs.dependencies]
+Sphinx = "^5.2"
+docutils = "^0.17"
+ska-ser-sphinx-theme = "^0.1.1"
+sphinx-autodoc-typehints = "^1.19"
+
+[tool.isort]
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
