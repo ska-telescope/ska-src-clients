@@ -18,6 +18,8 @@ stages:
 - join-reports
 - build
 - test
+- publish
+- pages
 - scan
 
 join_linting_reports:
