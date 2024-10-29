@@ -18,7 +18,7 @@ stages:
 - join-reports
 - build
 - test
-
+- scan
 
 join_linting_reports:
   stage: join-reports
