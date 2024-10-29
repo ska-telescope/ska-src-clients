@@ -17,6 +17,7 @@ stages:
 - lint
 - join-reports
 - build
+- test
 
 
 join_linting_reports:

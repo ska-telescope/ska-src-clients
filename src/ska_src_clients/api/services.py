@@ -6,17 +6,21 @@ class ServicesAPI(API):
         super().__init__(**kwargs)
 
     def health(self, service):
-        """ Get the health of a service.
+        """Get the health of a service.
 
         :param str service: The API service name.
         """
-        client = self.session.client_factory.get_client_from_service_name(service)
+        client = self.session.client_factory.get_client_from_service_name(
+            service
+        )
         return client.health().json()
 
     def ping(self, service):
-        """ Ping a service.
+        """Ping a service.
 
         :param str service: The API service name.
         """
-        client = self.session.client_factory.get_client_from_service_name(service)
+        client = self.session.client_factory.get_client_from_service_name(
+            service
+        )
         return client.ping().json()
