@@ -1,0 +1,14 @@
+"""Release information for Python Package"""
+
+name="""ska-src-clients"""
+version="""0.1.21"""
+version_info=version.split(".")
+description="""SKA SRC Clients"""
+author="Shraddha Bajare"
+author_email="""shraddha.bajare@skao.int"""
+license="""BSD-3-Clause"""
+url="""https://www.skaobservatory.org"""
+copyright=""""""
+
+release=0.1.21
+tag=0.1.21
