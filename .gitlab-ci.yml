@@ -1,37 +1,69 @@
-image: docker:git
+# See: https://docs.gitlab.com/ee/ci/yaml/includes.html
+image: $SKA_K8S_TOOLS_BUILD_DEPLOY
+
 services:
 - docker:dind
-
-stages:
-- deploy
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
 
-pages:
-  only:
-    - main
-  stage: deploy
-  image:
-    name: python:latest
+# cache is used to specify a list of files and directories which should be cached between jobs. You can only use paths that are within the project workspace.
+# If cache is defined outside the scope of jobs, it means it is set globally and all jobs will use that definition
+cache:
+  paths:
+    - build
+
+stages:
+- lint
+- join-reports
+- build
+
+
+join_linting_reports:
+  stage: join-reports
+  tags:
+    - k8srunner
   script:
-  - python3 -m pip install -U sphinx
-  - python3 -m pip install --extra-index-url https://gitlab.com/api/v4/groups/70683489/-/packages/pypi/simple .
-  - cd docs && make html
+    - echo "This step is needed as the artifacts can't be passed in the same stage"
+    - make join-lint-reports
   artifacts:
     paths:
-      - docs/_build/html
-  publish: docs/_build/html
+      - build/
+    when: always
 
-pypi-publish:
-  only:
-    - main
-  stage: deploy
-  image:
-    name: python:latest
-  script:
-    - pip install build twine
-    - python -m build
-    - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --repository-url ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/pypi dist/*
+# pages:
+#   only:
+#     - main
+#   stage: deploy
+#   image:
+#     name: python:latest
+#   script:
+#   - python3 -m pip install -U sphinx
+#   - python3 -m pip install --extra-index-url https://gitlab.com/api/v4/groups/70683489/-/packages/pypi/simple .
+#   - cd docs && make html
+#   artifacts:
+#     paths:
+#       - docs/_build/html
+#   publish: docs/_build/html
+
+# pypi-publish:
+#   only:
+#     - main
+#   stage: deploy
+#   image:
+#     name: python:latest
+#   script:
+#     - pip install build twine
+#     - python -m build
+#     - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --repository-url ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/pypi dist/*
 
 
+# Standardised included jobs
+include:
+# Python packages lint
+- project: 'ska-telescope/templates-repository'
+  file: 'gitlab-ci/includes/python.gitlab-ci.yml'
+
+# Docs pages
+- project: 'ska-telescope/templates-repository'
+  file: 'gitlab-ci/includes/docs.gitlab-ci.yml'
