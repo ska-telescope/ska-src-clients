@@ -1,4 +1,12 @@
 PYTHON_LINE_LENGTH ?= 150## To be changed, default value is 79
+FILE ?= tests## A specific test file to pass to pytest
+ADD_ARGS ?= ## Additional args to pass to pytest
+MARK ?= unit_test
+ADDMARK ?= # additional markers
+
+PYTHON_VARS_BEFORE_PYTEST ?= PYTHONPATH=.:./src
+
+PYTHON_VARS_AFTER_PYTEST ?= -m '$(MARK)' $(ADD_ARGS) $(FILE)
 
 
 bump-and-commit: docs
