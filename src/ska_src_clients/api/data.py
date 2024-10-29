@@ -7,10 +7,7 @@ import tempfile
 import uuid
 
 from ska_src_clients.api.api import API
-from ska_src_clients.common.exceptions import (
-    ExtraMetadataKeyConflict,
-    MetadataKeyConflict,
-)
+from ska_src_clients.common.exceptions import ExtraMetadataKeyConflict, MetadataKeyConflict
 from ska_src_clients.common.utility import url_to_parts
 from ska_src_clients.plan.plan import UploadPlan
 
@@ -39,19 +36,13 @@ class DataAPI(API):
         :param str output_filename: The output filename (defaults to remote filename).
         """
         # query DM API to get a list of data replicas for this namespace/name and pick the first
-        dm_client = self.session.client_factory.get_data_management_client(
-            is_authenticated=True
-        )
-        replica_locations = dm_client.locate_replicas_of_file(
-            namespace=namespace, name=name, sort=sort, ip_address=ip_address
-        ).json()
+        dm_client = self.session.client_factory.get_data_management_client(is_authenticated=True)
+        replica_locations = dm_client.locate_replicas_of_file(namespace=namespace, name=name, sort=sort, ip_address=ip_address).json()
 
         # pick the first replica from the first site in the response (ordered if sorting algorithm is used)
         position = 0
         replicas = replica_locations[position].get("replicas")
-        associated_storage_area_id = replica_locations[position].get(
-            "associated_storage_area_id"
-        )
+        associated_storage_area_id = replica_locations[position].get("associated_storage_area_id")
 
         # pick a random replica from this site (only relevant if multiple exist)
         access_url = random.choice(replicas)
@@ -59,9 +50,7 @@ class DataAPI(API):
         # split the access_url into prefix, host, port, path and filename
         access_url_parts = url_to_parts(access_url)
         remote_filename = os.path.basename(access_url_parts.get("path"))
-        access_url_parts["path"] = os.path.dirname(
-            access_url_parts.get("path")
-        )  # change path to not include filename
+        access_url_parts["path"] = os.path.dirname(access_url_parts.get("path"))  # change path to not include filename
 
         # get the storage read access token for the associated storage area
         access_token = (
@@ -75,22 +64,12 @@ class DataAPI(API):
         )
 
         # instantiate a client for this protocol depending on prefix
-        selected_dm_client_attr = (
-            self.session.config.get("data-management")
-            .get("clients")
-            .get(access_url_parts.get("prefix"))
-        )
+        selected_dm_client_attr = self.session.config.get("data-management").get("clients").get(access_url_parts.get("prefix"))
         package_name = selected_dm_client_attr.get("package_name")
         module_name = selected_dm_client_attr.get("module_name")
         class_name = selected_dm_client_attr.get("class_name")
-        module = importlib.import_module(
-            "{package_name}.{module_name}".format(
-                package_name=package_name, module_name=module_name
-            )
-        )
-        selected_dm_client = getattr(module, class_name)(
-            **access_url_parts, access_token=access_token
-        )
+        module = importlib.import_module("{package_name}.{module_name}".format(package_name=package_name, module_name=module_name))
+        selected_dm_client = getattr(module, class_name)(**access_url_parts, access_token=access_token)
 
         # download data using this access token
         if not output_filename:
@@ -120,9 +99,7 @@ class DataAPI(API):
         :param dict filters: Filters (Rucio only).
         :param int limit: Number of identifiers to return in result
         """
-        client = self.session.client_factory.get_data_management_client(
-            is_authenticated=True
-        )
+        client = self.session.client_factory.get_data_management_client(is_authenticated=True)
         return client.list_files_in_namespace(
             namespace=namespace,
             name=name,
@@ -133,18 +110,12 @@ class DataAPI(API):
 
     def list_namespaces(self):
         """List namespace."""
-        client = self.session.client_factory.get_data_management_client(
-            is_authenticated=True
-        )
+        client = self.session.client_factory.get_data_management_client(is_authenticated=True)
         return client.list_namespaces().json()
 
-    def list_rules_for_namespace(
-        self, namespace, datetime_from, datetime_to, limit
-    ):
+    def list_rules_for_namespace(self, namespace, datetime_from, datetime_to, limit):
         """List rules for a namespace."""
-        client = self.session.client_factory.get_data_management_client(
-            is_authenticated=True
-        )
+        client = self.session.client_factory.get_data_management_client(is_authenticated=True)
         return client.list_rules_for_namespace(
             namespace=namespace,
             datetime_from=datetime_from,
@@ -154,12 +125,8 @@ class DataAPI(API):
 
     def list_rules_for_data_identifier(self, namespace, name):
         """List rules for a data identifier."""
-        client = self.session.client_factory.get_data_management_client(
-            is_authenticated=True
-        )
-        return client.list_rules_for_data_identifier(
-            namespace=namespace, name=name
-        ).json()
+        client = self.session.client_factory.get_data_management_client(is_authenticated=True)
+        return client.list_rules_for_data_identifier(namespace=namespace, name=name).json()
 
     def locate(self, namespace, name, sort="nearest_by_ip", ip_address=None):
         """Locate replicas of data identifier, sort by some algorithm and download.
@@ -171,12 +138,8 @@ class DataAPI(API):
             client ip (sort == nearest_by_ip only)
         """
         # query DM API to get a list of data replicas for this namespace/name and pick the first
-        client = self.session.client_factory.get_data_management_client(
-            is_authenticated=True
-        )
-        replicas_with_site = client.locate_replicas_of_file(
-            namespace=namespace, name=name, sort=sort, ip_address=ip_address
-        )
+        client = self.session.client_factory.get_data_management_client(is_authenticated=True)
+        replicas_with_site = client.locate_replicas_of_file(namespace=namespace, name=name, sort=sort, ip_address=ip_address)
         replicas = []
         for entry in replicas_with_site.json():
             replicas = replicas + entry.get("replicas", [])
@@ -211,18 +174,10 @@ class DataAPI(API):
                 raise ExtraMetadataKeyConflict(key)
 
         # get the ingestion storage area host and path
-        client = self.session.client_factory.get_site_capabilities_client(
-            is_authenticated=True
-        )
-        data_ingest_service = client.get_service(
-            service_id=ingest_service_id
-        ).json()
-        associated_storage_area = client.get_storage_area(
-            data_ingest_service.get("associated_storage_area_id")
-        ).json()
-        associated_storage = client.get_storage(
-            associated_storage_area.get("associated_storage_id")
-        ).json()
+        client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
+        data_ingest_service = client.get_service(service_id=ingest_service_id).json()
+        associated_storage_area = client.get_storage_area(data_ingest_service.get("associated_storage_area_id")).json()
+        associated_storage = client.get_storage(associated_storage_area.get("associated_storage_id")).json()
 
         base_path = associated_storage.get("base_path")
         relative_path = associated_storage_area.get("relative_path")
@@ -232,46 +187,28 @@ class DataAPI(API):
         # select a storage access protocol (either by choice or randomly)
         selected_protocol = None
         if protocol_prefix:
-            for supported_protocol in associated_storage.get(
-                "supported_protocols", []
-            ):
+            for supported_protocol in associated_storage.get("supported_protocols", []):
                 if supported_protocol.get("prefix") == protocol_prefix:
                     selected_protocol = supported_protocol
                     break
         else:
-            selected_protocol = random.choice(
-                associated_storage.get("supported_protocols", [])
-            )
+            selected_protocol = random.choice(associated_storage.get("supported_protocols", []))
         prefix = selected_protocol.get("prefix")
         port = selected_protocol.get("port")
 
         # get a token
-        client = self.session.client_factory.get_data_management_client(
-            is_authenticated=True
-        )
+        client = self.session.client_factory.get_data_management_client(is_authenticated=True)
         access_token = (
-            client.get_upload_token_ingest_for_namespace(
-                data_ingest_service_uuid=ingest_service_id, namespace=namespace
-            )
-            .json()
-            .get("access_token")
+            client.get_upload_token_ingest_for_namespace(data_ingest_service_uuid=ingest_service_id, namespace=namespace).json().get("access_token")
         )
 
         # instantiate a client for this protocol depending on prefix.
         # this uses the storage area's absolute path (should be the complete path to the staging area)
-        selected_dm_client_attr = (
-            self.session.config.get("data-management")
-            .get("clients")
-            .get(prefix)
-        )
+        selected_dm_client_attr = self.session.config.get("data-management").get("clients").get(prefix)
         package_name = selected_dm_client_attr.get("package_name")
         module_name = selected_dm_client_attr.get("module_name")
         class_name = selected_dm_client_attr.get("class_name")
-        module = importlib.import_module(
-            "{package_name}.{module_name}".format(
-                package_name=package_name, module_name=module_name
-            )
-        )
+        module = importlib.import_module("{package_name}.{module_name}".format(package_name=package_name, module_name=module_name))
         selected_dm_client = getattr(module, class_name)(
             prefix=prefix,
             host=host,
@@ -301,13 +238,11 @@ class DataAPI(API):
         logging.info("Ingest directory: {}".format(remote_ingest_directory))
 
         # go through each directory and add steps to upload data and metadata to plan
-        for root, dirs, files in os.walk(path, topdown=True):
+        for root, _, files in os.walk(path, topdown=True):
             if os.path.relpath(root, path) == ".":
                 this_root_relpath = remote_ingest_directory
             else:
-                this_root_relpath = os.path.join(
-                    remote_ingest_directory, os.path.relpath(root, path)
-                )
+                this_root_relpath = os.path.join(remote_ingest_directory, os.path.relpath(root, path))
                 # add step for making this directory (if it doesn't exist)
                 plan.append_step(
                     section_name="upload",
@@ -317,9 +252,7 @@ class DataAPI(API):
 
             # separate out data and metadata files
             files_fullpaths = set([os.path.join(root, f) for f in files])
-            files_metadata = set(
-                [f for f in files_fullpaths if f.endswith(metadata_suffix)]
-            )
+            files_metadata = set([f for f in files_fullpaths if f.endswith(metadata_suffix)])
             files_data = set([f for f in files_fullpaths - files_metadata])
 
             # add steps for uploading data
@@ -329,9 +262,7 @@ class DataAPI(API):
                     fqn=selected_dm_client.upload,
                     arguments={
                         "from_local_path": file,
-                        "to_remote_path": os.path.join(
-                            this_root_relpath, os.path.basename(file)
-                        ),
+                        "to_remote_path": os.path.join(this_root_relpath, os.path.basename(file)),
                     },
                 )
 
@@ -345,9 +276,7 @@ class DataAPI(API):
                             raise MetadataKeyConflict(key)
 
                 # construct temporary metadata file with extra metadata
-                with tempfile.NamedTemporaryFile(
-                    mode="w", delete=False
-                ) as tmp_metadata_file:
+                with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp_metadata_file:
                     tmp_metadata_file.write(
                         json.dumps(
                             {
@@ -363,9 +292,7 @@ class DataAPI(API):
                         fqn=selected_dm_client.upload,
                         arguments={
                             "from_local_path": tmp_metadata_file.name,
-                            "to_remote_path": os.path.join(
-                                this_root_relpath, os.path.basename(file)
-                            ),
+                            "to_remote_path": os.path.join(this_root_relpath, os.path.basename(file)),
                         },
                     )
                     plan.append_step(

@@ -1,3 +1,6 @@
+PYTHON_LINE_LENGTH ?= 150## To be changed, default value is 79
+
+
 bump-and-commit: docs
 	@cd etc/scripts && bash increment-app-version.sh `git branch | grep "*" | awk -F'[*-]' '{ print $$2 }' | tr -d ' '`
 	@git add VERSION

@@ -60,7 +60,32 @@ confidence=
 # --enable=similarities". If you want to run only the classes checker, but have
 # no Warning level messages displayed, use "--disable=all --enable=classes
 # --disable=W".
-disable=consider-using-f-string
+disable=consider-using-f-string,
+        missing-module-docstring,
+        missing-class-docstring,
+        unused-argument,
+        missing-function-docstring,
+        logging-format-interpolation, # hint: Use lazy % formatting in logging functions
+        unspecified-encoding,
+        cyclic-import,
+        unused-variable,
+        inconsistent-return-statements,
+        too-many-nested-blocks,
+        too-many-locals,
+        raise-missing-from,
+        consider-using-set-comprehension,
+        unnecessary-comprehension,
+        dangerous-default-value, # hint: Dangerous default value {} as argument
+        useless-parent-delegation,
+        unknown-option-value,
+        use-dict-literal,
+        unnecessary-pass,
+        no-member,
+        unused-variable,
+        too-few-public-methods,
+        no-else-return,
+        import-outside-toplevel,
+        consider-using-generator
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
@@ -351,7 +376,7 @@ indent-after-paren=4
 indent-string='    '
 
 # Maximum number of characters on a single line.
-max-line-length=88
+max-line-length=79
 
 # Maximum number of lines in a module.
 max-module-lines=5000

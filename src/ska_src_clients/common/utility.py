@@ -28,17 +28,13 @@ def get_authenticated_requests_session(session, service_name):
 
     # make requests session and populate authorization
     requests_session = requests.Session()
-    requests_session.headers.update(
-        {"Authorization": "Bearer {}".format(access_token)}
-    )
+    requests_session.headers.update({"Authorization": "Bearer {}".format(access_token)})
     return requests_session
 
 
 def parts_to_url(prefix, host, port, path):
     """Converts parts to a URL."""
-    return urlunparse(
-        {"prefix": prefix, "host": host, "port": port, "path": path}
-    )
+    return urlunparse({"prefix": prefix, "host": host, "port": port, "path": path})
 
 
 def plot_scatter_world_map(
@@ -52,11 +48,7 @@ def plot_scatter_world_map(
 ):
     """Make a scatterplot against a world map."""
     # calculate relative marker size
-    normalized_sizes = [
-        (entry[value_key] / max([entry[value_key] for entry in data]))
-        * size_offset
-        for entry in data
-    ]
+    normalized_sizes = [(entry[value_key] / max([entry[value_key] for entry in data])) * size_offset for entry in data]
 
     # construct the plot
     for index, entry in enumerate(data):
@@ -114,9 +106,7 @@ def remove_expired_tokens(func):
                 if attributes.get("expires_at") >= time.time():
                     valid_access_tokens[aud] = attributes
                 else:
-                    logging.debug(
-                        "Removing access token with audience {}".format(aud)
-                    )
+                    logging.debug("Removing access token with audience {}".format(aud))
             session.access_tokens = valid_access_tokens
 
             # remove expired refresh tokens in memory
@@ -128,9 +118,7 @@ def remove_expired_tokens(func):
             session.refresh_tokens = valid_refresh_tokens
 
             # on disk, we check if all tokens in a file have expired, only then are the files deleted
-            for token_path in glob.glob(
-                os.path.join(session.stored_token_directory, "*.token")
-            ):
+            for token_path in glob.glob(os.path.join(session.stored_token_directory, "*.token")):
                 with open(token_path, "r") as token_file:
                     token = json.loads(token_file.read())
 
@@ -138,9 +126,7 @@ def remove_expired_tokens(func):
                 refresh_token_has_expired = False
                 refresh_token = token.get("refresh_token")
                 if refresh_token:
-                    refresh_token_decoded = jwt.decode(
-                        refresh_token, options={"verify_signature": False}
-                    )
+                    refresh_token_decoded = jwt.decode(refresh_token, options={"verify_signature": False})
                     if refresh_token_decoded.get("exp") < time.time():
                         refresh_token_has_expired = True
 
@@ -148,17 +134,13 @@ def remove_expired_tokens(func):
                 access_token_has_expired = False
                 access_token = token.get("access_token")
                 if access_token:
-                    access_token_decoded = jwt.decode(
-                        access_token, options={"verify_signature": False}
-                    )
+                    access_token_decoded = jwt.decode(access_token, options={"verify_signature": False})
                     if access_token_decoded.get("exp") < time.time():
                         access_token_has_expired = True
 
                 # both refresh and access tokens are expired so delete this token on disk
                 if all([refresh_token_has_expired, access_token_has_expired]):
-                    logging.debug(
-                        "Removing token with path: {}".format(token_path)
-                    )
+                    logging.debug("Removing token with path: {}".format(token_path))
                     os.remove(token_path)
 
         return func(*args, **kwargs)

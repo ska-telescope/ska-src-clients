@@ -1,5 +1,6 @@
 import json
 import logging
+import sys
 import typing
 from importlib import import_module
 
@@ -127,29 +128,16 @@ class Plan:
             inputs = json.load(fi)
         plan = cls(**inputs)
         plan.current_step_number = inputs["current_step_number"]
-        function_classes_to_objects = (
-            {}
-        )  # avoid instantiating duplicate classes of same type
+        function_classes_to_objects = {}  # avoid instantiating duplicate classes of same type
         for step in inputs["steps"]:
             module = import_module(step["function_module_name"])
             if step["function_class_name"]:  # bound method
                 try:
-                    if (
-                        step["function_class_name"]
-                        not in function_classes_to_objects
-                    ):
-                        function_classes_to_objects[
-                            step["function_class_name"]
-                        ] = getattr(module, step["function_class_name"])()
-                    function_class_instance = function_classes_to_objects[
-                        step["function_class_name"]
-                    ]
-                    fqn = getattr(
-                        function_class_instance, step["function_name"]
-                    )
-                except (
-                    AttributeError
-                ):  # bound method with no class, just module
+                    if step["function_class_name"] not in function_classes_to_objects:
+                        function_classes_to_objects[step["function_class_name"]] = getattr(module, step["function_class_name"])()
+                    function_class_instance = function_classes_to_objects[step["function_class_name"]]
+                    fqn = getattr(function_class_instance, step["function_name"])
+                except AttributeError:  # bound method with no class, just module
                     fqn = getattr(module, step["function_name"])
             else:  # unbound method (e.g. class)
                 fqn = getattr(module, step["function_name"])
@@ -161,9 +149,7 @@ class Plan:
             )
         return plan
 
-    def run(
-        self, section_name: str = None, dry_run: bool = False
-    ) -> typing.List[typing.Any]:
+    def run(self, section_name: str = None, dry_run: bool = False) -> typing.List[typing.Any]:
         """Run the entire plan.
 
         :param str section_name: section name to run next step
@@ -179,18 +165,12 @@ class Plan:
                     logging.info("Reached end of plan")
                     return
             except (Exception, KeyboardInterrupt) as e:
-                logging.critical(
-                    "Encountered exception running step {}: {}".format(
-                        self.current_step_number, repr(e)
-                    )
-                )
+                logging.critical("Encountered exception running step {}: {}".format(self.current_step_number, repr(e)))
                 self.save("plan-dump.json")
-                exit()
+                sys.exit()
         return returns
 
-    def run_next_step(
-        self, section_name: str = None, dry_run: bool = False
-    ) -> typing.Any:
+    def run_next_step(self, section_name: str = None, dry_run: bool = False) -> typing.Any:
         """Run the next step.
 
         :param str section_name: section name to run next step
@@ -198,13 +178,13 @@ class Plan:
         :param bool dry_run: don't actually do anything, just print
         """
         if section_name:
-            for idx, step in enumerate(self.steps[self.current_step_number :]):
+            for idx, step in enumerate(self.steps[self.current_step_number :]):  # noqa # pylint: disable=whitespace
                 if step.section_name == section_name:
                     self.current_step_number += idx
                     break
         current_step = self.steps[self.current_step_number]
 
-        section_name, fqn, arguments, is_done = (
+        section_name, fqn, arguments, _ = (
             current_step.section_name,
             current_step.fqn,
             current_step.arguments,

@@ -44,9 +44,7 @@ class OIDCSession(Session):
         """
         logging.debug("Adding tokens to internal cache.")
         access_token = token.get("access_token")
-        access_token_decoded = jwt.decode(
-            access_token, options={"verify_signature": False}
-        )
+        access_token_decoded = jwt.decode(access_token, options={"verify_signature": False})
         if "aud" in access_token_decoded:
             self.access_tokens[access_token_decoded.get("aud")] = {
                 "token": access_token,
@@ -60,17 +58,13 @@ class OIDCSession(Session):
         #
         refresh_token = token.get("refresh_token")
         if refresh_token:
-            refresh_token_decoded = jwt.decode(
-                refresh_token, options={"verify_signature": False}
-            )
+            refresh_token_decoded = jwt.decode(refresh_token, options={"verify_signature": False})
             self.refresh_tokens.append(
                 {
                     "token": refresh_token,
                     "associated_access_token": access_token,
                     "expires_at": refresh_token_decoded.get("exp"),
-                    "path_on_disk": path_on_disk
-                    if path_on_disk
-                    else "INTERNAL",
+                    "path_on_disk": path_on_disk if path_on_disk else "INTERNAL",
                 }
             )
 
@@ -84,9 +78,7 @@ class OIDCSession(Session):
         logging.debug("Saving tokens to disk.")
         os.makedirs(self.stored_token_directory, exist_ok=True)
 
-        token_path_on_disk = os.path.join(
-            self.stored_token_directory, "{}.token".format(str(uuid4()))
-        )
+        token_path_on_disk = os.path.join(self.stored_token_directory, "{}.token".format(str(uuid4())))
         with open(token_path_on_disk, "w") as f:
             f.write(json.dumps(token))
 
@@ -96,14 +88,10 @@ class OIDCSession(Session):
     def load_tokens_from_disk(self):
         """Load OIDC tokens from disk into the internal cache."""
         logging.debug("Loading tokens from disk.")
-        for entry in glob.glob(
-            os.path.join(self.stored_token_directory, "*.token")
-        ):
+        for entry in glob.glob(os.path.join(self.stored_token_directory, "*.token")):
             try:
                 with open(entry, "r") as f:
-                    self._add_tokens_to_internal_cache(
-                        json.loads(f.read()), path_on_disk=f.name
-                    )
+                    self._add_tokens_to_internal_cache(json.loads(f.read()), path_on_disk=f.name)
             except json.decoder.JSONDecodeError:
                 os.remove(entry)
 
@@ -116,9 +104,7 @@ class OIDCSession(Session):
         :return: A device flow authorization response.
         :rtype: str
         """
-        login_response = self.client_factory.get_authn_client().login(
-            flow="device"
-        )
+        login_response = self.client_factory.get_authn_client().login(flow="device")
         return login_response.json()
 
     @handle_client_exceptions
@@ -163,17 +149,10 @@ class OIDCSession(Session):
                 # resolved with a call to the token exchange endpoint with these two tokens.
                 #
                 found_matching_access_token = False
-                for refresh_token_idx, refresh_token in enumerate(
-                    self.refresh_tokens
-                ):
+                for refresh_token_idx, refresh_token in enumerate(self.refresh_tokens):
                     for aud, access_token in self.access_tokens.items():
-                        if access_token.get("token") == refresh_token.get(
-                            "associated_access_token"
-                        ):
-                            logging.debug(
-                                " - Found a valid matching access token, "
-                                + "proceeding with exchange"
-                            )
+                        if access_token.get("token") == refresh_token.get("associated_access_token"):
+                            logging.debug(" - Found a valid matching access token, " + "proceeding with exchange")
                             token_exchange_response = self.client_factory.get_authn_client().exchange_token(
                                 service=service_name,
                                 version=version,
@@ -186,11 +165,7 @@ class OIDCSession(Session):
                             self.refresh_tokens.pop(refresh_token_idx)
                             aud_to_pop = []
                             for aud, attributes in self.access_tokens.items():
-                                if attributes.get(
-                                    "token"
-                                ) == refresh_token.get(
-                                    "associated_access_token"
-                                ):
+                                if attributes.get("token") == refresh_token.get("associated_access_token"):
                                     aud_to_pop.append(aud)
                             for aud in aud_to_pop:
                                 self.access_tokens.pop(aud)
@@ -207,18 +182,13 @@ class OIDCSession(Session):
                 # refresh the access token first using this.
                 #
                 if not found_matching_access_token:
-                    logging.debug(
-                        " - Unable to find a valid matching access token, proceeding with refresh"
-                    )
-                    for refresh_token_idx, refresh_token in enumerate(
-                        self.refresh_tokens
-                    ):
+                    logging.debug(" - Unable to find a valid matching access token, proceeding with refresh")
+                    for refresh_token_idx, refresh_token in enumerate(self.refresh_tokens):
                         try:
-                            token_refresh_response = self.client_factory.get_authn_client().refresh_token(
-                                refresh_token=refresh_token.get("token")
-                            )
+                            token_refresh_response = self.client_factory.get_authn_client().refresh_token(refresh_token=refresh_token.get("token"))
                             token_refresh_response.raise_for_status()
                         except Exception as e:
+                            logging.exception(e)
                             continue
                         refreshed_token = token_refresh_response.json()
 
@@ -240,26 +210,18 @@ class OIDCSession(Session):
                         token = token_exchange_response.json()
                         break
             else:
-                logging.critical(
-                    "Exchange requested by refresh but no valid refresh tokens exist."
-                )
+                logging.critical("Exchange requested by refresh but no valid refresh tokens exist.")
         else:
             logging.debug(" - Attempting direct access token exchange")
             if not self.access_tokens:
-                logging.critical(
-                    "Exchange requested but no valid access tokens exist."
-                )
+                logging.critical("Exchange requested but no valid access tokens exist.")
             else:
                 # select any valid token randomly
-                random_access_token = random.choice(
-                    list(self.access_tokens.values())
-                )
+                random_access_token = random.choice(list(self.access_tokens.values()))
                 access_token_to_exchange = random_access_token.get("token")
-                token_exchange_response = (
-                    self.client_factory.get_authn_client().exchange_token(
-                        service=service_name,
-                        access_token=access_token_to_exchange,
-                    )
+                token_exchange_response = self.client_factory.get_authn_client().exchange_token(
+                    service=service_name,
+                    access_token=access_token_to_exchange,
                 )
                 token_exchange_response.raise_for_status()
                 token = token_exchange_response.json()
@@ -268,9 +230,7 @@ class OIDCSession(Session):
             token_path_on_disk = None
             if store_to_disk:
                 token_path_on_disk = self._save_tokens_to_disk(token)
-            self._add_tokens_to_internal_cache(
-                token, path_on_disk=token_path_on_disk
-            )
+            self._add_tokens_to_internal_cache(token, path_on_disk=token_path_on_disk)
             self.get_access_token(service_name)
             return True
         return False
@@ -298,8 +258,8 @@ class OIDCSession(Session):
         tokens = {}
         for aud, attributes in self.access_tokens.items():
             access_token = attributes.get("token")
-            expires_at = attributes.get("expires_at")
-            path_on_disk = attributes.get("path_on_disk")
+            _ = attributes.get("expires_at")
+            _ = attributes.get("path_on_disk")
             has_associated_refresh_token = False
             for token in self.refresh_tokens:
                 if access_token == token.get("associated_access_token"):
@@ -325,9 +285,7 @@ class OIDCSession(Session):
         """
         access_token_for_service = self.access_tokens.get(service_name, {})
         if not access_token_for_service:
-            logging.critical(
-                "No access token exists for service {}".format(service_name)
-            )
+            logging.critical("No access token exists for service {}".format(service_name))
             return
         access_token_decoded = jwt.decode(
             access_token_for_service.get("token"),
@@ -346,29 +304,19 @@ class OIDCSession(Session):
         :return: Either the error code as a string or True.
         :rtype: Union[bool, dict]
         """
-        token_response = (
-            self.client_factory.get_authn_client()
-            .token(device_code=device_code)
-            .json()
-        )
+        token_response = self.client_factory.get_authn_client().token(device_code=device_code).json()
         token = token_response.get("token")
         if token:
             token_path_on_disk = None
             if store_to_disk:
                 token_path_on_disk = self._save_tokens_to_disk(token)
-            self._add_tokens_to_internal_cache(
-                token, path_on_disk=token_path_on_disk
-            )
+            self._add_tokens_to_internal_cache(token, path_on_disk=token_path_on_disk)
             return True
         return token_response.get("error")
 
     @handle_client_exceptions
-    def start_device_flow(
-        self, max_polling_attempts=60, wait_between_polling_s=5
-    ):
-        device_authorization_response = (
-            self.get_device_authorization_response()
-        )
+    def start_device_flow(self, max_polling_attempts=60, wait_between_polling_s=5):
+        device_authorization_response = self.get_device_authorization_response()
 
         # make an ascii qr code for the complete verification uri
         qr = qrcode.QRCode(
@@ -377,17 +325,13 @@ class OIDCSession(Session):
             box_size=10,
             border=4,
         )
-        qr.add_data(
-            device_authorization_response.get("verification_uri_complete")
-        )
+        qr.add_data(device_authorization_response.get("verification_uri_complete"))
 
         # add instructional text for user if they don't want to use qr code
         user_instruction_text = (
             "Scan the QR code, or using a browser on another device, visit "
             + "{verification_uri} and enter code {user_code}".format(
-                verification_uri=device_authorization_response.get(
-                    "verification_uri"
-                ),
+                verification_uri=device_authorization_response.get("verification_uri"),
                 user_code=device_authorization_response.get("user_code"),
             )
         )
@@ -408,20 +352,15 @@ class OIDCSession(Session):
         for attempt in range(0, max_attempts):
             try:
                 # the following will raise before the break if the authorization is still pending
-                self.request_token(
-                    device_code=device_authorization_response.get(
-                        "device_code"
-                    )
-                )
+                self.request_token(device_code=device_authorization_response.get("device_code"))
                 success = True
                 break
             except Exception as e:
-                ex_type, ex_value, ex_traceback = sys.exc_info()
+                logging.exception(e)
+                _, ex_value, _ = sys.exc_info()
                 logging.debug(ex_value)
             print(
-                "Polling for token... ({attempt}/{max_attempts})".format(
-                    attempt=attempt + 1, max_attempts=max_attempts
-                ),
+                "Polling for token... ({attempt}/{max_attempts})".format(attempt=attempt + 1, max_attempts=max_attempts),
                 end="\r",
             )
             time.sleep(wait_between_polling_s)
