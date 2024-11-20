@@ -580,12 +580,10 @@ if __name__ == "__main__":
     elif args.command == 'site':
         if args.subcommand == 'add':
             url = SiteAPI(session=session).get_add_site_www_url()
-            access_token = session.get_access_token(service_name='site-capabilities-api')
-            print("Please navigate to: {url}?token={token}".format(url=url, token=access_token))
+            print("Please navigate to: {url}".format(url=url))
         elif args.subcommand == 'edit':
             url = SiteAPI(session=session).get_edit_site_www_url(args.site)
-            access_token = session.get_access_token(service_name='site-capabilities-api')
-            print("Please navigate to: {url}?token={token}".format(url=url, token=access_token))
+            print("Please navigate to: {url}".format(url=url))
         elif args.subcommand == 'ls':
             output['raw'] = SiteAPI(session=session).list_sites()
         elif args.subcommand == 'compute':
@@ -632,8 +630,8 @@ if __name__ == "__main__":
 
                 # make a nice table
                 table = PrettyTable()
-                table.field_names = ["Identifier", "Type", "Version", "Enabled?", "ID", "Prefix", "Host", "Port",
-                                     "Path"]
+                table.field_names = ["Identifier", "Type", "Version", "Enabled?", "Mandatory?", "ID", "Prefix", "Host",
+                                     "Port", "Path"]
                 table.align = 'l'
 
                 table.add_row([
@@ -641,6 +639,7 @@ if __name__ == "__main__":
                     output['raw'].get('type'),
                     output['raw'].get('version'),
                     u'\u2713' if output['raw'].get('enabled') else '',
+                    u'\u2713' if output.get('is_mandatory') else '',
                     output['raw'].get('id'),
                     output['raw'].get('prefix'),
                     output['raw'].get('host'),
@@ -653,8 +652,8 @@ if __name__ == "__main__":
 
                 # make a nice table
                 table = PrettyTable()
-                table.field_names = ["Site", "Identifier", "Type", "Version", "Enabled?", "ID", "Prefix", "Host",
-                                     "Port", "Path"]
+                table.field_names = ["Site", "Identifier", "Type", "Version", "Enabled?", "Mandatory?", "ID", "Prefix",
+                                     "Host", "Port", "Path"]
                 table.align = 'l'
 
                 for entry in output['raw']:
@@ -665,6 +664,7 @@ if __name__ == "__main__":
                             service_attributes.get('type'),
                             service_attributes.get('version'),
                             u'\u2713' if service_attributes.get('enabled') else '',
+                            u'\u2713' if service_attributes.get('is_mandatory') else '',
                             service_attributes.get('id'),
                             service_attributes.get('prefix'),
                             service_attributes.get('host'),
@@ -677,17 +677,17 @@ if __name__ == "__main__":
 
                 # make a nice table
                 table = PrettyTable()
-                table.field_names = ["Core or compute?", "Name"]
+                table.field_names = ["Global or local?", "Name"]
                 table.align = 'l'
 
-                for entry in output['raw'].get('core'):
+                for entry in output['raw'].get('global'):
                     table.add_row([
-                        "Core",
+                        "Global",
                         entry
                     ])
-                for entry in output['raw'].get('compute'):
+                for entry in output['raw'].get('local'):
                     table.add_row([
-                        "Compute",
+                        "Local",
                         entry
                     ])
                 output['tabulated'] = table
