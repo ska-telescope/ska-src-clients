@@ -62,6 +62,8 @@ def make_parsers(return_all_parsers=False):
                                                                            "replica to. Leave blank to use the "
                                                                            "requesting client ip "
                                                                            "(sort == nearest_by_ip only)")
+        data_download_parser.add_argument('--no-verify', action="store_true", help="Disable verification of the "
+                                                                                    "server's SSL certificate?")
         data_download_parser.add_argument('--output', help="The output filename")
 
         # data locate
@@ -71,7 +73,7 @@ def make_parsers(return_all_parsers=False):
                                           required=True)
         data_locate_parser.add_argument('--sort', default="nearest_by_ip", help="The sorting algorithm to use "
                                                                                 "(random || nearest_by_ip)")
-        data_locate_parser.add_argument('--ip_address', default="", help="The ip address to geolocate the nearest "
+        data_locate_parser.add_argument('--ip-address', default="", help="The ip address to geolocate the nearest "
                                                                          "requesting client ip "
                                                                          "(sort == nearest_by_ip only)")
         data_locate_parser.add_argument('--plot', action="store_true", help="Plot?")
@@ -93,25 +95,6 @@ def make_parsers(return_all_parsers=False):
         # data namespace ls
         data_namespace_parser_subparsers.add_parser("ls", help="List namespaces")
 
-        # data rules
-        data_rules_parser = data_parser_subparsers.add_parser("rules", help="Data rules operations")
-        data_rules_parser_subparsers = data_rules_parser.add_subparsers(help="Data rules operations",
-                                                                        dest='subsubcommand')
-
-        # data rules ls
-        data_rules_ls_parser = data_rules_parser_subparsers.add_parser("ls", help="List rules for a namespace")
-        data_rules_ls_parser.add_argument('--namespace', help="The data namespace", required=True)
-        data_rules_ls_parser.add_argument('--datetime_from', default="now-1h", help="Human readable datetime from")
-        data_rules_ls_parser.add_argument('--datetime_to', default="now", help="Human readable datetime to")
-        data_rules_ls_parser.add_argument('--limit', default=1000, help="Human readable datetime to")
-        data_rules_ls_parser.add_argument('--plot', action="store_true", help="Plot?")
-
-        # data rules did
-        data_rules_did_parser = data_rules_parser_subparsers.add_parser("did", help="List rules for a data identifier")
-        data_rules_did_parser.add_argument('--namespace', help="The data identifier's namespace", required=True)
-        data_rules_did_parser.add_argument('--name', help="The data identifier's namespace", required=True)
-        data_rules_did_parser.add_argument('--plot', action="store_true", help="Plot?")
-
         # data upload
         data_upload_parser = data_parser_subparsers.add_parser("upload", help="Data upload operations")
         data_upload_parser_subparsers = data_upload_parser.add_subparsers(help="Data upload operations",
@@ -129,7 +112,7 @@ def make_parsers(return_all_parsers=False):
         data_upload_ingest_parser.add_argument('--metadata-suffix', help="The expected metadata suffix",
                                                default='.meta')
 
-        return data_parser, data_namespace_parser, data_rules_parser, data_upload_parser
+        return data_parser, data_namespace_parser, data_upload_parser
 
     def add_metadata_commands_to_subparsers(subparsers):
         metadata_parser = subparsers.add_parser("metadata", help="Metadata operations")
@@ -139,7 +122,7 @@ def make_parsers(return_all_parsers=False):
         metadata_get_parser = metadata_parser_subparsers.add_parser("get", help="Get metadata for a data identifier")
         metadata_get_parser.add_argument('--namespace', help="The data identifier's namespace", required=True)
         metadata_get_parser.add_argument('--name', help="The data identifier's name", required=True)
-        metadata_get_parser.add_argument('--store', default="file", help="The metadata store to use")
+        metadata_get_parser.add_argument('--store', default="file", help="The metadata store to use (file || science)")
         metadata_get_parser.add_argument('--showempty', action="store_true", help="Show empty keys?")
 
         # metadata set
@@ -345,6 +328,7 @@ if __name__ == "__main__":
                 name=args.name,
                 sort=args.sort,
                 ip_address=args.ip_address,
+                verify=not args.no_verify,
                 output_filename=args.output
             )
         elif args.subcommand == 'locate':
@@ -389,130 +373,6 @@ if __name__ == "__main__":
                 filters=args.filters,
                 limit=args.limit
             )
-        elif args.subcommand == 'rules':
-            if args.subsubcommand == 'did':
-                output['raw'] = DataAPI(session=session).list_rules_for_data_identifier(
-                    namespace=args.namespace,
-                    name=args.name
-                )
-                # make a nice table
-                table = PrettyTable()
-                table.field_names = ["Rule ID", "Scope", "Name", "RSE Expression", "Copies", "State", "Created At",
-                                     "Updated At", "Expires At", ]
-                table.align = 'l'
-
-                for entry in output['raw'].get('rules'):
-                    table.add_row([
-                        entry.get('id'),
-                        entry.get('scope'),
-                        entry.get('name'),
-                        entry.get('rse_expression'),
-                        entry.get('copies'),
-                        entry.get('state'),
-                        entry.get('created_at'),
-                        entry.get('updated_at'),
-                        entry.get('expired_at'),
-                    ])
-                output['tabulated'] = table
-
-                # make a plot if requested
-                if args.plot:
-                    # get the storage area lat/longs
-                    storage_areas_topojson = SiteAPI(session=session).list_storage_areas_topojson()
-                    geometries = storage_areas_topojson.get('objects', {}).get('sites', {}).get('geometries', [])
-                    data_by_storage_area = []
-                    for geometry in geometries:
-                        coordinates = geometry.get('coordinates')
-                        identifier = geometry.get('properties', {}).get('name')
-                        if identifier and coordinates:
-                            rules_for_this_identifier = [entry for entry in output['raw'].get('rules')
-                                                         if entry.get('rse_expression') == identifier]
-                            count_ALL = len(rules_for_this_identifier)
-                            count_OK = len([rule for rule in rules_for_this_identifier if rule.get('state') == 'OK'])
-                            count_REPL = len([rule for rule in rules_for_this_identifier
-                                          if rule.get('state') == 'REPLICATING'])
-                            count_STUCK = len([rule for rule in rules_for_this_identifier
-                                               if rule.get('state') == 'STUCK'])
-                            if count_ALL > 0:
-                                data_by_storage_area.append({
-                                    'identifier': identifier,
-                                    'latitude': coordinates[1],
-                                    'longitude': coordinates[0],
-                                    'count': count_ALL,
-                                    'label': "<b>{}</b><br>Total: {}<br>OK: {}<br>Replicating: {}<br>Stuck: {}".format(
-                                        identifier, count_ALL, count_OK, count_REPL, count_STUCK)
-                                })
-
-                    # plot
-                    fig = go.Figure()
-                    plot_scatter_world_map(fig=fig, data=data_by_storage_area, latitude_key='latitude',
-                                           longitude_key='longitude', value_key='count', label_key='label',
-                                           size_offset=10)
-                    fig.show()
-            elif args.subsubcommand == 'ls':
-                output['raw'] = DataAPI(session=session).list_rules_for_namespace(
-                    namespace=args.namespace,
-                    datetime_from=args.datetime_from,
-                    datetime_to=args.datetime_to,
-                    limit=args.limit
-                )
-
-                # make a nice table
-                table = PrettyTable()
-                table.field_names = ["Rule ID", "Scope", "Name", "RSE Expression", "Copies", "State", "Created At",
-                                     "Updated At", "Expires At", ]
-                table.align = 'l'
-
-                for entry in output['raw'].get('rules'):
-                    table.add_row([
-                        entry.get('id'),
-                        entry.get('scope'),
-                        entry.get('name'),
-                        entry.get('rse_expression'),
-                        entry.get('copies'),
-                        entry.get('state'),
-                        entry.get('created_at'),
-                        entry.get('updated_at'),
-                        entry.get('expired_at')
-                    ])
-                output['tabulated'] = table
-
-                # make a plot if requested
-                if args.plot:
-                    # get the storage area lat/longs
-                    storage_areas_topojson = SiteAPI(session=session).list_storage_areas_topojson()
-                    geometries = storage_areas_topojson.get('objects', {}).get('sites', {}).get('geometries', [])
-                    data_by_storage_area = []
-                    for geometry in geometries:
-                        coordinates = geometry.get('coordinates')
-                        identifier = geometry.get('properties', {}).get('name')
-                        if identifier and coordinates:
-                            rules_for_this_identifier = [entry for entry in output['raw'].get('rules')
-                                                         if entry.get('rse_expression') == identifier]
-                            count_ALL = len(rules_for_this_identifier)
-                            count_OK = len([rule for rule in rules_for_this_identifier if rule.get('state') == 'OK'])
-                            count_REPL = len([rule for rule in rules_for_this_identifier
-                                          if rule.get('state') == 'REPLICATING'])
-                            count_STUCK = len([rule for rule in rules_for_this_identifier
-                                               if rule.get('state') == 'STUCK'])
-                            if count_ALL > 0:
-                                data_by_storage_area.append({
-                                    'identifier': identifier,
-                                    'latitude': coordinates[1],
-                                    'longitude': coordinates[0],
-                                    'count': count_ALL,
-                                    'label': "<b>{}</b><br>Total: {}<br>OK: {}<br>Replicating: {}<br>Stuck: {}".format(
-                                        identifier, count_ALL, count_OK, count_REPL, count_STUCK)
-                                })
-
-                    # plot
-                    fig = go.Figure()
-                    plot_scatter_world_map(fig=fig, data=data_by_storage_area, latitude_key='latitude',
-                                           longitude_key='longitude', value_key='count', label_key='label',
-                                           size_offset=10)
-                    fig.show()
-            else:
-                parsers.srcnet_oper_data_rules.print_help()
         elif args.subcommand == 'upload':
             if args.subsubcommand == 'ingest':
                 DataAPI(session=session).upload_for_ingest(

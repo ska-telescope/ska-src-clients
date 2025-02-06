@@ -34,6 +34,9 @@ class DataManagementClient(ABC):
 class WebDAVClient3(DataManagementClient):
     """ A WebDAV client based on the webdav-client-python3 library. """
     def __init__(self, prefix, host, port, path, access_token=None, verify=True, **kwargs):
+        # Translate davs prefix -> https
+        if prefix == 'davs':
+            prefix = 'https'
         options = {
             'webdav_hostname': "{prefix}://{host}:{port}/{path}".format(
                 prefix=prefix,
