@@ -13,7 +13,7 @@ pages:
     - main
   stage: deploy
   image:
-    name: python:latest
+    name: python:3.12.3
   script:
   - python3 -m pip install -U sphinx
   - python3 -m pip install --extra-index-url https://gitlab.com/api/v4/groups/70683489/-/packages/pypi/simple .
