@@ -30,7 +30,7 @@ def check_authentication_api_aliveness(func):
 class OIDCSession(Session):
     def __init__(self, config):
         super().__init__(config)
-        self.stored_token_directory = "/tmp/srcnet/user"
+        self.stored_token_directory = config.get("general", {}).get("stored_token_directory", "/tmp/srcnet/user")
         self.access_tokens = {}
         self.refresh_tokens = []
 
@@ -40,28 +40,40 @@ class OIDCSession(Session):
         :param str token: The token to add.
         :param str path_on_disk: The path to the token on disk.
         """
-        logging.debug("Adding tokens to internal cache.")
+        logging.debug("Adding tokens from file {} to internal cache.".format(path_on_disk))
         access_token = token.get('access_token')
         access_token_decoded = jwt.decode(access_token, options={"verify_signature": False})
         if 'aud' in access_token_decoded:
-            self.access_tokens[access_token_decoded.get('aud')] = {
+            access_token_audience = access_token_decoded.get('aud')
+            # As only one access token is kept per audience, we should keep the one with the latest expiry time
+            # otherwise it's possible that an invalid token (but with valid refresh) is preferred here over a valid
+            # one just by virtue of being last in the list. This can cause problems if it is then disregarded later
+            # when expired tokens are removed as part of the remove_expired_tokens decorator.
+            #
+            if self.access_tokens.get(access_token_audience, False):
+                this_access_token_expires_at = access_token_decoded.get('exp')
+                existing_access_token_expires_at = self.access_tokens[access_token_audience].get('expires_at')
+                if existing_access_token_expires_at > this_access_token_expires_at:
+                    return
+
+            self.access_tokens[access_token_audience] = {
                 'token': access_token,
                 'expires_at': access_token_decoded.get('exp'),
                 'path_on_disk': path_on_disk if path_on_disk else 'INTERNAL'
             }
 
-        # Keep the association between refresh and access tokens as when refreshing the associated access token is
-        # (by default in the client) invalidated.
-        #
-        refresh_token = token.get('refresh_token')
-        if refresh_token:
-            refresh_token_decoded = jwt.decode(refresh_token, options={"verify_signature": False})
-            self.refresh_tokens.append({
-                'token': refresh_token,
-                'associated_access_token': access_token,
-                'expires_at': refresh_token_decoded.get('exp'),
-                'path_on_disk': path_on_disk if path_on_disk else 'INTERNAL'
-            })
+            # Keep the association between refresh and access tokens as when refreshing the associated access
+            # token is (by default in the client) invalidated.
+            #
+            refresh_token = token.get('refresh_token')
+            if refresh_token:
+                refresh_token_decoded = jwt.decode(refresh_token, options={"verify_signature": False})
+                self.refresh_tokens.append({
+                    'token': refresh_token,
+                    'associated_access_token': access_token,
+                    'expires_at': refresh_token_decoded.get('exp'),
+                    'path_on_disk': path_on_disk if path_on_disk else 'INTERNAL'
+                })
 
     def _save_tokens_to_disk(self, token):
         """ Save a token to disk.
@@ -241,9 +253,9 @@ class OIDCSession(Session):
                     has_associated_refresh_token = True
 
             tokens[aud] = {
-                'access_token': attributes.get('token'),
-                'expires_at': attributes.get('expires_at'),
-                'path_on_disk': attributes.get('path_on_disk'),
+                'access_token': access_token,
+                'expires_at': expires_at,
+                'path_on_disk': path_on_disk,
                 'has_associated_refresh_token': has_associated_refresh_token
             }
         return tokens

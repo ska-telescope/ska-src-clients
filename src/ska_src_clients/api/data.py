@@ -17,7 +17,7 @@ class DataAPI(API):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def download(self, namespace, name, sort='nearest_by_ip', ip_address=None, output_filename=None):
+    def download(self, namespace, name, sort='nearest_by_ip', ip_address=None,  verify=True, output_filename=None):
         """ Locate replicas of data identifier, sort by some algorithm and download.
 
         :param str namespace: The data identifier's namespace.
@@ -25,6 +25,7 @@ class DataAPI(API):
         :param str sort: The sorting algorithm to use (random || nearest_by_ip)
         :param str ip_address: The ip address to geolocate the nearest replica to. Leave blank to use the requesting
             client ip (sort == nearest_by_ip only)
+        :param bool verify: Verify a server's SSL certificate.
         :param str output_filename: The output filename (defaults to remote filename).
         """
         # query DM API to get a list of data replicas for this namespace/name and pick the first
@@ -59,7 +60,7 @@ class DataAPI(API):
             package_name=package_name,
             module_name=module_name
         ))
-        selected_dm_client = getattr(module, class_name)(**access_url_parts, access_token=access_token)
+        selected_dm_client = getattr(module, class_name)(**access_url_parts, access_token=access_token, verify=verify)
 
         # download data using this access token
         if not output_filename:
@@ -122,7 +123,7 @@ class DataAPI(API):
         return replicas
 
     def upload_for_ingest(self, path, ingest_service_id, namespace, metadata_suffix='meta', extra_metadata={},
-                          protocol_prefix='https', debug=False):
+                          protocol_prefix='https', verify=True, debug=False):
         """ Upload data for ingestion.
 
         :param str path: Local path to data directory to be uploaded.
@@ -131,6 +132,7 @@ class DataAPI(API):
         :param str metadata_suffix: The expected metadata suffix.
         :param str extra_metadata: Extra metadata to apply to each file (JSON).
         :param str protocol_prefix: The protocol prefix to use.
+        :param bool verify: Verify a server's SSL certificate.
         :param bool debug: Debug mode?
         """
         reserved_metadata_keys = ['namespace', 'ingest_service_id']
@@ -181,7 +183,7 @@ class DataAPI(API):
             module_name=module_name
         ))
         selected_dm_client = getattr(module, class_name)(prefix=prefix, host=host, port=port, path=remote_path,
-                                                         access_token=access_token)
+                                                         access_token=access_token, verify=verify)
 
         # make an upload plan (so it can be saved, continued etc.)
         plan = UploadPlan()

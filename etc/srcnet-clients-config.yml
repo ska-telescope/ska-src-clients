@@ -1,3 +1,6 @@
+general:
+  stored_token_directory: /tmp/srcnet/user
+
 apis:
   authn-api:
     url: https://authn.srcdev.skao.int/api/v1
