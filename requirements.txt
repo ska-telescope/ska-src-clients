@@ -4,7 +4,7 @@ prettytable==3.3.0
 PyJWT==2.8.0
 python-box==5.4.1
 ska-src-authn-api==0.4.8
-ska-src-data-management-api==0.5.39
+ska-src-data-management-api==0.5.86
 ska-src-permissions-api==0.1.24
 ska-src-site-capabilities-api==0.3.30
 sphinx-argparse==0.4.0
