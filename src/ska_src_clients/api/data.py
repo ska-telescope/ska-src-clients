@@ -6,7 +6,7 @@ import random
 import tempfile
 import uuid
 
-from ska_src_clients.common.exceptions import ExtraMetadataKeyConflict, MetadataKeyConflict
+from ska_src_clients.common.exceptions import ExtraMetadataKeyConflict, MetadataKeyConflict, CustomException
 from ska_src_clients.common.utility import url_to_parts
 from ska_src_clients.plan.plan import UploadPlan
 from ska_src_clients.api.api import API
@@ -38,11 +38,11 @@ class DataAPI(API):
         if job_id:
             return dm_client.get_status_data_movement_request(job_id).json().get('state')
         if not site:
-            raise Exception("No site provided")
+            raise CustomException("No site provided")
         if not dids:
-            raise Exception("No DIDs provided")
+            raise CustomException("No DIDs provided")
         if not lifetime:
-            raise Exception("No lifetime provided")
+            raise CustomException("No lifetime provided")
         return dm_client.make_data_movement_request(to_storage_area_uuid=site,
                                                     lifetime=lifetime,
                                                     parent_namespace=parent_namespace,
@@ -69,11 +69,11 @@ class DataAPI(API):
         if job_id:
             return dm_client.get_status_data_staging_request(job_id).json().get('state')
         if not site:
-            raise Exception("No site provided")
+            raise CustomException("No site provided")
         if not dids:
-            raise Exception("No DIDs provided")
+            raise CustomException("No DIDs provided")
         if not lifetime:
-            raise Exception("No lifetime provided")
+            raise CustomException("No lifetime provided")
         return dm_client.make_data_staging_request(to_storage_area_uuid=site,
                                                    lifetime=lifetime,
                                                    parent_namespace=parent_namespace,
