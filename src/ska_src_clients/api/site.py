@@ -8,18 +8,18 @@ class SiteAPI(API):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def get_add_site_www_url(self):
+    def get_add_node_www_url(self):
         """ Get the add site www URL. """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
-        return client.get_add_site_www_url()
+        return client.get_add_node_www_url()
 
-    def get_edit_site_www_url(self, site_name):
+    def get_edit_node_www_url(self, node_name):
         """ Get the edit site www URL.
 
         :param str site_name: The site name.
         """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
-        return client.get_edit_site_www_url(site_name=site_name)
+        return client.get_edit_node_www_url(node_name=node_name)
 
     def get_compute(self, compute_id):
         """ Get description of a compute element.
