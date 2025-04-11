@@ -144,6 +144,10 @@ def make_parsers(return_all_parsers=False):
         site_edit_parser = site_parser_subparsers.add_parser("edit", help="Edit an existing site")
         site_edit_parser.add_argument('--node', help="Name of the node to edit", required=True)
 
+        # site get
+        site_get_parser = site_parser_subparsers.add_parser("get", help="Get site by ID")
+        site_get_parser.add_argument('--id', help="ID of the site to get", required=True)
+
         # site ls
         site_parser_subparsers.add_parser("ls", help="List sites")
 
@@ -444,8 +448,42 @@ if __name__ == "__main__":
         elif args.subcommand == 'edit':
             url = SiteAPI(session=session).get_edit_node_www_url(args.node)
             print("Please navigate to: {url}".format(url=url))
+        elif args.subcommand == 'get':
+            output['raw'] = SiteAPI(session=session).get_site(site_id=args.id)
+
+            # make a nice table
+            table = PrettyTable()
+            table.field_names = ["Node", "Site", "ID", "Description", "Latitude", "Longitude"]
+            table.align = 'l'
+
+            table.add_row([
+                output["raw"].get('parent_node_name', '-'),
+                output["raw"].get('name', '-'),
+                output["raw"].get('id', '-'),
+                output["raw"].get('description', '-'),
+                output["raw"].get('latitude', '-'),
+                output["raw"].get('longitude', '-')
+            ])
+            output['tabulated'] = table
         elif args.subcommand == 'ls':
             output['raw'] = SiteAPI(session=session).list_sites()
+
+            # make a nice table
+            table = PrettyTable()
+            table.field_names = ["Node", "Site", "ID", "Description", "Latitude", "Longitude"]
+            table.align = 'l'
+
+            for site in output['raw']:
+                table.add_row([
+                    site.get('parent_node_name', '-'),
+                    site.get('name', '-'),
+                    site.get('id', '-'),
+                    site.get('description', '-'),
+                    site.get('latitude', '-'),
+                    site.get('longitude', '-')
+                ])
+            output['tabulated'] = table
+
         elif args.subcommand == 'compute':
             if args.subsubcommand == 'get':
                 output['raw'] = SiteAPI(session=session).get_compute(compute_id=args.id)
@@ -487,14 +525,14 @@ if __name__ == "__main__":
                 # make a nice table
                 table = PrettyTable()
                 table.field_names = [
-                    "Node", "Site", "Identifier", "Type", "ID", "Prefix", "Host", "Port", "Path"
+                    "Node", "Site", "Name", "Type", "ID", "Prefix", "Host", "Port", "Path"
                 ]
                 table.align = 'l'
 
                 table.add_row([
                     output['raw'].get('parent_node_name', '-'),
                     output['raw'].get('parent_site_name', '-'),
-                    output['raw'].get('identifier', ''),
+                    output['raw'].get('name', ''),
                     output['raw'].get('type', ''),
                     output['raw'].get('id', ''),
                     output['raw'].get('prefix', ''),
@@ -509,7 +547,7 @@ if __name__ == "__main__":
                 # make a nice table
                 table = PrettyTable()
                 table.field_names = [
-                    "Node", "Site", "Identifier", "Type", "ID", "Prefix", "Host", "Port", "Path"
+                    "Node", "Site", "Name", "Type", "ID", "Prefix", "Host", "Port", "Path"
                 ]
                 table.align = 'l'
 
@@ -517,7 +555,7 @@ if __name__ == "__main__":
                     table.add_row([
                         service.get('parent_node_name', '-'),
                         service.get('parent_site_name', '-'),
-                        service.get('identifier', ''),
+                        service.get('name', ''),
                         service.get('type', ''),
                         service.get('id', ''),
                         service.get('prefix', ''),
@@ -554,7 +592,7 @@ if __name__ == "__main__":
                 # make a nice table
                 table = PrettyTable()
                 table.field_names = [
-                    "Parent Node", "Parent Site", "Identifier", "ID",
+                    "Parent Node", "Parent Site", "Name", "ID",
                     "Host", "Base Path", "SRM", "Device Type", "Size (TB)"
                 ]
                 table.align = 'l'
@@ -562,7 +600,7 @@ if __name__ == "__main__":
                 table.add_row([
                     output["raw"].get('parent_node_name', ''),
                     output["raw"].get('parent_site_name', ''),
-                    output["raw"].get('identifier', ''),
+                    output["raw"].get('name', ''),
                     output["raw"].get('id', ''),
                     output["raw"].get('host', ''),
                     output["raw"].get('base_path', ''),
@@ -577,7 +615,7 @@ if __name__ == "__main__":
                 # make a nice table
                 table = PrettyTable()
                 table.field_names = [
-                    "Parent Node", "Parent Site", "Identifier", "ID",
+                    "Parent Node", "Parent Site", "Name", "ID",
                     "Host", "Base Path", "SRM", "Device Type", "Size (TB)"
                 ]
                 table.align = 'l'
@@ -586,7 +624,7 @@ if __name__ == "__main__":
                     table.add_row([
                         storage.get('parent_node_name', ''),
                         storage.get('parent_site_name', ''),
-                        storage.get('identifier', ''),
+                        storage.get('name', ''),
                         storage.get('id', ''),
                         storage.get('host', ''),
                         storage.get('base_path', ''),
@@ -604,19 +642,19 @@ if __name__ == "__main__":
                 # make a nice table
                 table = PrettyTable()
                 table.field_names = [
-                    "Parent Node", "Parent Site", "Parent Storage ID",
-                    "ID", "Type", "Relative Path", "Identifier", "Tier"
+                    "Parent Node", "Parent Site", "Name", "Parent Storage ID",
+                    "ID", "Type", "Relative Path", "Tier"
                 ]
                 table.align = 'l'
 
                 table.add_row([
                     output["raw"].get('parent_node_name', ''),
                     output["raw"].get('parent_site_name', ''),
+                    output["raw"].get('name', ''),
                     output["raw"].get('parent_storage_id', ''),
                     output["raw"].get('id', ''),
                     output["raw"].get('type', ''),
                     output["raw"].get('relative_path', ''),
-                    output["raw"].get('identifier', ''),
                     output["raw"].get('tier', '')
                 ])
                 output['tabulated'] = table
@@ -626,8 +664,8 @@ if __name__ == "__main__":
                 # make a nice table
                 table = PrettyTable()
                 table.field_names = [
-                    "Parent Node", "Parent Site", "Parent Storage ID",
-                    "ID", "Type", "Relative Path", "Identifier", "Tier"
+                    "Parent Node", "Parent Site", "Name", "Parent Storage ID",
+                    "ID", "Type", "Relative Path", "Tier"
                 ]
                 table.align = 'l'
 
@@ -635,11 +673,11 @@ if __name__ == "__main__":
                     table.add_row([
                         entry.get('parent_node_name', ''),
                         entry.get('parent_site_name', ''),
+                        entry.get('name', ''),
                         entry.get('parent_storage_id', ''),
                         entry.get('id', ''),
                         entry.get('type', ''),
                         entry.get('relative_path', ''),
-                        entry.get('identifier', ''),
                         entry.get('tier', '')
                     ])
                 output['tabulated'] = table

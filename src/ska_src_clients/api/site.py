@@ -21,6 +21,14 @@ class SiteAPI(API):
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.get_edit_node_www_url(node_name=node_name)
 
+    def get_site(self, site_id):
+        """ Get description of a site.
+
+        :param str site_id: The site uuid.
+        """
+        client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
+        return client.get_site_from_id(site_id=site_id).json()
+
     def get_compute(self, compute_id):
         """ Get description of a compute element.
 
