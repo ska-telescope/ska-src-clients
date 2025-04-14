@@ -1,6 +1,26 @@
 import fnmatch
+import functools
+import logging
+from fastapi.exceptions import HTTPException
 
 from ska_src_clients.api.api import API
+
+def handle_api_errors(func):
+    """ Decorator for handling API errors. """
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except HTTPException as e:
+            if e.status_code == 404:
+                logging.error("Resource not found: {}".format(e.detail))
+            else:
+                logging.error("HTTP error: {} - {}".format(e.status_code, e.detail))
+            exit(1)
+        except Exception as e:
+            logging.exception("Unexpected error occurred: {}".format(e))
+            exit(1)
+    return wrapper
 
 
 class SiteAPI(API):
@@ -8,11 +28,13 @@ class SiteAPI(API):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+    @handle_api_errors
     def get_add_node_www_url(self):
         """ Get the add site www URL. """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.get_add_node_www_url()
 
+    @handle_api_errors
     def get_edit_node_www_url(self, node_name):
         """ Get the edit site www URL.
 
@@ -21,6 +43,7 @@ class SiteAPI(API):
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.get_edit_node_www_url(node_name=node_name)
 
+    @handle_api_errors
     def get_site(self, site_id):
         """ Get description of a site.
 
@@ -29,6 +52,7 @@ class SiteAPI(API):
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.get_site_from_id(site_id=site_id).json()
 
+    @handle_api_errors
     def get_compute(self, compute_id):
         """ Get description of a compute element.
 
@@ -37,6 +61,7 @@ class SiteAPI(API):
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.get_compute(compute_id=compute_id).json()
 
+    @handle_api_errors
     def get_service(self, service_id):
         """ Get description of a service.
         
@@ -45,6 +70,7 @@ class SiteAPI(API):
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.get_service(service_id=service_id).json()
 
+    @handle_api_errors
     def get_storage(self, storage_id):
         """ Get description of a storage resource.
 
@@ -53,6 +79,7 @@ class SiteAPI(API):
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.get_storage(storage_id=storage_id).json()
 
+    @handle_api_errors
     def get_storage_area(self, storage_area_id):
         """ Get description of a storage area resource.
 
@@ -61,50 +88,74 @@ class SiteAPI(API):
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.get_storage_area(storage_area_id=storage_area_id).json()
 
-    def list_compute(self):
+    @handle_api_errors
+    def list_compute(self, node_name=None, site_name=None):
         """ List compute elements across all sites. """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
-        return client.list_compute().json()
+        query_params = {}
+        if node_name:
+            query_params["node_names"] = [node_name]
+        if site_name:
+            query_params["site_names"] = [site_name]
+        return client.list_compute(**query_params).json()
 
-    def list_services(self, service_type=None):
-        """ List services across all sites.
+    @handle_api_errors
+    def list_services(self, service_type=None, node_name=None, site_name=None, scope='all'):
+        """ List services across all sites, with optional filters.
 
-        :param str service_type: Service type to filter results by.
+        :param str service_type: (Optional) Filter services by type (e.g., 'jupyterhub', 'soda_sync').
+        :param str site_name: (Optional) Filter services belonging to a specific site.
+        :param str node_name: (Optional) Filter services belonging to a specific node.
+        :param str scope: (Optional) Filter by service scope ('all'|'local'|'global').
         """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
-        if service_type:
-            filtered_response = client.list_services().json()
-            for entry in filtered_response:
-                filtered_site_services = []
-                for service in entry.get('services'):
-                    if fnmatch.fnmatch(service.get('type'), service_type):
-                        filtered_site_services.append(service)
-                entry['services'] = filtered_site_services
-        else:
-            return client.list_services().json()
-        return filtered_response
 
+        query_params = {"service_scope": scope}
+        if service_type:
+            query_params["service_types"] = [service_type]
+        if node_name:
+            query_params["node_names"] = [node_name]
+        if site_name:
+            query_params["site_names"] = [site_name]
+
+        return client.list_services(**query_params).json()
+
+    @handle_api_errors
     def list_service_types(self):
         """ List supported service types. """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         # services can be "core" or associated with a compute element, use combined result
         return client.list_service_types().json()
 
+    @handle_api_errors
     def list_sites(self):
         """ List sites. """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.list_sites().json()
 
-    def list_storages(self):
+    @handle_api_errors
+    def list_storages(self, node_name=None, site_name=None):
         """ List storages across all sites. """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
-        return client.list_storages().json()
+        query_params = {}
+        if node_name:
+            query_params["node_names"] = [node_name]
+        if site_name:
+            query_params["site_names"] = [site_name]
+        return client.list_storages(**query_params).json()
 
-    def list_storage_areas(self):
+    @handle_api_errors
+    def list_storage_areas(self, node_name=None, site_name=None):
         """ List storage areas across all sites. """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
-        return client.list_storage_areas().json()
+        query_params = {}
+        if node_name:
+            query_params["node_names"] = [node_name]
+        if site_name:
+            query_params["site_names"] = [site_name]
+        return client.list_storage_areas(**query_params).json()
 
+    @handle_api_errors
     def list_storage_areas_topojson(self):
         """ List storage areas across all sites in topojson format. """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)

@@ -160,9 +160,12 @@ def make_parsers(return_all_parsers=False):
         site_compute_get_parser = site_compute_parser_subparsers.add_parser(
             "get", help="Get description of a compute element")
         site_compute_get_parser.add_argument('--id', help="ID of the compute element to get", required=True)
+        site_compute_get_parser.add_argument('--services', help="Show associated services", action="store_true")
 
         # site compute ls
-        site_compute_parser_subparsers.add_parser("ls", help="List compute elements")
+        site_compute_ls_parser = site_compute_parser_subparsers.add_parser("ls", help="List compute elements")
+        site_compute_ls_parser.add_argument('--node', help="Filter by node name")
+        site_compute_ls_parser.add_argument('--site', help="Filter by site name")
 
         # site service
         site_service_parser = site_parser_subparsers.add_parser("service", help="Site service operations")
@@ -177,6 +180,14 @@ def make_parsers(return_all_parsers=False):
         # site service ls
         site_service_ls_parser = site_service_parser_subparsers.add_parser("ls", help="List services")
         site_service_ls_parser.add_argument('--type', help="Filter for type of service (accepts wildcards)")
+        site_service_ls_parser.add_argument('--node', help="Filter by node name")
+        site_service_ls_parser.add_argument('--site', help="Filter by site name")
+        site_service_ls_parser.add_argument(
+            '--scope',
+            help="Filter by service scope (all, local, global)",
+            choices=['all', 'local', 'global'],
+            default='all'
+        )
 
         # site service types
         site_service_parser_subparsers.add_parser("types", help="List service types")
@@ -190,9 +201,13 @@ def make_parsers(return_all_parsers=False):
         site_storage_get_parser = site_storage_parser_subparsers.add_parser(
             "get", help="Get description of a storage resource")
         site_storage_get_parser.add_argument('--id', help="ID of the storage resource to get", required=True)
+        site_storage_get_parser.add_argument('--areas', help="Show storage areas", action="store_true")
 
         # site storage ls
-        site_storage_parser_subparsers.add_parser("ls", help="List storages")
+        site_storage_ls_parser = site_storage_parser_subparsers.add_parser(
+            "ls", help="List storages")
+        site_storage_ls_parser.add_argument('--node', help="Filter by node name")
+        site_storage_ls_parser.add_argument('--site', help="Filter by site name")
 
         # site storage area
         site_storage_area_parser = site_parser_subparsers.add_parser("storage-area",
@@ -206,7 +221,10 @@ def make_parsers(return_all_parsers=False):
         site_storage_area_get_parser.add_argument('--id', help="ID of the storage area_resource to get", required=True)
 
         # site storage area ls
-        site_storage_area_parser_subparsers.add_parser("ls", help="List storage areas")
+        site_storage_area_ls_parser = site_storage_area_parser_subparsers.add_parser(
+            "ls", help="List storage areas")
+        site_storage_area_ls_parser.add_argument('--node', help="Filter by node name")
+        site_storage_area_ls_parser.add_argument('--site', help="Filter by site name")
 
         return site_parser, site_compute_parser, site_service_parser, site_storage_parser, site_storage_area_parser
 
@@ -453,7 +471,10 @@ if __name__ == "__main__":
 
             # make a nice table
             table = PrettyTable()
-            table.field_names = ["Node", "Site", "ID", "Description", "Latitude", "Longitude"]
+            table.field_names = [
+                "Node", "Site", "ID", "Description", "Latitude", "Longitude",
+                "Country", "Primary / Secondary Contact Email", "Comments"
+            ]
             table.align = 'l'
 
             table.add_row([
@@ -462,7 +483,13 @@ if __name__ == "__main__":
                 output["raw"].get('id', '-'),
                 output["raw"].get('description', '-'),
                 output["raw"].get('latitude', '-'),
-                output["raw"].get('longitude', '-')
+                output["raw"].get('longitude', '-'),
+                output["raw"].get('country', '-'),
+                "{} / {}".format(
+                    output["raw"].get('primary_contact_email', '-'),
+                    output["raw"].get('secondary_contact_email', '-')
+                ),
+                output["raw"].get('comments', '-')
             ])
             output['tabulated'] = table
         elif args.subcommand == 'ls':
@@ -489,19 +516,40 @@ if __name__ == "__main__":
                 output['raw'] = SiteAPI(session=session).get_compute(compute_id=args.id)
 
                 # make a nice table
-                table = PrettyTable()
-                table.field_names = ["Node", "Site", "ID", "Description"]
-                table.align = 'l'
+                field_names = [
+                    "Node", "Site", "ID", "Description", "Hardware Type", "Hardware Capabilities"
+                ]
 
-                table.add_row([
+                row = [
                     output["raw"].get('parent_node_name', '-'),
                     output["raw"].get('parent_site_name', '-'),
                     output["raw"].get('id', '-'),
                     output["raw"].get('description', '-'),
-                ])
+                    output["raw"].get('hardware_type', '-'),
+                    output["raw"].get('hardware_capabilities', '-'),
+                ]
+
+                # Optionally show service info
+                if args.services:
+                    field_names.append("Services (ID / Type / Name)")
+                    svcs = output["raw"].get('associated_local_services', [])
+                    svcs_info = "\n".join("{} / {} / {}".format(
+                        svc.get('id', '-'), svc.get('type', '-'), svc.get('name', '-')
+                    ) for svc in svcs)
+                    row.append(svcs_info)
+
+                table = PrettyTable()
+                table.field_names = field_names
+                table.align = 'l'
+                table.add_row(row)
+
                 output['tabulated'] = table
+                
             elif args.subsubcommand == 'ls':
-                output['raw'] = SiteAPI(session=session).list_compute()
+                output['raw'] = SiteAPI(session=session).list_compute(
+                    node_name=args.node,
+                    site_name=args.site,
+                )
 
                 # make a nice table
                 table = PrettyTable()
@@ -525,29 +573,39 @@ if __name__ == "__main__":
                 # make a nice table
                 table = PrettyTable()
                 table.field_names = [
-                    "Node", "Site", "Name", "Type", "ID", "Prefix", "Host", "Port", "Path"
+                    "Node", "Site", "Name", "ID", "Type", "Scope",
+                    "Parent Compute ID", "Assoc Storage ID",
+                    "Prefix", "Host", "Port", "Path"
                 ]
                 table.align = 'l'
 
                 table.add_row([
                     output['raw'].get('parent_node_name', '-'),
                     output['raw'].get('parent_site_name', '-'),
-                    output['raw'].get('name', ''),
-                    output['raw'].get('type', ''),
-                    output['raw'].get('id', ''),
-                    output['raw'].get('prefix', ''),
-                    output['raw'].get('host', ''),
-                    output['raw'].get('port', ''),
-                    output['raw'].get('path', ''),
+                    output['raw'].get('name', '-'),
+                    output['raw'].get('id', '-'),
+                    output['raw'].get('type', '-'),
+                    output['raw'].get('scope', '-'),
+                    output['raw'].get('parent_compute_id', '-'),
+                    output['raw'].get('associated_storage_area_id', '-'),
+                    output['raw'].get('prefix', '-'),
+                    output['raw'].get('host', '-'),
+                    output['raw'].get('port', '-'),
+                    output['raw'].get('path', '-'),
                 ])
                 output['tabulated'] = table
             elif args.subsubcommand == 'ls':
-                output['raw'] = SiteAPI(session=session).list_services(service_type=args.type)
+                output['raw'] = SiteAPI(session=session).list_services(
+                    service_type=args.type,
+                    node_name=args.node,
+                    site_name=args.site,
+                    scope=args.scope
+                )
 
                 # make a nice table
                 table = PrettyTable()
                 table.field_names = [
-                    "Node", "Site", "Name", "Type", "ID", "Prefix", "Host", "Port", "Path"
+                    "Node", "Site", "Name", "ID", "Type", "Scope", 
                 ]
                 table.align = 'l'
 
@@ -555,13 +613,10 @@ if __name__ == "__main__":
                     table.add_row([
                         service.get('parent_node_name', '-'),
                         service.get('parent_site_name', '-'),
-                        service.get('name', ''),
-                        service.get('type', ''),
-                        service.get('id', ''),
-                        service.get('prefix', ''),
-                        service.get('host', ''),
-                        service.get('port', ''),
-                        service.get('path', ''),
+                        service.get('name', '-'),
+                        service.get('id', '-'),
+                        service.get('type', '-'),
+                        service.get('scope', '-'),
                     ])
                 output['tabulated'] = table
             elif args.subsubcommand == 'types':
@@ -569,7 +624,7 @@ if __name__ == "__main__":
 
                 # make a nice table
                 table = PrettyTable()
-                table.field_names = ["Global or local?", "Name"]
+                table.field_names = ["Scope", "Name"]
                 table.align = 'l'
 
                 for entry in output['raw'].get('global'):
@@ -590,27 +645,50 @@ if __name__ == "__main__":
                 output['raw'] = SiteAPI(session=session).get_storage(storage_id=args.id)
 
                 # make a nice table
-                table = PrettyTable()
-                table.field_names = [
+                field_names = [
                     "Parent Node", "Parent Site", "Name", "ID",
-                    "Host", "Base Path", "SRM", "Device Type", "Size (TB)"
+                    "Host", "Base Path", "SRM", "Device Type", "Size (TB)",
+                    "Protocols (Prefix / Port)"
                 ]
-                table.align = 'l'
 
-                table.add_row([
-                    output["raw"].get('parent_node_name', ''),
-                    output["raw"].get('parent_site_name', ''),
-                    output["raw"].get('name', ''),
-                    output["raw"].get('id', ''),
-                    output["raw"].get('host', ''),
-                    output["raw"].get('base_path', ''),
-                    output["raw"].get('srm', ''),
-                    output["raw"].get('device_type', ''),
-                    output["raw"].get('size_in_terabytes', '')
-                ])
-                output['tabulated'] = table
-            elif args.subsubcommand == 'ls':
-                output['raw'] = SiteAPI(session=session).list_storages()
+                protocols = output["raw"].get('supported_protocols', [])
+                protocol_info = "\n".join("{} / {}".format(
+                    p.get('prefix', '-'), p.get('port', '-')
+                ) for p in protocols)
+
+                row = [
+                    output["raw"].get("parent_node_name", "-"),
+                    output["raw"].get("parent_site_name", "-"),
+                    output["raw"].get("name", "-"),
+                    output["raw"].get("id", "-"),
+                    output["raw"].get("host", "-"),
+                    output["raw"].get("base_path", "-"),
+                    output["raw"].get("srm", "-"),
+                    output["raw"].get("device_type", "-"),
+                    output["raw"].get("size_in_terabytes", "-"),
+                    protocol_info
+                ]
+
+                # Optionally show storage area info
+                if args.areas:
+                    field_names.append("Areas (ID / Name)")
+                    areas = output["raw"].get('areas', [])
+                    area_info = "\n".join("{} / {}".format(
+                        area.get('id', '-'), area.get('name', '-')
+                    ) for area in areas)
+                    row.append(area_info)
+
+                table = PrettyTable()
+                table.field_names = field_names
+                table.align = 'l'
+                table.add_row(row)
+
+                output["tabulated"] = table
+            elif args.subsubcommand == "ls":
+                output["raw"] = SiteAPI(session=session).list_storages(
+                    node_name=args.node,
+                    site_name=args.site,
+                )
 
                 # make a nice table
                 table = PrettyTable()
@@ -622,15 +700,15 @@ if __name__ == "__main__":
 
                 for storage in output['raw']:
                     table.add_row([
-                        storage.get('parent_node_name', ''),
-                        storage.get('parent_site_name', ''),
-                        storage.get('name', ''),
-                        storage.get('id', ''),
-                        storage.get('host', ''),
-                        storage.get('base_path', ''),
-                        storage.get('srm', ''),
-                        storage.get('device_type', ''),
-                        storage.get('size_in_terabytes', '')
+                        storage.get('parent_node_name', '-'),
+                        storage.get('parent_site_name', '-'),
+                        storage.get('name', '-'),
+                        storage.get('id', '-'),
+                        storage.get('host', '-'),
+                        storage.get('base_path', '-'),
+                        storage.get('srm', '-'),
+                        storage.get('device_type', '-'),
+                        storage.get('size_in_terabytes', '-')
                     ])
                 output['tabulated'] = table
             else:
@@ -642,43 +720,45 @@ if __name__ == "__main__":
                 # make a nice table
                 table = PrettyTable()
                 table.field_names = [
-                    "Parent Node", "Parent Site", "Name", "Parent Storage ID",
-                    "ID", "Type", "Relative Path", "Tier"
+                    "Parent Node", "Parent Site", "Name", "ID",
+                    "Parent Storage ID", "Type", "Relative Path", "Tier"
                 ]
                 table.align = 'l'
 
                 table.add_row([
-                    output["raw"].get('parent_node_name', ''),
-                    output["raw"].get('parent_site_name', ''),
-                    output["raw"].get('name', ''),
-                    output["raw"].get('parent_storage_id', ''),
-                    output["raw"].get('id', ''),
-                    output["raw"].get('type', ''),
-                    output["raw"].get('relative_path', ''),
-                    output["raw"].get('tier', '')
+                    output["raw"].get('parent_node_name', '-'),
+                    output["raw"].get('parent_site_name', '-'),
+                    output["raw"].get('name', '-'),
+                    output["raw"].get('id', '-'),
+                    output["raw"].get('parent_storage_id', '-'),
+                    output["raw"].get('type', '-'),
+                    output["raw"].get('relative_path', '-'),
+                    output["raw"].get('tier', '-')
                 ])
                 output['tabulated'] = table
             elif args.subsubcommand == 'ls':
-                output['raw'] = SiteAPI(session=session).list_storage_areas()
+                output['raw'] = SiteAPI(session=session).list_storage_areas(
+                    node_name=args.node,
+                    site_name=args.site,
+                )
 
                 # make a nice table
                 table = PrettyTable()
                 table.field_names = [
-                    "Parent Node", "Parent Site", "Name", "Parent Storage ID",
-                    "ID", "Type", "Relative Path", "Tier"
+                    "Parent Node", "Parent Site", "Name", "ID",
+                    "Type", "Relative Path", "Tier"
                 ]
                 table.align = 'l'
 
                 for entry in output['raw']:
                     table.add_row([
-                        entry.get('parent_node_name', ''),
-                        entry.get('parent_site_name', ''),
-                        entry.get('name', ''),
-                        entry.get('parent_storage_id', ''),
-                        entry.get('id', ''),
-                        entry.get('type', ''),
-                        entry.get('relative_path', ''),
-                        entry.get('tier', '')
+                        entry.get('parent_node_name', '-'),
+                        entry.get('parent_site_name', '-'),
+                        entry.get('name', '-'),
+                        entry.get('id', '-'),
+                        entry.get('type', '-'),
+                        entry.get('relative_path', '-'),
+                        entry.get('tier', '-')
                     ])
                 output['tabulated'] = table
             else:
