@@ -101,3 +101,19 @@ class SiteAPI(API):
         """ List storage areas across all sites in topojson format. """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.list_storage_areas_topojson().json()
+
+    def enable_service(self, service_id):
+        """ Enable a service by service id."""
+        print(f"enabling the service {service_id}")
+
+    def disable_service(self, service_id):
+        """ Disable a service by service id."""
+        print(f"disabling the service {service_id}")
+
+    def enable_storage(self, storage_id):
+        """ Enable a storage by storage id."""
+        print(f"enabling the storage {storage_id}")
+
+    def disable_storage(self, storage_id):
+        """ Disable a storage by storage id."""
+        print(f"disabling the storage {storage_id}")

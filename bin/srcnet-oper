@@ -187,6 +187,17 @@ def make_parsers(return_all_parsers=False):
         site_service_parser_subparsers = site_service_parser.add_subparsers(help="Site service operations",
                                                                             dest='subsubcommand')
 
+
+        # site service enable
+        site_service_enable_parser = site_service_parser_subparsers.add_parser(
+            "enable", help="Enable a service")
+        site_service_enable_parser.add_argument('--id', help="ID of the service to enable", required=True)
+
+        # site service disable
+        site_service_enable_parser = site_service_parser_subparsers.add_parser(
+            "disable", help="Disable a service")
+        site_service_enable_parser.add_argument('--id', help="ID of the service to disable", required=True)
+
         # site service get
         site_service_get_parser = site_service_parser_subparsers.add_parser(
             "get", help="Get description of a service")
@@ -203,6 +214,15 @@ def make_parsers(return_all_parsers=False):
         site_storage_parser = site_parser_subparsers.add_parser("storage", help="Site storage operations")
         site_storage_parser_subparsers = site_storage_parser.add_subparsers(help="Site storage operations",
                                                                             dest='subsubcommand')
+        # site storage enable
+        site_storage_enable_parser = site_storage_parser_subparsers.add_parser(
+            "enable", help="Enable a storage resource")
+        site_storage_enable_parser.add_argument('--id', help="ID of the storage to enable", required=True)
+
+        # site storage disable
+        site_storage_disable_parser = site_storage_parser_subparsers.add_parser(
+            "disable", help="Disable a storage resource")
+        site_storage_disable_parser.add_argument('--id', help="ID of the storage to disable", required=True)
 
         # site storage get
         site_storage_get_parser = site_storage_parser_subparsers.add_parser(
@@ -545,6 +565,10 @@ if __name__ == "__main__":
                     output['raw'].get('path')
                 ])
                 output['tabulated'] = table
+            elif args.subsubcommand == 'enable':
+                output['raw'] = SiteAPI(session=session).enable_service(service_id=args.id)
+            elif args.subsubcommand == 'disable':
+                output['raw'] = SiteAPI(session=session).disable_service(service_id=args.id)
             elif args.subsubcommand == 'ls':
                 output['raw'] = SiteAPI(session=session).list_services(service_type=args.type)
 
@@ -609,6 +633,10 @@ if __name__ == "__main__":
                     output['raw'].get('srm')
                 ])
                 output['tabulated'] = table
+            elif args.subsubcommand == 'enable':
+                output['raw'] = SiteAPI(session=session).enable_storage(storage_id=args.id)
+            elif args.subsubcommand == 'disable':
+                output['raw'] = SiteAPI(session=session).disable_storage(storage_id=args.id)
             elif args.subsubcommand == 'ls':
                 output['raw'] = SiteAPI(session=session).list_storages()
 
