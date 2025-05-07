@@ -50,6 +50,28 @@ def make_parsers(return_all_parsers=False):
         data_parser = subparsers.add_parser("data", help="Data operations")
         data_parser_subparsers = data_parser.add_subparsers(help="Data operations", dest='subcommand')
 
+        # data move
+        data_move_parser = data_parser_subparsers.add_parser("move",
+                                                             help="Request movement of existing data to another storage area")
+        data_move_parser.add_argument('--site', help="The storage area uuid to move data to", required=False)
+        data_move_parser.add_argument('--dids', nargs="+", help="The list of DIDs to move", required=False)
+        data_move_parser.add_argument('--lifetime', help="The lifetime of the data in seconds", required=False)
+        data_move_parser.add_argument('--parent-namespace',
+                                      help="The parent container namespace. Defaults to using the first DID's namespace(Rucio only)",
+                                      required=False)
+        data_move_parser.add_argument('--job-id', help="The job id", required=False)
+
+        # data stage
+        data_stage_parser = data_parser_subparsers.add_parser("stage",
+                                                              help="Request staging of existing data in a storage area")
+        data_stage_parser.add_argument('--site', help="The storage area uuid to move data to", required=False)
+        data_stage_parser.add_argument('--dids', nargs="+", help="The list of DIDs to move", required=False)
+        data_stage_parser.add_argument('--lifetime', help="The lifetime of the data in seconds", required=False)
+        data_stage_parser.add_argument('--parent-namespace',
+                                       help="The parent container namespace. Defaults to using the first DID's namespace(Rucio only)",
+                                       required=False)
+        data_stage_parser.add_argument('--job-id', help="The job id", required=False)
+
         # data download
         data_download_parser = data_parser_subparsers.add_parser(
             "download", help="Download a replica of a data identifier.")
@@ -172,6 +194,17 @@ def make_parsers(return_all_parsers=False):
         site_service_parser_subparsers = site_service_parser.add_subparsers(help="Site service operations",
                                                                             dest='subsubcommand')
 
+
+        # site service enable
+        site_service_enable_parser = site_service_parser_subparsers.add_parser(
+            "enable", help="Enable a service")
+        site_service_enable_parser.add_argument('--id', help="ID of the service to enable", required=True)
+
+        # site service disable
+        site_service_enable_parser = site_service_parser_subparsers.add_parser(
+            "disable", help="Disable a service")
+        site_service_enable_parser.add_argument('--id', help="ID of the service to disable", required=True)
+
         # site service get
         site_service_get_parser = site_service_parser_subparsers.add_parser(
             "get", help="Get description of a service")
@@ -196,6 +229,15 @@ def make_parsers(return_all_parsers=False):
         site_storage_parser = site_parser_subparsers.add_parser("storage", help="Site storage operations")
         site_storage_parser_subparsers = site_storage_parser.add_subparsers(help="Site storage operations",
                                                                             dest='subsubcommand')
+        # site storage enable
+        site_storage_enable_parser = site_storage_parser_subparsers.add_parser(
+            "enable", help="Enable a storage resource")
+        site_storage_enable_parser.add_argument('--id', help="ID of the storage to enable", required=True)
+
+        # site storage disable
+        site_storage_disable_parser = site_storage_parser_subparsers.add_parser(
+            "disable", help="Disable a storage resource")
+        site_storage_disable_parser.add_argument('--id', help="ID of the storage to disable", required=True)
 
         # site storage get
         site_storage_get_parser = site_storage_parser_subparsers.add_parser(
@@ -344,7 +386,23 @@ if __name__ == "__main__":
         else:
             parsers.srcnet_oper_config.print_help()
     elif args.command == 'data':
-        if args.subcommand == 'download':
+        if args.subcommand == 'move':
+            output['raw'] = DataAPI(session=session).move(
+                site=args.site,
+                dids=args.dids,
+                lifetime=args.lifetime,
+                parent_namespace=args.parent_namespace,
+                job_id=args.job_id
+            )
+        elif args.subcommand == 'stage':
+            output['raw'] = DataAPI(session=session).stage(
+                site=args.site,
+                dids=args.dids,
+                lifetime=args.lifetime,
+                parent_namespace=args.parent_namespace,
+                job_id=args.job_id
+            )
+        elif args.subcommand == 'download':
             output['raw'] = DataAPI(session=session).download(
                 namespace=args.namespace,
                 name=args.name,
@@ -594,6 +652,10 @@ if __name__ == "__main__":
                     output['raw'].get('path', '-'),
                 ])
                 output['tabulated'] = table
+            elif args.subsubcommand == 'enable':
+                output['raw'] = SiteAPI(session=session).enable_service(service_id=args.id)
+            elif args.subsubcommand == 'disable':
+                output['raw'] = SiteAPI(session=session).disable_service(service_id=args.id)
             elif args.subsubcommand == 'ls':
                 output['raw'] = SiteAPI(session=session).list_services(
                     service_type=args.type,

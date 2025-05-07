@@ -6,7 +6,7 @@ import random
 import tempfile
 import uuid
 
-from ska_src_clients.common.exceptions import ExtraMetadataKeyConflict, MetadataKeyConflict
+from ska_src_clients.common.exceptions import ExtraMetadataKeyConflict, MetadataKeyConflict, CustomException
 from ska_src_clients.common.utility import url_to_parts
 from ska_src_clients.plan.plan import UploadPlan
 from ska_src_clients.api.api import API
@@ -16,6 +16,68 @@ class DataAPI(API):
     """ Data API class. """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+    def move(self, site: str | None,
+             dids: list | None,
+             lifetime: str | None,
+             parent_namespace: str | None,
+             job_id: str | None) -> str:
+        """Make a data movement request or get the status of a data movement request
+
+        :param site: The storage area uuid to move data to.
+        :param int lifetime: The lifetime of the data in seconds.
+        :param str parent_namespace: The parent container namespace. Defaults to using the first DID's namespace
+            (Rucio only).
+        :param list dids: The list of DIDs to move.
+        :param str job_id: The job id.
+
+        :return: A requests response.
+        :rtype: requests.models.Response
+        """
+        dm_client = self.session.client_factory.get_data_management_client(is_authenticated=True)
+        if job_id:
+            return dm_client.get_status_data_movement_request(job_id).json().get('state')
+        if not site:
+            raise CustomException("No site provided")
+        if not dids:
+            raise CustomException("No DIDs provided")
+        if not lifetime:
+            raise CustomException("No lifetime provided")
+        return dm_client.make_data_movement_request(to_storage_area_uuid=site,
+                                                    lifetime=lifetime,
+                                                    parent_namespace=parent_namespace,
+                                                    dids=dids).json().get('job_id')
+
+    def stage(self, site: str | None,
+              dids: list | None,
+              lifetime: str | None,
+              parent_namespace: str | None,
+              job_id: str | None) -> str:
+        """Make a data staging request or get the status of a data staging request
+
+        :param site: The storage area uuid to move data to.
+        :param int lifetime: The lifetime of the data in seconds.
+        :param str parent_namespace: The parent container namespace. Defaults to using the first DID's namespace
+            (Rucio only).
+        :param list dids: The list of DIDs to move.
+        :param str job_id: The job id.
+
+        :return: A requests response.
+        :rtype: requests.models.Response
+        """
+        dm_client = self.session.client_factory.get_data_management_client(is_authenticated=True)
+        if job_id:
+            return dm_client.get_status_data_staging_request(job_id).json().get('state')
+        if not site:
+            raise CustomException("No site provided")
+        if not dids:
+            raise CustomException("No DIDs provided")
+        if not lifetime:
+            raise CustomException("No lifetime provided")
+        return dm_client.make_data_staging_request(to_storage_area_uuid=site,
+                                                   lifetime=lifetime,
+                                                   parent_namespace=parent_namespace,
+                                                   dids=dids).json().get('job_id')
 
     def download(self, namespace, name, sort='nearest_by_ip', ip_address=None,  verify=True, output_filename=None):
         """ Locate replicas of data identifier, sort by some algorithm and download.

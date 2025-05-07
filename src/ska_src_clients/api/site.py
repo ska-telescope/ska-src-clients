@@ -25,6 +25,7 @@ def handle_api_errors(func):
 
 class SiteAPI(API):
     """ Site API class. """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -160,3 +161,21 @@ class SiteAPI(API):
         """ List storage areas across all sites in topojson format. """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.list_storage_areas_topojson().json()
+
+    def enable_service(self, service_id):
+        """ Enable a service by service id."""
+        client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
+        return client.set_service_enabled(service_id=service_id)
+
+    def disable_service(self, service_id):
+        """ Disable a service by service id."""
+        client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
+        return client.set_service_disabled(service_id=service_id)
+
+    def enable_storage(self, storage_id):
+        """ Enable a storage by storage id."""
+        pass
+
+    def disable_storage(self, storage_id):
+        """ Disable a storage by storage id."""
+        pass
