@@ -50,28 +50,6 @@ def make_parsers(return_all_parsers=False):
         data_parser = subparsers.add_parser("data", help="Data operations")
         data_parser_subparsers = data_parser.add_subparsers(help="Data operations", dest='subcommand')
 
-        # data move
-        data_move_parser = data_parser_subparsers.add_parser("move",
-                                                             help="Request movement of existing data to another storage area")
-        data_move_parser.add_argument('--site', help="The storage area uuid to move data to", required=False)
-        data_move_parser.add_argument('--dids', nargs="+", help="The list of DIDs to move", required=False)
-        data_move_parser.add_argument('--lifetime', help="The lifetime of the data in seconds", required=False)
-        data_move_parser.add_argument('--parent-namespace',
-                                      help="The parent container namespace. Defaults to using the first DID's namespace(Rucio only)",
-                                      required=False)
-        data_move_parser.add_argument('--job-id', help="The job id", required=False)
-
-        # data stage
-        data_stage_parser = data_parser_subparsers.add_parser("stage",
-                                                              help="Request staging of existing data in a storage area")
-        data_stage_parser.add_argument('--site', help="The storage area uuid to move data to", required=False)
-        data_stage_parser.add_argument('--dids', nargs="+", help="The list of DIDs to move", required=False)
-        data_stage_parser.add_argument('--lifetime', help="The lifetime of the data in seconds", required=False)
-        data_stage_parser.add_argument('--parent-namespace',
-                                       help="The parent container namespace. Defaults to using the first DID's namespace(Rucio only)",
-                                       required=False)
-        data_stage_parser.add_argument('--job-id', help="The job id", required=False)
-
         # data download
         data_download_parser = data_parser_subparsers.add_parser(
             "download", help="Download a replica of a data identifier.")
@@ -89,7 +67,7 @@ def make_parsers(return_all_parsers=False):
         data_download_parser.add_argument('--output', help="The output filename")
 
         # data locate
-        data_locate_parser = data_parser_subparsers.add_parser("locate", help="Locate replicas of data identifiers.")
+        data_locate_parser = data_parser_subparsers.add_parser("locate", help="Locate replicas of data identifiers")
         data_locate_parser.add_argument('--namespace', help="The data namespace", required=True)
         data_locate_parser.add_argument('--name', default='*', help="The data identifier name (wildcards allowed)",
                                           required=True)
@@ -109,6 +87,32 @@ def make_parsers(return_all_parsers=False):
         data_ls_parser.add_argument('--filters', default=None, help="Filters (Rucio only)")
         data_ls_parser.add_argument('--limit', default=100, help="Number of identifiers to return in result")
 
+        # data move
+        data_move_parser = data_parser_subparsers.add_parser("move",
+                                                             help="Data movement operations")
+        data_move_parser_subparsers = data_move_parser.add_subparsers(
+            help="Data movement operations", dest='subsubcommand')
+
+        # data move request
+        data_move_request_parser = data_move_parser_subparsers.add_parser("request",
+                                                                          help="Request movement of existing data to another storage area")
+        data_move_request_parser.add_argument('--to-storage-area-uuid',
+                                              help="The storage area uuid to move data to",
+                                              required=True)
+        data_move_request_parser.add_argument('--dids', nargs="+", help="The list of DIDs to move",
+                                              required=True)
+        data_move_request_parser.add_argument('--lifetime',
+                                              help="The lifetime of the data in seconds",
+                                              required=True)
+        data_move_request_parser.add_argument('--parent-namespace',
+                                              help="The parent container namespace. Defaults to using the first DID's namespace (Rucio only)",
+                                              required=False)
+
+        # data move status
+        data_move_status_parser = data_move_parser_subparsers.add_parser("status",
+                                                                         help="Get the status of a data movement request")
+        data_move_status_parser.add_argument('--job-id', help="The job id", required=True)
+
         # data namespace
         data_namespace_parser = data_parser_subparsers.add_parser("namespace", help="Data namespace operations")
         data_namespace_parser_subparsers = data_namespace_parser.add_subparsers(help="Data namespace operations",
@@ -116,6 +120,32 @@ def make_parsers(return_all_parsers=False):
 
         # data namespace ls
         data_namespace_parser_subparsers.add_parser("ls", help="List namespaces")
+
+        # data stage
+        data_stage_parser = data_parser_subparsers.add_parser("stage",
+                                                              help="Data staging operations")
+        data_stage_parser_subparsers = data_stage_parser.add_subparsers(
+            help="Data staging operations", dest='subsubcommand')
+
+        # data stage request
+        data_stage_request_parser = data_stage_parser_subparsers.add_parser("request",
+                                                                            help="Request staging of existing data in a storage area")
+        data_stage_request_parser.add_argument('--to-storage-area-uuid',
+                                               help="The storage area uuid to stage data in",
+                                               required=True)
+        data_stage_request_parser.add_argument('--dids', nargs="+", help="The list of DIDs to move",
+                                               required=True)
+        data_stage_request_parser.add_argument('--lifetime',
+                                               help="The lifetime of the data in seconds",
+                                               required=True)
+        data_stage_request_parser.add_argument('--parent-namespace',
+                                               help="The parent container namespace. Defaults to using the first DID's namespace (Rucio only)",
+                                               required=False)
+
+        # data stage status
+        data_stage_status_parser = data_stage_parser_subparsers.add_parser("status",
+                                                                           help="Get the status of a data staging request")
+        data_stage_status_parser.add_argument('--job-id', help="The job id", required=True)
 
         # data upload
         data_upload_parser = data_parser_subparsers.add_parser("upload", help="Data upload operations")
@@ -134,7 +164,7 @@ def make_parsers(return_all_parsers=False):
         data_upload_ingest_parser.add_argument('--metadata-suffix', help="The expected metadata suffix",
                                                default='.meta')
 
-        return data_parser, data_namespace_parser, data_upload_parser
+        return data_parser, data_move_parser, data_namespace_parser, data_stage_parser, data_upload_parser
 
     def add_metadata_commands_to_subparsers(subparsers):
         metadata_parser = subparsers.add_parser("metadata", help="Metadata operations")
@@ -198,12 +228,12 @@ def make_parsers(return_all_parsers=False):
         # site service enable
         site_service_enable_parser = site_service_parser_subparsers.add_parser(
             "enable", help="Enable a service")
-        site_service_enable_parser.add_argument('--id', help="ID of the service to enable", required=True)
+        site_service_enable_parser.add_argument('--service-uuid', help="UUID of the service to enable", required=True)
 
         # site service disable
         site_service_enable_parser = site_service_parser_subparsers.add_parser(
             "disable", help="Disable a service")
-        site_service_enable_parser.add_argument('--id', help="ID of the service to disable", required=True)
+        site_service_enable_parser.add_argument('--service-uuid', help="UUID of the service to disable", required=True)
 
         # site service get
         site_service_get_parser = site_service_parser_subparsers.add_parser(
@@ -229,15 +259,6 @@ def make_parsers(return_all_parsers=False):
         site_storage_parser = site_parser_subparsers.add_parser("storage", help="Site storage operations")
         site_storage_parser_subparsers = site_storage_parser.add_subparsers(help="Site storage operations",
                                                                             dest='subsubcommand')
-        # site storage enable
-        site_storage_enable_parser = site_storage_parser_subparsers.add_parser(
-            "enable", help="Enable a storage resource")
-        site_storage_enable_parser.add_argument('--id', help="ID of the storage to enable", required=True)
-
-        # site storage disable
-        site_storage_disable_parser = site_storage_parser_subparsers.add_parser(
-            "disable", help="Disable a storage resource")
-        site_storage_disable_parser.add_argument('--id', help="ID of the storage to disable", required=True)
 
         # site storage get
         site_storage_get_parser = site_storage_parser_subparsers.add_parser(
@@ -387,21 +408,33 @@ if __name__ == "__main__":
             parsers.srcnet_oper_config.print_help()
     elif args.command == 'data':
         if args.subcommand == 'move':
-            output['raw'] = DataAPI(session=session).move(
-                site=args.site,
-                dids=args.dids,
-                lifetime=args.lifetime,
-                parent_namespace=args.parent_namespace,
-                job_id=args.job_id
-            )
+            if args.subsubcommand == 'request':
+                output['raw'] = DataAPI(session=session).move_request(
+                    to_storage_area_uuid=args.to_storage_area_uuid,
+                    dids=args.dids,
+                    lifetime=args.lifetime,
+                    parent_namespace=args.parent_namespace
+                )
+            elif args.subsubcommand == 'status':
+                output['raw'] = DataAPI(session=session).move_status(
+                    job_id=args.job_id
+                )
+            else:
+                parsers.srcnet_oper_data_move.print_help()
         elif args.subcommand == 'stage':
-            output['raw'] = DataAPI(session=session).stage(
-                site=args.site,
-                dids=args.dids,
-                lifetime=args.lifetime,
-                parent_namespace=args.parent_namespace,
-                job_id=args.job_id
-            )
+            if args.subsubcommand == 'request':
+                output['raw'] = DataAPI(session=session).stage_request(
+                    to_storage_area_uuid=args.to_storage_area_uuid,
+                    dids=args.dids,
+                    lifetime=args.lifetime,
+                    parent_namespace=args.parent_namespace
+                )
+            elif args.subsubcommand == 'status':
+                output['raw'] = DataAPI(session=session).stage_status(
+                    job_id=args.job_id
+                )
+            else:
+                parsers.srcnet_oper_data_stage.print_help()
         elif args.subcommand == 'download':
             output['raw'] = DataAPI(session=session).download(
                 namespace=args.namespace,
@@ -653,9 +686,9 @@ if __name__ == "__main__":
                 ])
                 output['tabulated'] = table
             elif args.subsubcommand == 'enable':
-                output['raw'] = SiteAPI(session=session).enable_service(service_id=args.id)
+                output['raw'] = SiteAPI(session=session).enable_service(service_uuid=args.service_uuid)
             elif args.subsubcommand == 'disable':
-                output['raw'] = SiteAPI(session=session).disable_service(service_id=args.id)
+                output['raw'] = SiteAPI(session=session).disable_service(service_uuid=args.service_uuid)
             elif args.subsubcommand == 'ls':
                 output['raw'] = SiteAPI(session=session).list_services(
                     service_type=args.type,
