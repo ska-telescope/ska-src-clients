@@ -6,7 +6,8 @@ import random
 import tempfile
 import uuid
 
-from ska_src_clients.common.exceptions import ExtraMetadataKeyConflict, MetadataKeyConflict, CustomException
+from ska_src_clients.common.exceptions import ExtraMetadataKeyConflict, MetadataKeyConflict, \
+                                               CustomException, handle_client_exceptions
 from ska_src_clients.common.utility import url_to_parts
 from ska_src_clients.plan.plan import UploadPlan
 from ska_src_clients.api.api import API
@@ -17,6 +18,7 @@ class DataAPI(API):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+    @handle_client_exceptions
     def move_request(self, to_storage_area_uuid: str | None,
              dids: list | None,
              lifetime: str | None,
@@ -32,12 +34,17 @@ class DataAPI(API):
         :return: A requests response.
         :rtype: requests.models.Response
         """
+        dids_formatted = [
+            {'namespace': entry.split(':')[0].strip(), 'name': entry.split(':')[1].strip()}
+            for entry in dids
+        ]
         dm_client = self.session.client_factory.get_data_management_client(is_authenticated=True)
         return dm_client.make_data_movement_request(to_storage_area_uuid=to_storage_area_uuid,
                                                     lifetime=lifetime,
                                                     parent_namespace=parent_namespace,
-                                                    dids=dids).json().get('job_id')
+                                                    dids=dids_formatted).json()
 
+    @handle_client_exceptions
     def move_status(self, job_id: str | None) -> str:
         """Get the status of a data movement request.
 
@@ -46,8 +53,9 @@ class DataAPI(API):
         :rtype: requests.models.Response
         """
         dm_client = self.session.client_factory.get_data_management_client(is_authenticated=True)
-        return dm_client.get_status_data_movement_request(job_id).json().get('state')
+        return dm_client.get_status_data_movement_request(job_id).json()
 
+    @handle_client_exceptions
     def stage_request(self, to_storage_area_uuid: str | None,
              dids: list | None,
              lifetime: str | None,
@@ -63,12 +71,17 @@ class DataAPI(API):
         :return: A requests response.
         :rtype: requests.models.Response
         """
+        dids_formatted = [
+            {'namespace': entry.split(':')[0].strip(), 'name': entry.split(':')[1].strip()}
+            for entry in dids
+        ]
         dm_client = self.session.client_factory.get_data_management_client(is_authenticated=True)
         return dm_client.make_data_stage_request(to_storage_area_uuid=to_storage_area_uuid,
                                                  lifetime=lifetime,
                                                  parent_namespace=parent_namespace,
-                                                 dids=dids).json().get('job_id')
+                                                 dids=dids_formatted).json()
 
+    @handle_client_exceptions
     def stage_status(self, job_id: str | None) -> str:
         """Get the status of a data staging request.
 
@@ -77,8 +90,9 @@ class DataAPI(API):
         :rtype: requests.models.Response
         """
         dm_client = self.session.client_factory.get_data_management_client(is_authenticated=True)
-        return dm_client.get_status_data_stage_request(job_id).json().get('state')
+        return dm_client.get_status_data_stage_request(job_id).json()
 
+    @handle_client_exceptions
     def download(self, namespace, name, sort='nearest_by_ip', ip_address=None,  verify=True, output_filename=None):
         """ Locate replicas of data identifier, sort by some algorithm and download.
 
@@ -137,6 +151,7 @@ class DataAPI(API):
             to_local_path=output_filename)
         print('\n')
 
+    @handle_client_exceptions
     def list_files_in_namespace(self, namespace, name, detail, filters, limit):
         """ List files in a namespace.
 
@@ -150,22 +165,26 @@ class DataAPI(API):
         return client.list_files_in_namespace(namespace=namespace, name=name, detail=detail, filters=filters,
                                               limit=limit).json()
 
+    @handle_client_exceptions
     def list_namespaces(self):
         """ List namespace. """
         client = self.session.client_factory.get_data_management_client(is_authenticated=True)
         return client.list_namespaces().json()
 
+    @handle_client_exceptions
     def list_rules_for_namespace(self, namespace, datetime_from, datetime_to, limit):
         """ List rules for a namespace. """
         client = self.session.client_factory.get_data_management_client(is_authenticated=True)
         return client.list_rules_for_namespace(namespace=namespace, datetime_from=datetime_from,
                                                datetime_to=datetime_to, limit=limit).json()
 
+    @handle_client_exceptions
     def list_rules_for_data_identifier(self, namespace, name):
         """ List rules for a data identifier. """
         client = self.session.client_factory.get_data_management_client(is_authenticated=True)
         return client.list_rules_for_data_identifier(namespace=namespace, name=name).json()
 
+    @handle_client_exceptions
     def locate(self, namespace, name, sort='nearest_by_ip', ip_address=None):
         """ Locate replicas of data identifier, sort by some algorithm and download.
 
@@ -184,6 +203,7 @@ class DataAPI(API):
             replicas = replicas + entry.get('replicas', [])
         return replicas
 
+    @handle_client_exceptions
     def upload_for_ingest(self, path, ingest_service_id, namespace, metadata_suffix='meta', extra_metadata={},
                           protocol_prefix='https', verify=True, debug=False):
         """ Upload data for ingestion.

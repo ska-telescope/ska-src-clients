@@ -99,7 +99,7 @@ def make_parsers(return_all_parsers=False):
         data_move_request_parser.add_argument('--to-storage-area-uuid',
                                               help="The storage area uuid to move data to",
                                               required=True)
-        data_move_request_parser.add_argument('--dids', nargs="+", help="The list of DIDs to move",
+        data_move_request_parser.add_argument('--dids', nargs="+", help="A comma separated list of DIDs to move",
                                               required=True)
         data_move_request_parser.add_argument('--lifetime',
                                               help="The lifetime of the data in seconds",
@@ -133,7 +133,7 @@ def make_parsers(return_all_parsers=False):
         data_stage_request_parser.add_argument('--to-storage-area-uuid',
                                                help="The storage area uuid to stage data in",
                                                required=True)
-        data_stage_request_parser.add_argument('--dids', nargs="+", help="The list of DIDs to move",
+        data_stage_request_parser.add_argument('--dids', nargs="+", help="A comma separated list of DIDs to stage",
                                                required=True)
         data_stage_request_parser.add_argument('--lifetime',
                                                help="The lifetime of the data in seconds",
