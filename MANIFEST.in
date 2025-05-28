@@ -1,5 +1,0 @@
-include requirements.txt
-include VERSION
-recursive-include etc
-recursive-include bin
-

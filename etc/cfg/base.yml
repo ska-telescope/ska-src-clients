@@ -11,13 +11,13 @@ apis:
   site-capabilities-api:
     url: https://site-capabilities.srcnet.skao.int/api/v1
 
-data-management:
+storage:
   clients:
     https:
-      package_name: ska_src_clients.client
-      module_name: data_management
-      class_name: WebDAVClient3
+      package_name: ska_src_clients.integrations
+      module_name: storage
+      class_name: WebDAVStorageClient
     davs:
-      package_name: ska_src_clients.client
-      module_name: data_management
-      class_name: WebDAVClient3
+      package_name: ska_src_clients.integrations
+      module_name: storage
+      class_name: WebDAVStorageClient

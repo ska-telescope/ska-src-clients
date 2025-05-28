@@ -14,13 +14,13 @@ class SiteAPI(API):
         super().__init__(**kwargs)
 
     @handle_client_exceptions
-    def disable_service(self, service_uuid):
+    def disable_service(self, service_id):
         """ Disable a service by service uuid.
 
         :param str service_uuid: The service uuid.
         """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
-        return client.set_service_disabled(service_uuid=service_uuid)
+        return client.set_service_disabled(service_id=service_id).json()
 
     @handle_client_exceptions
     def enable_service(self, service_id):
@@ -30,7 +30,7 @@ class SiteAPI(API):
 
         """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
-        return client.set_service_enabled(service_uuid=service_uuid)
+        return client.set_service_enabled(service_id=service_id).json()
 
     @handle_client_exceptions
     def get_add_node_www_url(self):

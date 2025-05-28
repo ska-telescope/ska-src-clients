@@ -7,14 +7,58 @@ import time
 from functools import wraps
 from urllib.parse import urlparse, urlunparse
 
+from prettytable import PrettyTable
 import jwt
 import plotly.graph_objects as go
 
 from ska_src_clients.common.exceptions import NoAccessTokenFoundForService
 
 
+def flatten_dict(d, parent_key='', sep='.'):
+    """
+    Recursively flatten a nested dict into dot notation.
+    Example:
+    { 'a': { 'b': 1 } } → { 'a.b': 1 }
+    """
+    items = {}
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.update(flatten_dict(v, new_key, sep=sep))
+        else:
+            items[new_key] = v
+    return items
+
+def format_output(result, json_output=False, table_fields=None, headers_map=None, list_of_dicts=False):
+    if json_output:
+        print(json.dumps(result, default=str, indent=2))
+    else:
+        table = PrettyTable()
+        if table_fields and list_of_dicts:
+            display_fields = [headers_map.get(field, field) for field in table_fields] if headers_map else table_fields
+            table.field_names = display_fields
+            table.align = 'l'
+            for entry in result:
+                table.add_row([entry.get(field, '-') for field in table_fields])
+            print(table)
+        elif isinstance(result, list):
+            table.field_names = ["Item"]
+            table.align = 'l'
+            for item in result:
+                table.add_row([item])
+            print(table)
+        elif isinstance(result, dict):
+            table.field_names = ["Key", "Value"]
+            table.align = 'l'
+            for key, value in result.items():
+                table.add_row([key, value])
+            print(table)
+        else:
+            print(result)
+
+
 def get_authenticated_requests_session(session, service_name):
-    """ Get a requests session with one that has a populated access token. """
+    """ Get a requests session that has a populated access token. """
     # do we have any tokens? if not, login
     if not session.access_tokens and not session.refresh_tokens:
         session.start_device_flow()
@@ -26,7 +70,7 @@ def get_authenticated_requests_session(session, service_name):
             raise NoAccessTokenFoundForService(service_name)
         access_token = session.get_access_token(service_name)
 
-    # make requests session and populate authorization
+    # make requests session and populate authorization header
     requests_session = requests.Session()
     requests_session.headers.update({
         "Authorization": "Bearer {}".format(access_token)

@@ -127,7 +127,7 @@ class DataAPI(API):
             namespace=namespace, name=name).json().get('access_token')
 
         # instantiate a client for this protocol depending on prefix
-        selected_dm_client_attr = self.session.config.get('data-management').get('clients').get(
+        selected_dm_client_attr = self.session.config.get('storage').get('clients').get(
             access_url_parts.get('prefix'))
         package_name = selected_dm_client_attr.get('package_name')
         module_name = selected_dm_client_attr.get('module_name')
@@ -256,7 +256,7 @@ class DataAPI(API):
 
         # instantiate a client for this protocol depending on prefix.
         # this uses the storage area's absolute path (should be the complete path to the staging area)
-        selected_dm_client_attr = self.session.config.get('data-management').get('clients').get(prefix)
+        selected_dm_client_attr = self.session.config.get('storage').get('clients').get(prefix)
         package_name = selected_dm_client_attr.get('package_name')
         module_name = selected_dm_client_attr.get('module_name')
         class_name = selected_dm_client_attr.get('class_name')

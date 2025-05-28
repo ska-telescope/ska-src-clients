@@ -2,7 +2,7 @@ from ska_src_clients.api.api import API
 from ska_src_clients.common.exceptions import handle_client_exceptions
 
 
-class ServicesAPI(API):
+class StatusAPI(API):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
