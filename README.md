@@ -102,3 +102,7 @@ Package Registry.
 ## Reference
 
 1. [CLI documentation](https://ska-telescope.gitlab.io/src/src-service-apis/ska-src-clients/index.html).
+
+## TODO:
+
+autocomplete: eval "$(_SRCNET_OPER_COMPLETE=bash_source srcnet-oper)" and user

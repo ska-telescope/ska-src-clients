@@ -1,17 +1,15 @@
 import click
+import json
 import logging
 import os
+import sys
 import yaml
-import json
+
 from pathlib import Path
 
-from ska_src_clients.cli.operations.api import api
-from ska_src_clients.cli.operations.config import config
-from ska_src_clients.cli.operations.data import data
-from ska_src_clients.cli.operations.metadata import metadata
-from ska_src_clients.cli.operations.site import site
-from ska_src_clients.cli.operations.token import token
+from ska_src_clients.cli.operations import api, config, data, metadata, token, site
 from ska_src_clients.session.oidc import OIDCSession
+
 
 def load_config(config_paths):
     for file_path in config_paths:
@@ -26,15 +24,11 @@ def load_config(config_paths):
     logging.critical("No valid config file found.")
     exit(1)
 
-@click.group(help=""
-                  "SRCNet Operator CLI"
-                  ""
-                  "Use --help on any subcommand to see options."
-             )
+@click.group(help="SRCNet Operator CLI")
 @click.option('-c', 'config_paths', multiple=True, default=[
-    'etc/cfg/base.yml',
-    os.path.join(Path.home(), '.local', 'etc', 'cfg', 'base.yml'),
-    '/usr/local/etc/base.yml'
+    'etc/cfg/oper.yml',
+    os.path.join(Path.home(), '.local/etc/cfg/user.yml'),
+    '/usr/local/etc/oper.yml'
 ], help='Path to configuration file')
 @click.option('--debug', is_flag=True, help='Enable debug mode')
 @click.option('--json', is_flag=True, help='Output as JSON')
@@ -51,6 +45,18 @@ def cli(ctx, config_paths, debug, json):
         'json': json
     }
 
+@cli.command(help="Start the oper GUI server")
+@click.option('--port', default=8000, help='Port to run the GUI server on')
+@click.pass_context
+def gui(ctx, port):
+    """Start the GUI server."""
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'gui.settings')
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'gui'))
+
+    from django.core.management import execute_from_command_line
+    execute_from_command_line(['manage.py', 'runserver', f'0.0.0.0:{port}'])
+
+cli.add_command(gui)
 cli.add_command(api)
 cli.add_command(config)
 cli.add_command(data)

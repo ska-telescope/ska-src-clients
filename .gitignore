@@ -33,3 +33,6 @@ docs/_templates
 
 # IDE
 .idea 
+
+etc/cfg/base.yml
+src/ska_src_clients/gui/db.sqlite3

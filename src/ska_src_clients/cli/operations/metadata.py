@@ -9,7 +9,7 @@ def metadata():
     """Metadata operations"""
 
 @metadata.command(
-    help="Retrieve metadata for a given DID."
+    help="Get metadata for a given DID."
 )
 @click.option('--namespace', required=True, help='DID namespace')
 @click.option('--name', required=True, help='DID name')
@@ -17,7 +17,7 @@ def metadata():
 @click.option('--showempty', is_flag=True, help='Include empty metadata fields')
 @click.pass_context
 def get(ctx, namespace, name, stores, showempty):
-    """Retrieve metadata"""
+    """Get metadata"""
     plugins = []
     if 'file' in stores.split(','):
         plugins.append('DID_COLUMN')

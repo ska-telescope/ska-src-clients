@@ -8,7 +8,8 @@ packages = [
     { include = "ska_src_clients", from = "src" }
 ]
 include = [
-    { path = 'etc/cfg/oper.yml' }
+    { path = 'etc/cfg/oper.yml' },
+    { path = 'etc/cfg/user.yml' }v
 ]
 
 [[tool.poetry.source]]
@@ -33,6 +34,7 @@ url = "https://gitlab.com/api/v4/projects/48376510/packages/pypi/simple"
 
 [tool.poetry.dependencies]
 python = ">=3.8.1,<4.0.0"
+Django = "4.2"
 qrcode = "7.4.2"
 plotly = "5.3.1"
 prettytable = "3.3.0"
@@ -70,6 +72,7 @@ sphinx-autodoc-typehints = "^1.19"
 
 [tool.poetry.scripts]
 srcnet-oper = "ska_src_clients.cli.oper:cli"
+srcnet-user = "ska_src_clients.cli.user:cli"
 
 [tool.isort]
 multi_line_output = 3

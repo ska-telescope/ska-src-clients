@@ -1,0 +1,23 @@
+general:
+  stored_token_directory: /tmp/srcnet/user
+
+apis:
+  authn-api:
+    url: https://authn.srcnet.skao.int/api/v1
+  data-management-api:
+    url: https://data-management.srcnet.skao.int/api/v1
+  permissions-api:
+    url: https://permissions.srcnet.skao.int/api/v1
+  site-capabilities-api:
+    url: https://site-capabilities.srcdev.skao.int/api/v1
+
+storage:
+  clients:
+    https:
+      package_name: ska_src_clients.integrations
+      module_name: storage
+      class_name: WebDAVStorageClient
+    davs:
+      package_name: ska_src_clients.integrations
+      module_name: storage
+      class_name: WebDAVStorageClient

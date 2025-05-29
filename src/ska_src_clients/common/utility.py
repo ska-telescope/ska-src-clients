@@ -15,11 +15,7 @@ from ska_src_clients.common.exceptions import NoAccessTokenFoundForService
 
 
 def flatten_dict(d, parent_key='', sep='.'):
-    """
-    Recursively flatten a nested dict into dot notation.
-    Example:
-    { 'a': { 'b': 1 } } → { 'a.b': 1 }
-    """
+    """ Recursively flatten a nested dictionary into a single-level dict using dot notation. """
     items = {}
     for k, v in d.items():
         new_key = f"{parent_key}{sep}{k}" if parent_key else k
@@ -30,6 +26,7 @@ def flatten_dict(d, parent_key='', sep='.'):
     return items
 
 def format_output(result, json_output=False, table_fields=None, headers_map=None, list_of_dicts=False):
+    """ Format and print the result data as JSON or a pretty-printed table. """
     if json_output:
         print(json.dumps(result, default=str, indent=2))
     else:
@@ -188,7 +185,7 @@ def remove_expired_tokens(func):
 
 
 def url_to_parts(url):
-    """ Converts a string URL into consituent parts. """
+    """ Converts a string URL into constituent parts. """
     parsed = urlparse(url)
     return {
         'prefix': parsed.scheme,

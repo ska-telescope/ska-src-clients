@@ -13,7 +13,12 @@ class StatusAPI(API):
         :param str service: The API service name.
         """
         client = self.session.client_factory.get_client_from_service_name(service)
-        return client.health().json()
+        try:
+            health = client.health()
+        except Exception as e:
+            if 500 <= e.status_code < 600:
+                return None
+        return health.json()
 
     @handle_client_exceptions
     def ping(self, service):
@@ -22,4 +27,11 @@ class StatusAPI(API):
         :param str service: The API service name.
         """
         client = self.session.client_factory.get_client_from_service_name(service)
-        return client.ping().json()
+        try:
+            ping = client.ping()
+        except Exception as e:
+            if 500 <= e.status_code < 600:
+                return {
+                    'status': "DOWN"
+                }
+        return ping.json()

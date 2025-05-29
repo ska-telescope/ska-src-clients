@@ -1,7 +1,5 @@
 import click
 
-import plotly.graph_objects as go
-
 from ska_src_clients.api import DataAPI, SiteAPI
 from ska_src_clients.common.utility import format_output, plot_scatter_world_map, url_to_parts
 
@@ -27,32 +25,10 @@ def download(ctx, namespace, name, sort, ip_address, no_verify, output):
 @click.option('--name', required=True)
 @click.option('--sort', default='nearest_by_ip')
 @click.option('--ip_address', default='')
-@click.option('--plot', is_flag=True)
 @click.pass_context
 def locate(ctx, namespace, name, sort, ip_address, plot):
     """Locate data"""
     result = DataAPI(session=ctx.obj['session']).locate(namespace, name, sort, ip_address)
-    if plot:
-        storages_by_site = SiteAPI(session=ctx.obj['session']).list_storages()
-        data_by_host = []
-        for site in storages_by_site:
-            for storage in site.get('storages', []):
-                host = storage.get('host')
-                latitude = storage.get('latitude')
-                longitude = storage.get('longitude')
-                if host and latitude and longitude:
-                    count = len([entry for entry in result if url_to_parts(entry).get('host') == host])
-                    if count > 0:
-                        data_by_host.append({
-                            'identifier': host,
-                            'latitude': latitude,
-                            'longitude': longitude,
-                            'count': count,
-                            'label': f"{host}: {count}"
-                        })
-        fig = go.Figure()
-        plot_scatter_world_map(fig, data_by_host, 'latitude', 'longitude', 'count', 'label', 10)
-        fig.show()
     format_output(result, ctx.obj['json'])
 
 @data.command()

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Status</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; background-color: #f9f9f9; }
+        h1 { text-align: center; }
+        .api-block {
+            background: #fff;
+            margin: 1em 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .api-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1em;
+            cursor: pointer;
+            background-color: #e2e8f0;
+            border-bottom: 1px solid #ccc;
+            border-radius: 8px 8px 0 0;
+        }
+        .api-header:hover {
+            background-color: #cbd5e1;
+        }
+        .api-content {
+            display: none;
+            padding: 1em;
+        }
+        .status-circle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            color: white;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.7em;
+        }
+
+        .status-circle.green {
+            background-color: #4caf50; /* green */
+        }
+
+        .status-circle.red {
+            background-color: #f44336; /* red */
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0.5em;
+        }
+        th, td {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>API Status</h1>
+
+    {% for item in api_status_responses %}
+        <div class="api-block">
+            <div class="api-header" onclick="toggleContent('content-{{ forloop.counter }}')">
+                <span>
+                    <strong>{{ item.api_name }}</strong>
+                </span>
+                <span class="status-circle {% if item.ping.status == 'UP' %}green{% else %}red{% endif %}">
+                    {{ item.ping.status }}
+                </span>
+            </div>
+            <div class="api-content" id="content-{{ forloop.counter }}">
+                <table>
+                    {% for header, value in item.health.items %}
+                    <tr>
+                        <th>{{ header }}</th>
+                        <td>{{ value }}</td>
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+        </div>
+    {% endfor %}
+
+    <script>
+        function toggleContent(id) {
+            var content = document.getElementById(id);
+            if (content.style.display === "none" || content.style.display === "") {
+                content.style.display = "block";
+            } else {
+                content.style.display = "none";
+            }
+        }
+    </script>
+</body>
+</html>

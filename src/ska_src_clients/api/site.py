@@ -6,6 +6,32 @@ from fastapi.exceptions import HTTPException
 from ska_src_clients.api.api import API
 from ska_src_clients.common.exceptions import handle_client_exceptions
 
+import datetime
+import traceback
+def stub_decorator(func):
+    def wrapper(*args, **kwargs):
+        log_data = {
+            "timestamp": datetime.datetime.now().isoformat(),
+            "module": func.__module__,
+            "function": func.__name__,
+            "args": [repr(a) for a in args],
+            "kwargs": kwargs
+        }
+        try:
+            result = func(*args, **kwargs)
+            log_data['result'] = result
+        except Exception as e:
+            log_data['error'] = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "traceback": ''.join(traceback.format_tb(e.__traceback__))
+            }
+            print(log_data)  # Log before re-raising
+            raise  # re-raise the same exception
+        else:
+            print(log_data)
+            return result
+    return wrapper
 
 class SiteAPI(API):
     """ Site API class. """
@@ -47,6 +73,7 @@ class SiteAPI(API):
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.get_edit_node_www_url(node_name=node_name)
 
+    @stub_decorator
     @handle_client_exceptions
     def get_site(self, site_id):
         """ Get description of a site.
@@ -131,6 +158,7 @@ class SiteAPI(API):
         # services can be "core" or associated with a compute element, use combined result
         return client.list_service_types().json()
 
+    @stub_decorator
     @handle_client_exceptions
     def list_sites(self):
         """ List sites. """
