@@ -4,7 +4,9 @@ import logging
 import os
 import requests
 import time
+import yaml
 from functools import wraps
+from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
 from prettytable import PrettyTable
@@ -14,45 +16,33 @@ import plotly.graph_objects as go
 from ska_src_clients.common.exceptions import NoAccessTokenFoundForService
 
 
-def flatten_dict(d, parent_key='', sep='.'):
-    """ Recursively flatten a nested dictionary into a single-level dict using dot notation. """
-    items = {}
-    for k, v in d.items():
-        new_key = f"{parent_key}{sep}{k}" if parent_key else k
-        if isinstance(v, dict):
-            items.update(flatten_dict(v, new_key, sep=sep))
-        else:
-            items[new_key] = v
-    return items
-
-def format_output(result, json_output=False, table_fields=None, headers_map=None, list_of_dicts=False):
+def format_output(result, json_output=False, table_field_names=None):
     """ Format and print the result data as JSON or a pretty-printed table. """
     if json_output:
         print(json.dumps(result, default=str, indent=2))
     else:
         table = PrettyTable()
-        if table_fields and list_of_dicts:
-            display_fields = [headers_map.get(field, field) for field in table_fields] if headers_map else table_fields
-            table.field_names = display_fields
-            table.align = 'l'
-            for entry in result:
-                table.add_row([entry.get(field, '-') for field in table_fields])
-            print(table)
-        elif isinstance(result, list):
-            table.field_names = ["Item"]
-            table.align = 'l'
-            for item in result:
-                table.add_row([item])
-            print(table)
+        if isinstance(result, list):
+            if all(isinstance(item, dict) for item in result):  # list of dicts
+                table.field_names = table_field_names if table_field_names else result[0].keys()
+                table.align = 'l'
+                for item in result:
+                    table.add_row(item.values())
+                print(table)
+            else:
+                table.field_names = table_field_names if table_field_names else ["Item"]
+                table.align = 'l'
+                for item in result:
+                    table.add_row([item])
+                print(table)
         elif isinstance(result, dict):
-            table.field_names = ["Key", "Value"]
+            table.field_names = table_field_names if table_field_names else ["Key", "Value"]
             table.align = 'l'
             for key, value in result.items():
                 table.add_row([key, value])
             print(table)
         else:
             print(result)
-
 
 def get_authenticated_requests_session(session, service_name):
     """ Get a requests session that has a populated access token. """
@@ -74,56 +64,25 @@ def get_authenticated_requests_session(session, service_name):
     })
     return requests_session
 
+def load_config(config_paths=[
+    'etc/cfg/oper.yml',
+    os.path.join(Path.home(), '.local/etc/cfg/user.yml'),
+    '/usr/local/etc/oper.yml'
+]):
+    """ Load a configuration file. """
+    for file_path in config_paths:
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as f:
+                try:
+                    config = yaml.safe_load(f)
+                    logging.debug(f"Loaded config from {file_path}")
+                    return config
+                except yaml.YAMLError:
+                    continue
 
 def parts_to_url(prefix, host, port, path):
     """ Converts parts to a URL. """
-    return urlunparse({
-        'prefix': prefix,
-        'host': host,
-        'port': port,
-        'path': path
-    })
-
-
-def plot_scatter_world_map(fig, data, latitude_key, longitude_key, value_key, label_key, size_offset=15):
-    """ Make a scatterplot against a world map. """
-    # calculate relative marker size
-    normalized_sizes = [
-        (entry[value_key]/max([entry[value_key] for entry in data])) * size_offset for entry in data]
-
-    # construct the plot
-    for index, entry in enumerate(data):
-        fig.add_trace(go.Scattergeo(
-            name="",
-            lat=[entry[latitude_key]],
-            lon=[entry[longitude_key]],
-            text=entry[label_key],
-            mode='markers',
-            marker=dict(
-                size=normalized_sizes[index],
-                opacity=0.8,
-                color='red',
-                line=dict(width=0.3, color='black')
-            ),
-            showlegend=False
-        ))
-    fig.update_layout(
-        geo=dict(
-            scope='world',
-            projection_type='equirectangular',
-            showland=True,
-            landcolor='rgb(230, 230, 230)',
-            showcountries=True,
-            countrycolor='rgb(160, 160, 160)',
-            showocean=True,
-            oceancolor='rgb(200, 230, 255)',
-            showlakes=False
-        ),
-        hovermode='x unified',
-        hoverlabel=dict(bgcolor='rgba(255,255,255,1)')
-    )
-    return fig
-
+    return urlunparse((prefix, '{}:{}'.format(host, port), path, None, None, None))
 
 def remove_expired_tokens(func):
     """ Decorator to remove expired tokens. """
@@ -183,7 +142,6 @@ def remove_expired_tokens(func):
         return func(*args, **kwargs)
     return wrapper
 
-
 def url_to_parts(url):
     """ Converts a string URL into constituent parts. """
     parsed = urlparse(url)
@@ -193,4 +151,3 @@ def url_to_parts(url):
         'port': parsed.port,
         'path': parsed.path
     }
-

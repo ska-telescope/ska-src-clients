@@ -6,26 +6,15 @@ from django.shortcuts import render
 from pathlib import Path
 
 from ska_src_clients.api.status import StatusAPI
+from ska_src_clients.common.utility import load_config
 from ska_src_clients.session.oidc import OIDCSession
 
-config_paths = [
-    'etc/cfg/oper.yml',
-    os.path.join(Path.home(), '.local/etc/cfg/user.yml'),
-    '/usr/local/etc/oper.yml'
-]
 
-def load_config(config_paths):
-    for file_path in config_paths:
-        if os.path.exists(file_path):
-            with open(file_path, 'r') as f:
-                try:
-                    config = yaml.safe_load(f)
-                    return config
-                except yaml.YAMLError:
-                    continue
+def home(request):
+    return render(request, 'oper/home.html', {})
 
 def api_status(request):
-    config = load_config(config_paths)
+    config = load_config()
     session = OIDCSession(config=config)
     session.load_tokens_from_disk()
 
@@ -47,5 +36,18 @@ def api_status(request):
 
     return render(request, 'oper/api_status.html', {'api_status_responses': api_status_responses})
 
-def home(request):
-    return render(request, 'oper/home.html', {})
+def test_rse(request):
+    import docker
+    config = load_config()
+    session = OIDCSession(config=config)
+    session.load_tokens_from_disk()
+
+    client = docker.from_env()
+    a = client.containers.run(
+        "registry.gitlab.com/ska-telescope/src/src-dm/ska-src-dm-da-rucio-client:release-35.6.0",
+        command="/etc/profile.d/rucio_init.sh",
+        tty=True,
+        stdin_open=True
+    )
+
+    return render(request, 'oper/test_rse.html', {})

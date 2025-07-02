@@ -9,7 +9,7 @@ packages = [
 ]
 include = [
     { path = 'etc/cfg/oper.yml' },
-    { path = 'etc/cfg/user.yml' }v
+    { path = 'etc/cfg/user.yml' }
 ]
 
 [[tool.poetry.source]]
@@ -34,6 +34,7 @@ url = "https://gitlab.com/api/v4/projects/48376510/packages/pypi/simple"
 
 [tool.poetry.dependencies]
 python = ">=3.8.1,<4.0.0"
+docker = "5.0.3"
 Django = "4.2"
 qrcode = "7.4.2"
 plotly = "5.3.1"

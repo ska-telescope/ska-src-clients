@@ -6,32 +6,6 @@ from fastapi.exceptions import HTTPException
 from ska_src_clients.api.api import API
 from ska_src_clients.common.exceptions import handle_client_exceptions
 
-import datetime
-import traceback
-def stub_decorator(func):
-    def wrapper(*args, **kwargs):
-        log_data = {
-            "timestamp": datetime.datetime.now().isoformat(),
-            "module": func.__module__,
-            "function": func.__name__,
-            "args": [repr(a) for a in args],
-            "kwargs": kwargs
-        }
-        try:
-            result = func(*args, **kwargs)
-            log_data['result'] = result
-        except Exception as e:
-            log_data['error'] = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "traceback": ''.join(traceback.format_tb(e.__traceback__))
-            }
-            print(log_data)  # Log before re-raising
-            raise  # re-raise the same exception
-        else:
-            print(log_data)
-            return result
-    return wrapper
 
 class SiteAPI(API):
     """ Site API class. """
@@ -41,18 +15,18 @@ class SiteAPI(API):
 
     @handle_client_exceptions
     def disable_service(self, service_id):
-        """ Disable a service by service uuid.
+        """ Disable a service by service id.
 
-        :param str service_uuid: The service uuid.
+        :param str service_id: The service id.
         """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.set_service_disabled(service_id=service_id).json()
 
     @handle_client_exceptions
     def enable_service(self, service_id):
-        """ Enable a service by service uuid.
+        """ Enable a service by service id.
 
-        :param str service_uuid: The service uuid.
+        :param str service_id: The service id.
 
         """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
@@ -73,12 +47,11 @@ class SiteAPI(API):
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.get_edit_node_www_url(node_name=node_name)
 
-    @stub_decorator
     @handle_client_exceptions
     def get_site(self, site_id):
         """ Get description of a site.
 
-        :param str site_id: The site uuid.
+        :param str site_id: The site id.
         """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.get_site_from_id(site_id=site_id).json()
@@ -87,7 +60,7 @@ class SiteAPI(API):
     def get_compute(self, compute_id):
         """ Get description of a compute element.
 
-        :param str compute_id: The compute element uuid.
+        :param str compute_id: The compute element id.
         """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.get_compute(compute_id=compute_id).json()
@@ -96,7 +69,7 @@ class SiteAPI(API):
     def get_service(self, service_id):
         """ Get description of a service.
         
-        :param str service_id: The service uuid.
+        :param str service_id: The service id.
         """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.get_service(service_id=service_id).json()
@@ -105,7 +78,7 @@ class SiteAPI(API):
     def get_storage(self, storage_id):
         """ Get description of a storage resource.
 
-        :param str storage_id: The storage uuid.
+        :param str storage_id: The storage id.
         """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.get_storage(storage_id=storage_id).json()
@@ -114,16 +87,24 @@ class SiteAPI(API):
     def get_storage_area(self, storage_area_id):
         """ Get description of a storage area resource.
 
-        :param str storage_area_id: The storage area uuid.
+        :param str storage_area_id: The storage area id.
         """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         return client.get_storage_area(storage_area_id=storage_area_id).json()
 
     @handle_client_exceptions
     def list_compute(self, node_name=None, site_name=None):
-        """ List compute elements across all sites. """
+        """ List compute elements across all sites.
+
+        :param str site_name: (Optional) Filter compute belonging to a specific site.
+        :param str node_name: (Optional) Filter compute belonging to a specific node.
+
+        """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
-        query_params = {}
+
+        query_params = {
+            "include_inactive": True
+        }
         if node_name:
             query_params["node_names"] = [node_name]
         if site_name:
@@ -141,7 +122,10 @@ class SiteAPI(API):
         """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
 
-        query_params = {"service_scope": scope}
+        query_params = {
+            "service_scope": scope,
+            "include_inactive": True
+        }
         if service_type:
             query_params["service_types"] = [service_type]
         if node_name:
@@ -155,21 +139,39 @@ class SiteAPI(API):
     def list_service_types(self):
         """ List supported service types. """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
+
         # services can be "core" or associated with a compute element, use combined result
         return client.list_service_types().json()
 
-    @stub_decorator
     @handle_client_exceptions
-    def list_sites(self):
-        """ List sites. """
+    def list_sites(self, node_name=None):
+        """ List sites.
+
+        :param str node_name: (Optional) Filter services belonging to a specific node.
+
+        """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
-        return client.list_sites().json()
+
+        query_params = {
+            "include_inactive": True
+        }
+        if node_name:
+            query_params["node_names"] = [node_name]
+        return client.list_sites(**query_params).json()
 
     @handle_client_exceptions
     def list_storages(self, node_name=None, site_name=None):
-        """ List storages across all sites. """
+        """ List storages across all sites.
+
+        :param str site_name: (Optional) Filter storages belonging to a specific site.
+        :param str node_name: (Optional) Filter storages belonging to a specific node.
+
+        """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
-        query_params = {}
+
+        query_params = {
+            "include_inactive": True
+        }
         if node_name:
             query_params["node_names"] = [node_name]
         if site_name:
@@ -178,17 +180,18 @@ class SiteAPI(API):
 
     @handle_client_exceptions
     def list_storage_areas(self, node_name=None, site_name=None):
-        """ List storage areas across all sites. """
+        """ List storage areas across all sites.
+
+        :param str site_name: (Optional) Filter storage areas belonging to a specific site.
+        :param str node_name: (Optional) Filter storage areas belonging to a specific node.
+
+        """
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
-        query_params = {}
+        query_params = {
+            "include_inactive": True
+        }
         if node_name:
             query_params["node_names"] = [node_name]
         if site_name:
             query_params["site_names"] = [site_name]
         return client.list_storage_areas(**query_params).json()
-
-    @handle_client_exceptions
-    def list_storage_areas_topojson(self):
-        """ List storage areas across all sites in topojson format. """
-        client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
-        return client.list_storage_areas_topojson().json()
