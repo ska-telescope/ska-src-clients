@@ -1,17 +1,17 @@
-import click
 import json
 import logging
 import os
 import sys
-import webbrowser
 
-from django.core.management import execute_from_command_line
+import click
+from trogon import tui
 
 from ska_src_clients.cli.subcommands import api, config, data, metadata, node, token, site
-from ska_src_clients.common.utility import load_config, parts_to_url
+from ska_src_clients.common.utility import load_config
 from ska_src_clients.session.oidc import OIDCSession
 
 
+@tui()
 @click.group(help="SRCNet Operator CLI")
 @click.option('-c', 'config_path', help='Override default paths to configuration file.')
 @click.option('--debug', is_flag=True, help='Enable debug mode.')
@@ -35,18 +35,6 @@ def cli(ctx, config_path, debug, json):
         'json': json
     }
 
-@cli.command(help="Start the oper GUI server.")
-@click.option('--host', default="0.0.0.0", help='Host to run the GUI server on')
-@click.option('--port', default=8000, help='Port to run the GUI server on')
-@click.pass_context
-def gui(ctx, host, port):
-    """Start the GUI server."""
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'gui.settings')
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'gui'))
-    execute_from_command_line([
-        'manage.py', 'runserver', "{}:{}".format(host, port)])
-
-cli.add_command(gui)
 cli.add_command(api)
 cli.add_command(config)
 cli.add_command(data)

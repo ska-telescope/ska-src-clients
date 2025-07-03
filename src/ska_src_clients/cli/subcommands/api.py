@@ -1,4 +1,5 @@
 import click
+
 from ska_src_clients.api import StatusAPI
 from ska_src_clients.common.utility import format_output
 

@@ -45,10 +45,11 @@ click = "8.1.8"
 click-didyoumean = "0.3.1"
 click-plugins = "1.1.1"
 click-repl = "0.3.0"
+trogon = "0.6.0"
+webdavclient3 = "*"
 ska-src-authn-api = {version = "^0.4", allow-prereleases = false}
 ska-src-data-management-api = {version = "^0.6", allow-prereleases = false}
 ska-src-permissions-api = {version = "^0.1", allow-prereleases = false}
-webdavclient3 = "*"
 ska-src-site-capabilities-api = {version = "^0.3", allow-prereleases = false}
 
 [tool.poetry.dev-dependencies]
