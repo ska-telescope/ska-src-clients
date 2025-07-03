@@ -7,7 +7,7 @@ from webdav3.exceptions import WebDavException
 from ska_src_clients.common.exceptions import StorageDownloadFailed, StorageListFailed, StorageUploadFailed
 
 
-class DataManagementClient(ABC):
+class StorageInterface(ABC):
     def list(self, remote_path):
         """ List files at a remote path.
 
@@ -31,8 +31,8 @@ class DataManagementClient(ABC):
         raise NotImplementedError
 
 
-class WebDAVClient3(DataManagementClient):
-    """ A WebDAV client based on the webdav-client-python3 library. """
+class WebDAVStorageClient(StorageInterface):
+    """ A WebDAV storage protocol based on the webdav-client-python3 library. """
     def __init__(self, prefix, host, port, path, access_token=None, verify=True, **kwargs):
         # Translate davs prefix -> https
         if prefix == 'davs':

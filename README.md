@@ -6,19 +6,27 @@ Command line interfaces to SRCNet APIs.
 
 ## Install
 
+### From remote
+
 ```bash
 $ python3 -m pip install ska-src-clients --index-url https://gitlab.com/api/v4/groups/70683489/-/packages/pypi/simple
 ```
 
-### For development 
-
-For development, it helps to use symlinks to the package source rather than install it:
+### From local
 
 ```bash
-$ python3 -m pip install --extra-index-url https://gitlab.com/api/v4/groups/70683489/-/packages/pypi/simple -e .
+$ poetry build
+$ python3 -m pip install dist/ska_src_clients*.whl
 ```
 
-or use the Makefile target `make install-local`. This allows for testing without reinstalling the package.
+### For development 
+
+Development should be done inside a poetry environment, e.g. 
+
+```bash
+$ poetry shell
+$ poetry install
+```
 
 **If changes have been made to any of the APIs, you may need to update the pinned requirements version for the API
 and uninstall/reinstall the package.**
@@ -94,3 +102,7 @@ Package Registry.
 ## Reference
 
 1. [CLI documentation](https://ska-telescope.gitlab.io/src/src-service-apis/ska-src-clients/index.html).
+
+## TODO:
+
+autocomplete: eval "$(_SRCNET_OPER_COMPLETE=bash_source srcnet-oper)" and user

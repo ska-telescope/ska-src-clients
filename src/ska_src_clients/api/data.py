@@ -19,13 +19,13 @@ class DataAPI(API):
         super().__init__(**kwargs)
 
     @handle_client_exceptions
-    def move_request(self, to_storage_area_uuid: str | None,
+    def move_request(self, to_storage_area_id: str | None,
              dids: list | None,
              lifetime: str | None,
              parent_namespace: str | None) -> str:
         """Make a data movement request.
 
-        :param to_storage_area_uuid: The storage area uuid to move data to.
+        :param to_storage_area_id: The storage area id to move data to.
         :param int lifetime: The lifetime of the data in seconds.
         :param str parent_namespace: The parent container namespace. Defaults to using the first DID's namespace
             (Rucio only).
@@ -39,7 +39,7 @@ class DataAPI(API):
             for entry in dids
         ]
         dm_client = self.session.client_factory.get_data_management_client(is_authenticated=True)
-        return dm_client.make_data_movement_request(to_storage_area_uuid=to_storage_area_uuid,
+        return dm_client.make_data_movement_request(to_storage_area_uuid=to_storage_area_id,
                                                     lifetime=lifetime,
                                                     parent_namespace=parent_namespace,
                                                     dids=dids_formatted).json()
@@ -56,13 +56,13 @@ class DataAPI(API):
         return dm_client.get_status_data_movement_request(job_id).json()
 
     @handle_client_exceptions
-    def stage_request(self, to_storage_area_uuid: str | None,
+    def stage_request(self, to_storage_area_id: str | None,
              dids: list | None,
              lifetime: str | None,
              parent_namespace: str | None) -> str:
         """Make a data staging request.
 
-        :param to_storage_area_uuid: The storage area uuid to stage data in.
+        :param to_storage_area_id: The storage area id to stage data in.
         :param int lifetime: The lifetime of the data in seconds.
         :param str parent_namespace: The parent container namespace. Defaults to using the first DID's namespace
             (Rucio only).
@@ -76,7 +76,7 @@ class DataAPI(API):
             for entry in dids
         ]
         dm_client = self.session.client_factory.get_data_management_client(is_authenticated=True)
-        return dm_client.make_data_stage_request(to_storage_area_uuid=to_storage_area_uuid,
+        return dm_client.make_data_stage_request(to_storage_area_uuid=to_storage_area_id,
                                                  lifetime=lifetime,
                                                  parent_namespace=parent_namespace,
                                                  dids=dids_formatted).json()
@@ -127,7 +127,7 @@ class DataAPI(API):
             namespace=namespace, name=name).json().get('access_token')
 
         # instantiate a client for this protocol depending on prefix
-        selected_dm_client_attr = self.session.config.get('data-management').get('clients').get(
+        selected_dm_client_attr = self.session.config.get('storage').get('clients').get(
             access_url_parts.get('prefix'))
         package_name = selected_dm_client_attr.get('package_name')
         module_name = selected_dm_client_attr.get('module_name')
@@ -256,7 +256,7 @@ class DataAPI(API):
 
         # instantiate a client for this protocol depending on prefix.
         # this uses the storage area's absolute path (should be the complete path to the staging area)
-        selected_dm_client_attr = self.session.config.get('data-management').get('clients').get(prefix)
+        selected_dm_client_attr = self.session.config.get('storage').get('clients').get(prefix)
         package_name = selected_dm_client_attr.get('package_name')
         module_name = selected_dm_client_attr.get('module_name')
         class_name = selected_dm_client_attr.get('class_name')

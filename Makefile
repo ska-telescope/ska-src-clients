@@ -1,5 +1,8 @@
+build:
+	@poetry build
+
 bump-and-commit: docs
-	@cd etc/scripts && bash increment-app-version.sh `git branch | grep "*" | awk -F'[*-]' '{ print $$2 }' | tr -d ' '`
+	@cd tools && bash increment-app-version.sh `git branch | grep "*" | awk -F'[*-]' '{ print $$2 }' | tr -d ' '`
 	@git add VERSION
 	@git commit
 
@@ -7,12 +10,7 @@ docs:
 	@cd docs && make clean && make html
 
 install:
-	@python3 -m pip uninstall -y ska-src-clients
-	@python3 -m pip install --extra-index-url https://gitlab.com/api/v4/groups/70683489/-/packages/pypi/simple .
-
-install-local:
-	@python3 -m pip uninstall -y ska-src-clients
-	@python3 -m pip install --extra-index-url https://gitlab.com/api/v4/groups/70683489/-/packages/pypi/simple -e .
+	@poetry install
 
 major-branch:
 	@test -n "$(NAME)"

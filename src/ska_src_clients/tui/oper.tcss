@@ -1,0 +1,38 @@
+#main {
+  layout: vertical;
+}
+
+#app {
+  padding: 2 2;
+  background: $surface;
+  border: heavy $background;
+  layout: vertical;
+}
+
+#info {
+  height: 1fr;
+  border: round $surface-darken-2;
+  padding: 1;
+  margin-bottom: 1;
+}
+
+#detail {
+  height: 1fr;
+  border: panel $surface-darken-1;
+  padding: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: $surface-darken-3;
+}
+
+#command_input {
+  dock: top;
+  height: 3;
+  background: $boost;
+  border: round $secondary;
+  padding: 0 1;
+}
+
+.hidden {
+  display: none;
+}
