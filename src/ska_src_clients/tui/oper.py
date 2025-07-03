@@ -112,8 +112,3 @@ class OperApp(App):
 
         # Set focus on info datatable otherwise bindings don't appear
         self.set_focus(self.query_one("#info", DataTable))
-
-
-if __name__ == "__main__":
-    app = OperApp()
-    app.run()

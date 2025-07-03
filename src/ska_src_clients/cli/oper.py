@@ -8,6 +8,7 @@ from trogon import tui
 
 from ska_src_clients.cli.subcommands import api, config, data, metadata, node, token, site
 from ska_src_clients.common.utility import load_config
+from ska_src_clients.tui.oper import OperApp
 from ska_src_clients.session.oidc import OIDCSession
 
 
@@ -35,6 +36,11 @@ def cli(ctx, config_path, debug, json):
         'json': json
     }
 
+@click.command(help="Launch the TUI operator interface.")
+@click.pass_context
+def tui(ctx):
+    OperApp().run()
+
 cli.add_command(api)
 cli.add_command(config)
 cli.add_command(data)
@@ -42,6 +48,7 @@ cli.add_command(metadata)
 cli.add_command(node)
 cli.add_command(site)
 cli.add_command(token)
+cli.add_command(tui)
 
 if __name__ == '__main__':
     cli()
