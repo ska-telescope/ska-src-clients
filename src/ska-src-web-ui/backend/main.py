@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 import logging
 
 from app.core.config import settings
-from app.api import auth_router, data_router, site_router
+from app.api import auth_router, data_router, site_router, storage_router
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -35,6 +35,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix=settings.api_v1_str)
 app.include_router(data_router, prefix=settings.api_v1_str)
 app.include_router(site_router, prefix=settings.api_v1_str)
+app.include_router(storage_router, prefix=settings.api_v1_str)
 
 
 @app.get("/")
