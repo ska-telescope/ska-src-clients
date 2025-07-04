@@ -1,3 +1,88 @@
+/* SKA Operator Client Theme Colors */
+:root {
+  --ska-magenta: #E70068;
+  --ska-navy: #120458;
+  --ska-font: 'Verdana', Verdana, Geneva, Tahoma, sans-serif;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  background: #fff;
+  padding: 2rem 2rem 1rem 2rem;
+  border-bottom: 2px solid var(--ska-navy);
+}
+
+.ska-logo {
+  height: 60px;
+  margin-right: 1.5rem;
+}
+
+.header h1 {
+  color: var(--ska-magenta);
+  font-family: var(--ska-font);
+  font-weight: bold;
+  font-size: 2.2rem;
+  margin: 0;
+  display: flex;
+  align-items: center;
+}
+
+.header p {
+  color: var(--ska-navy);
+  font-family: var(--ska-font);
+  font-weight: 300;
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.button, .button.secondary {
+  background: var(--ska-magenta);
+  color: #fff;
+  border: none;
+  font-family: var(--ska-font);
+  font-weight: bold;
+  border-radius: 0.25rem;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.button.secondary {
+  background: var(--ska-navy);
+}
+.button:hover, .button.secondary:hover {
+  background: #b8004e;
+}
+
+.section-header h4, .filters h4 {
+  color: var(--ska-magenta);
+  font-family: var(--ska-font);
+  font-weight: bold;
+}
+
+.data-item strong {
+  color: var(--ska-magenta);
+  font-family: var(--ska-font);
+  font-weight: bold;
+}
+
+.status-indicator.up {
+  background-color: #d4edda;
+  color: var(--ska-navy);
+  border: 1px solid #c3e6cb;
+}
+.status-indicator.down {
+  background-color: #f8d7da;
+  color: var(--ska-magenta);
+  border: 1px solid #f5c6cb;
+}
+.status-indicator.unknown {
+  background-color: #fff3cd;
+  color: var(--ska-navy);
+  border: 1px solid #ffeaa7;
+}
+
 .App {
   text-align: left;
 }
