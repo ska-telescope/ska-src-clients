@@ -99,6 +99,52 @@ async def list_compute(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/service/debug", response_model=SiteResponse)
+async def debug_services(
+    type: Optional[str] = Query(None, description="Filter by service type"),
+    node: Optional[str] = Query(None, description="Filter by node name"),
+    site: Optional[str] = Query(None, description="Filter by site name"),
+    scope: str = Query("all", description="Filter by scope (global|local|all)"),
+    src_service: SRCClientService = Depends(get_src_service)
+):
+    """Debug endpoint to inspect raw service data."""
+    try:
+        logging.info(f"Debug listing services with filters: type={type}, node={node}, site={site}, scope={scope}")
+        
+        # Get raw services
+        raw_services = src_service.site_api.list_services(service_type=type, node_name=node, site_name=site, scope=scope)
+        logging.info(f"Raw services count: {len(raw_services)}")
+        
+        # Get sites
+        sites = src_service.site_api.list_sites()
+        logging.info(f"Sites count: {len(sites)}")
+        
+        # Sample a few services to see their structure
+        sample_services = raw_services[:3] if raw_services else []
+        
+        debug_data = {
+            "raw_services_count": len(raw_services),
+            "sites_count": len(sites),
+            "sample_services": sample_services,
+            "sites": sites,
+            "filters_applied": {
+                "type": type,
+                "node": node,
+                "site": site,
+                "scope": scope
+            }
+        }
+        
+        return SiteResponse(
+            success=True,
+            message="Debug data retrieved successfully",
+            data=debug_data
+        )
+    except Exception as e:
+        logging.error(f"Error in debug endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/service/{service_id}", response_model=SiteResponse)
 async def get_service(
     service_id: str,
@@ -125,11 +171,14 @@ async def list_services(
     scope: str = Query("all", description="Filter by scope (global|local|all)"),
     src_service: SRCClientService = Depends(get_src_service)
 ):
-    """List services."""
+    """List services with enriched information."""
     try:
-        result = src_service.list_services(
+        logging.info(f"Listing services with filters: type={type}, node={node}, site={site}, scope={scope}")
+        result = src_service.list_services_enriched(
             service_type=type, node_name=node, site_name=site, scope=scope
         )
+        logging.info(f"Returning {len(result)} services")
+        logging.debug(f"Services data: {result}")
         return SiteResponse(
             success=True,
             message="Services listed successfully",

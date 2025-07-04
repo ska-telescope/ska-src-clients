@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.api import auth_router, data_router, site_router
 
 # Configure logging
+logging.basicConfig(level=logging.DEBUG)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s"

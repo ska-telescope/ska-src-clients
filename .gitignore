@@ -36,3 +36,28 @@ docs/_templates
 
 etc/cfg/base.yml
 src/ska_src_clients/gui/db.sqlite3
+
+# Node and frontend build artifacts
+node_modules/
+*.log
+*.tmp
+*.cache
+
+# Ignore all build output in frontend
+ska-src-web-ui/frontend/build/
+ska-src-web-ui/frontend/dist/
+ska-src-web-ui/frontend/node_modules/
+ska-src-web-ui/frontend/.next/
+ska-src-web-ui/frontend/.cache/
+ska-src-web-ui/frontend/.turbo/
+ska-src-web-ui/frontend/*.log
+
+# Ignore all generated JS/JSX/TS/TSX map files
+*.js
+*.jsx
+*.ts
+*.tsx
+*.map
+
+# But keep source files in src/
+!ska-src-web-ui/frontend/src/**

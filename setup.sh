@@ -34,6 +34,23 @@ fi
 
 print_status "Python version: $(python3 --version)"
 
+# Check if Node.js is available for frontend
+if ! command -v node &> /dev/null; then
+    print_warning "Node.js is required for the frontend but not installed."
+    print_warning "Please install Node.js (version 14 or higher) to use the frontend."
+    print_warning "You can still use the backend without the frontend."
+else
+    print_status "Node.js version: $(node --version)"
+fi
+
+# Check if npm is available
+if ! command -v npm &> /dev/null; then
+    print_warning "npm is required for the frontend but not installed."
+    print_warning "Please install npm to use the frontend."
+else
+    print_status "npm version: $(npm --version)"
+fi
+
 # Check if we're in the right directory
 if [ ! -f "pyproject.toml" ]; then
     print_error "Please run this script from the project root directory (ska-src-clients)"
@@ -115,17 +132,41 @@ print_status "Current directory: $(pwd)"
 print_status "Checking if setup_env.py exists: $(ls -la src/ska-src-web-ui/backend/setup_env.py 2>/dev/null || echo 'File not found')"
 python src/ska-src-web-ui/backend/setup_env.py
 
+# Setup frontend if Node.js and npm are available
+if command -v node &> /dev/null && command -v npm &> /dev/null; then
+    print_status "Setting up frontend..."
+    cd src/ska-src-web-ui/frontend
+    
+    if [ -d "node_modules" ]; then
+        print_status "Frontend dependencies already installed, skipping..."
+    else
+        print_status "Installing frontend dependencies..."
+        npm install
+    fi
+    
+    cd "$PROJECT_ROOT"
+    print_status "✅ Frontend setup completed!"
+else
+    print_warning "Skipping frontend setup - Node.js or npm not available"
+fi
+
 print_status "✅ Setup completed successfully!"
 echo ""
 echo "To start the backend server:"
 echo "  source venv/bin/activate"
-echo "  python  src/ska-src-web-ui/backend/main.py"
-echo "  # or: uvicorn main:app --reload"
+echo "  cd src/ska-src-web-ui/backend"
+echo "  python -m uvicorn main:app --reload --port 8000"
+echo ""
+echo "To start the frontend (in a new terminal):"
+echo "  cd src/ska-src-web-ui/frontend"
+echo "  npm start"
 echo ""
 echo "To use the CLI tools:"
 echo "  source venv/bin/activate"
 echo "  ska-src-clients --help"
 echo ""
-echo "API will be available at:"
-echo "  - Swagger UI: http://localhost:8000/docs"
-echo "  - Health check: http://localhost:8000/health" 
+echo "Access points:"
+echo "  - Frontend: http://localhost:3000"
+echo "  - Backend API: http://localhost:8000"
+echo "  - API Docs: http://localhost:8000/docs"
+echo "  - Health check: http://localhost:8000/api/v1/auth/health" 

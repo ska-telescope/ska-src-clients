@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from typing import List
+from typing import List, Optional
 import logging
 
 from app.models.auth import (
@@ -57,17 +57,32 @@ async def request_token(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/token/complete/{device_code}", response_model=TokenRequestResponse)
+@router.post("/token/complete/{device_code}")
 async def complete_token_request(
     device_code: str,
     src_service: SRCClientService = Depends(get_src_service)
 ):
     """Complete a token request by polling for completion."""
     try:
-        response = src_service.complete_token_request(device_code)
-        return TokenRequestResponse(**response)
+        result = src_service.complete_token_request(device_code)
+        return result
     except Exception as e:
         logging.error(f"Error completing token request: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/token/check/{device_code}")
+async def check_token_completion(
+    device_code: str,
+    src_service: SRCClientService = Depends(get_src_service)
+):
+    """Check if a token request has been completed (single check, no polling)."""
+    try:
+        result = src_service.check_token_completion(device_code)
+        logging.info(f"API endpoint returning result: {result}")
+        return result
+    except Exception as e:
+        logging.error(f"Error checking token completion: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -119,4 +134,83 @@ async def inspect_token(
 @router.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "healthy", "service": "auth"} 
+    return {"status": "healthy", "service": "auth"}
+
+
+# Data Management API endpoints
+@router.get("/data/namespaces")
+async def list_namespaces(
+    src_service: SRCClientService = Depends(get_src_service)
+):
+    """List available namespaces."""
+    try:
+        result = src_service.list_namespaces()
+        return {"success": True, "data": result}
+    except Exception as e:
+        logging.error(f"Error listing namespaces: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/data/files/{namespace}/{name}")
+async def list_files(
+    namespace: str,
+    name: str,
+    detail: bool = False,
+    filters: Optional[str] = None,
+    limit: int = 100,
+    src_service: SRCClientService = Depends(get_src_service)
+):
+    """List files in a namespace."""
+    try:
+        result = src_service.list_files(namespace, name, detail, filters, limit)
+        return {"success": True, "data": result}
+    except Exception as e:
+        logging.error(f"Error listing files: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Site Capabilities API endpoints
+@router.get("/site/services")
+async def list_services(
+    service_type: Optional[str] = None,
+    node_name: Optional[str] = None,
+    site_name: Optional[str] = None,
+    scope: str = "all",
+    src_service: SRCClientService = Depends(get_src_service)
+):
+    """List services (enriched with site/node/host/port/path info)."""
+    try:
+        result = src_service.list_services_enriched(service_type, node_name, site_name, scope)
+        return {"success": True, "data": result}
+    except Exception as e:
+        logging.error(f"Error listing services: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/site/sites")
+async def list_sites(
+    node_name: Optional[str] = None,
+    src_service: SRCClientService = Depends(get_src_service)
+):
+    """List sites."""
+    try:
+        result = src_service.list_sites(node_name)
+        return {"success": True, "data": result}
+    except Exception as e:
+        logging.error(f"Error listing sites: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/site/compute")
+async def list_compute(
+    node_name: Optional[str] = None,
+    site_name: Optional[str] = None,
+    src_service: SRCClientService = Depends(get_src_service)
+):
+    """List compute resources."""
+    try:
+        result = src_service.list_compute(node_name, site_name)
+        return {"success": True, "data": result}
+    except Exception as e:
+        logging.error(f"Error listing compute: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) 

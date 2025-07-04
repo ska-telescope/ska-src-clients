@@ -79,6 +79,72 @@ class SRCClientService:
                 "message": f"Failed to start token request: {str(e)}"
             }
     
+    def check_token_completion(self, device_code: str) -> Dict[str, Any]:
+        """Check if a token request has been completed (single check, no polling)."""
+        try:
+            # Try to request the token - this will succeed if authorization is complete
+            result = self.session.request_token(device_code=device_code)
+            
+            logging.debug(f"Token completion check result: {result} (type: {type(result)})")
+            
+            if result is True:
+                return {
+                    "success": True,
+                    "message": "Token request completed successfully. You are now logged in."
+                }
+            elif isinstance(result, str):
+                # Error occurred - check if it's an authorization pending error
+                logging.debug(f"Token completion check error: {result}")
+                if "authorization_pending" in result.lower() or "slow_down" in result.lower():
+                    return {
+                        "success": False,
+                        "message": "Authorization still pending. Please complete authentication in your browser."
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"Token request failed: {result}"
+                    }
+            else:
+                # Unexpected result
+                logging.debug(f"Token completion check unexpected result: {result}")
+                return {
+                    "success": False,
+                    "message": "Authorization still pending. Please complete authentication in your browser."
+                }
+        except Exception as e:
+            # Check if this is a 500 error or other fatal error
+            error_str = str(e).lower()
+            if "500" in error_str or "internal server error" in error_str or "server error" in error_str:
+                # Before treating as fatal, check if we actually got a token
+                try:
+                    tokens = self.session.list_access_tokens()
+                    if tokens:
+                        logging.info(f"Token completion check: Found {len(tokens)} tokens despite server error")
+                        response = {
+                            "success": True,
+                            "message": "Token request completed successfully. You are now logged in."
+                        }
+                        logging.info(f"Returning success response: {response}")
+                        return response
+                except Exception as token_check_error:
+                    logging.debug(f"Could not check for existing tokens: {token_check_error}")
+                
+                logging.error(f"Token completion check (fatal error): {e}")
+                return {
+                    "success": False,
+                    "fatal": True,
+                    "message": f"Authentication failed due to server error. Please try again: {str(e)}"
+                }
+            else:
+                # If an exception is raised, it usually means authorization is still pending
+                # This is the expected behavior when the user hasn't completed authentication yet
+                logging.debug(f"Token completion check (pending): {e}")
+                return {
+                    "success": False,
+                    "message": "Authorization still pending. Please complete authentication in your browser."
+                }
+
     def complete_token_request(self, device_code: str) -> Dict[str, Any]:
         """Complete a token request by polling for completion."""
         try:
@@ -333,4 +399,196 @@ class SRCClientService:
             return result
         except Exception as e:
             logging.error(f"Error disabling service: {e}")
+            raise 
+
+    def list_services_enriched(self, service_type: Optional[str] = None, node_name: Optional[str] = None,
+                              site_name: Optional[str] = None, scope: str = "all") -> List[Dict[str, Any]]:
+        """
+        List services, enriched with site/node info and extra details (host, port, path, etc).
+        Only enriches the first 20 services for development. Fetches details in parallel.
+        """
+        try:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            services = self.site_api.list_services(service_type=service_type, node_name=node_name,
+                                                  site_name=site_name, scope=scope)
+            sites = self.site_api.list_sites()
+            
+            # Build a comprehensive lookup for node/site by various possible keys
+            node_lookup = {}
+            for site in sites:
+                # Add all possible keys that could match
+                if 'node' in site:
+                    node_lookup[site['node']] = site
+                if 'name' in site:
+                    node_lookup[site['name']] = site
+                if 'id' in site:
+                    node_lookup[site['id']] = site
+                # Also add lowercase versions for case-insensitive matching
+                if 'node' in site:
+                    node_lookup[site['node'].lower()] = site
+                if 'name' in site:
+                    node_lookup[site['name'].lower()] = site
+                if 'id' in site:
+                    node_lookup[site['id'].lower()] = site
+            
+            logging.debug(f"Built node lookup with {len(node_lookup)} entries")
+            logging.debug(f"Available lookup keys: {list(node_lookup.keys())}")
+            
+            enriched = []
+            # Remove the development limit: process all services
+            services_to_enrich = services
+            # Prepare for parallel fetching
+            def fetch_details(svc_id):
+                try:
+                    return self.site_api.get_service(svc_id)
+                except Exception as e:
+                    logging.warning(f"Could not get details for service {svc_id}: {e}")
+                    return {}
+            
+            def check_service_status(service_data):
+                """Check if a service is up by pinging its endpoint."""
+                try:
+                    host = service_data.get('host')
+                    port = service_data.get('port')
+                    path = service_data.get('path', '/')
+                    prefix = service_data.get('prefix', 'https')
+                    
+                    if not host or not port:
+                        return 'unknown'
+                    
+                    # Construct the URL
+                    url = f"{prefix}://{host}:{port}{path}"
+                    
+                    # Make a quick HEAD request to check if service is up
+                    import requests
+                    import urllib3
+                    # Suppress SSL warnings
+                    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                    
+                    response = requests.head(url, timeout=5, verify=False)
+                    if response.status_code < 500:  # Consider 2xx, 3xx, 4xx as "up"
+                        return 'up'
+                    else:
+                        return 'down'
+                except Exception as e:
+                    logging.debug(f"Service status check failed for {host}:{port}: {e}")
+                    return 'down'
+            
+            details_map = {}
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                future_to_id = {executor.submit(fetch_details, svc.get('id')): svc for svc in services_to_enrich if svc.get('id')}
+                for future in as_completed(future_to_id):
+                    svc = future_to_id[future]
+                    details = future.result()
+                    if details:
+                        details_map[svc['id']] = details
+                        
+            # Check service statuses in parallel
+            status_map = {}
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                future_to_service = {}
+                for svc in services_to_enrich:
+                    svc_id = svc.get('id')
+                    if svc_id and svc_id in details_map:
+                        details = details_map[svc_id]
+                        future = executor.submit(check_service_status, details)
+                        future_to_service[future] = svc_id
+                
+                for future in as_completed(future_to_service):
+                    svc_id = future_to_service[future]
+                    status = future.result()
+                    status_map[svc_id] = status
+                        
+            for svc in services_to_enrich:
+                svc_enriched = dict(svc)
+                
+                # Debug: Log the service structure
+                logging.debug(f"Service {svc.get('id')} raw data: {svc}")
+                
+                # Try multiple possible field names for site/node identification
+                possible_site_keys = [
+                    svc.get('node'),
+                    svc.get('site'), 
+                    svc.get('site_name'),
+                    svc.get('site_id'),
+                    svc.get('parent_site'),
+                    svc.get('location'),
+                    svc.get('parent_node_name'),
+                    svc.get('parent_site_name')
+                ]
+                
+                # Also try from details if available
+                svc_id = svc.get('id')
+                if svc_id and svc_id in details_map:
+                    details = details_map[svc_id]
+                    logging.debug(f"Service {svc_id} details: {details}")
+                    possible_site_keys.extend([
+                        details.get('node'),
+                        details.get('site'),
+                        details.get('site_name'),
+                        details.get('site_id'),
+                        details.get('parent_site'),
+                        details.get('location'),
+                        details.get('parent_node_name'),
+                        details.get('parent_site_name')
+                    ])
+                
+                # Remove None values and try to find a match
+                possible_site_keys = [key for key in possible_site_keys if key is not None]
+                
+                logging.debug(f"Service {svc.get('id')} possible site keys: {possible_site_keys}")
+                
+                site_info = None
+                matched_key = None
+                
+                # Try exact match first
+                for key in possible_site_keys:
+                    if key in node_lookup:
+                        site_info = node_lookup[key]
+                        matched_key = key
+                        break
+                
+                # If no exact match, try case-insensitive match
+                if not site_info:
+                    for key in possible_site_keys:
+                        if key.lower() in node_lookup:
+                            site_info = node_lookup[key.lower()]
+                            matched_key = key
+                            break
+                
+                if site_info:
+                    svc_enriched['site'] = site_info.get('name')
+                    svc_enriched['site_name'] = site_info.get('name')
+                    svc_enriched['node'] = site_info.get('node')
+                    logging.debug(f"Service {svc.get('id')} matched to site {site_info.get('name')} via key '{matched_key}'")
+                else:
+                    # Log what we tried to match
+                    logging.debug(f"Service {svc.get('id')} could not be matched to any site. Tried keys: {possible_site_keys}")
+                    # Use the first available key as fallback
+                    fallback_site = possible_site_keys[0] if possible_site_keys else 'Unknown'
+                    svc_enriched['site'] = fallback_site
+                    svc_enriched['site_name'] = fallback_site
+                    svc_enriched['node'] = fallback_site
+                
+                if svc_id and svc_id in details_map:
+                    details = details_map[svc_id]
+                    for k in ['host', 'port', 'path', 'prefix', 'assoc_storage_id', 'parent_compute_id']:
+                        if k in details:
+                            svc_enriched[k] = details[k]
+                    
+                    # Add real-time status
+                    if svc_id in status_map:
+                        svc_enriched['status'] = status_map[svc_id]
+                        svc_enriched['real_time_status'] = True
+                    else:
+                        svc_enriched['status'] = svc.get('status', 'unknown')
+                        svc_enriched['real_time_status'] = False
+                else:
+                    svc_enriched['status'] = svc.get('status', 'unknown')
+                    svc_enriched['real_time_status'] = False
+                    
+                enriched.append(svc_enriched)
+            return enriched
+        except Exception as e:
+            logging.error(f"Error listing enriched services: {e}")
             raise 
