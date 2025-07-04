@@ -302,3 +302,42 @@
     opacity: 1;
   }
 } 
+
+.service-exchange-btn {
+  min-width: 180px;
+  max-width: 220px;
+  width: 100%;
+  margin: 0.25rem 0;
+  font-size: 1rem;
+  font-weight: bold;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.25rem;
+  background: var(--ska-navy);
+  color: #fff;
+  border: none;
+  transition: background 0.2s, box-shadow 0.2s;
+  box-shadow: 0 0 0 0 rgba(231,0,104,0);
+  position: relative;
+  overflow: hidden;
+}
+.service-exchange-btn.clicked {
+  background: var(--ska-magenta) !important;
+  animation: pulse-magenta 0.5s;
+}
+@keyframes pulse-magenta {
+  0% {
+    box-shadow: 0 0 0 0 rgba(231,0,104,0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(231,0,104,0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(231,0,104,0);
+  }
+}
+.service-exchange-btn.secondary {
+  background: var(--ska-navy);
+}
+.service-exchange-btn:disabled {
+  opacity: 0.5;
+} 
