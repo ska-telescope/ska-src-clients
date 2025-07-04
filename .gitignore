@@ -52,12 +52,15 @@ ska-src-web-ui/frontend/.cache/
 ska-src-web-ui/frontend/.turbo/
 ska-src-web-ui/frontend/*.log
 
-# Ignore all generated JS/JSX/TS/TSX map files
-*.js
-*.jsx
-*.ts
-*.tsx
+# Ignore all generated JS/JSX/TS/TSX map files (but not source files)
 *.map
 
+# Ignore compiled/built JavaScript files
+ska-src-web-ui/frontend/build/**/*.js
+ska-src-web-ui/frontend/build/**/*.jsx
+ska-src-web-ui/frontend/dist/**/*.js
+ska-src-web-ui/frontend/dist/**/*.jsx
+
 # But keep source files in src/
-!ska-src-web-ui/frontend/src/**
+!ska-src-web-ui/frontend/src/**/*.js
+!ska-src-web-ui/frontend/src/**/*.jsx

@@ -53,8 +53,21 @@ def get_authenticated_requests_session(session, service_name):
     access_token = session.get_access_token(service_name)
     if not access_token:
         # attempt to exchange if we can't find an access token for the service
-        if not session.exchange_token(service_name):
-            raise NoAccessTokenFoundForService(service_name)
+        try:
+            if not session.exchange_token(service_name):
+                raise NoAccessTokenFoundForService(service_name)
+        except Exception as e:
+            # Check if this is an authentication server connectivity issue
+            error_str = str(e).lower()
+            if "502" in error_str and "bad gateway" in error_str and "authn.srcnet.skao.int" in error_str:
+                # This is an authentication server connectivity issue
+                raise Exception(f"Authentication server is currently unavailable. Please try again later. Original error: {str(e)}")
+            elif "ping" in error_str and ("502" in error_str or "connection" in error_str):
+                # This is likely an authentication server connectivity issue
+                raise Exception(f"Authentication server is currently unavailable. Please try again later. Original error: {str(e)}")
+            else:
+                # Re-raise other exceptions
+                raise
         access_token = session.get_access_token(service_name)
 
     # make requests session and populate authorization header

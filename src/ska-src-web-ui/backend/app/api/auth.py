@@ -8,6 +8,7 @@ from app.models.auth import (
 )
 from app.services.src_client import SRCClientService
 from app.core.config import settings
+from ska_src_clients.common.exceptions import NoAccessTokenFoundForService
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -100,8 +101,16 @@ async def exchange_token(
             service_name=request.service_name
         )
     except Exception as e:
-        logging.error(f"Error exchanging token: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        error_str = str(e).lower()
+        if "authentication server is currently unavailable" in error_str:
+            logging.error(f"Authentication server connectivity issue: {e}")
+            raise HTTPException(
+                status_code=503, 
+                detail="Authentication server is currently unavailable. Please try again later."
+            )
+        else:
+            logging.error(f"Error exchanging token: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/tokens", response_model=TokenListResponse)
@@ -112,6 +121,9 @@ async def list_tokens(
     try:
         tokens = src_service.list_tokens()
         return TokenListResponse(tokens=tokens)
+    except NoAccessTokenFoundForService:
+        # Return empty list when no tokens are available
+        return TokenListResponse(tokens=[])
     except Exception as e:
         logging.error(f"Error listing tokens: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -137,6 +149,81 @@ async def health_check():
     return {"status": "healthy", "service": "auth"}
 
 
+@router.get("/api-status")
+async def check_api_status(
+    src_service: SRCClientService = Depends(get_src_service)
+):
+    """Check the status of external APIs using their /health endpoints."""
+    try:
+        status = {
+            "auth": {"status": "unknown", "error": None},
+            "site-capabilities": {"status": "unknown", "error": None},
+            "data-management": {"status": "unknown", "error": None}
+        }
+        
+        # Check auth API status using /health endpoint
+        try:
+            # Get the auth client and check its health endpoint
+            auth_client = src_service.session.client_factory.get_authn_client()
+            # Most auth clients have a ping method that's equivalent to /health
+            auth_client.ping()
+            status["auth"]["status"] = "online"
+        except Exception as e:
+            status["auth"]["status"] = "offline"
+            status["auth"]["error"] = str(e)
+        
+        # Check site-capabilities API status using /health endpoint
+        try:
+            # Get the site capabilities client and check its health endpoint
+            site_client = src_service.session.client_factory.get_site_capabilities_client(is_authenticated=False)
+            # Try to access the health endpoint
+            import requests
+            site_url = site_client.base_url if hasattr(site_client, 'base_url') else None
+            if site_url:
+                health_response = requests.get(f"{site_url}/health", timeout=5)
+                if health_response.status_code == 200:
+                    status["site-capabilities"]["status"] = "online"
+                else:
+                    status["site-capabilities"]["status"] = "offline"
+                    status["site-capabilities"]["error"] = f"Health check returned {health_response.status_code}"
+            else:
+                # Fallback: try a simple API call
+                site_client.list_sites()
+                status["site-capabilities"]["status"] = "online"
+        except Exception as e:
+            status["site-capabilities"]["status"] = "offline"
+            status["site-capabilities"]["error"] = str(e)
+        
+        # Check data-management API status using /health endpoint
+        try:
+            # Get the data management client and check its health endpoint
+            data_client = src_service.session.client_factory.get_data_management_client(is_authenticated=False)
+            # Try to access the health endpoint
+            import requests
+            data_url = data_client.base_url if hasattr(data_client, 'base_url') else None
+            if data_url:
+                health_response = requests.get(f"{data_url}/health", timeout=5)
+                if health_response.status_code == 200:
+                    status["data-management"]["status"] = "online"
+                else:
+                    status["data-management"]["status"] = "offline"
+                    status["data-management"]["error"] = f"Health check returned {health_response.status_code}"
+            else:
+                # Fallback: try a simple API call
+                data_client.list_namespaces()
+                status["data-management"]["status"] = "online"
+        except Exception as e:
+            status["data-management"]["status"] = "offline"
+            status["data-management"]["error"] = str(e)
+
+
+        
+        return status
+    except Exception as e:
+        logging.error(f"Error checking API status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Data Management API endpoints
 @router.get("/data/namespaces")
 async def list_namespaces(
@@ -146,6 +233,9 @@ async def list_namespaces(
     try:
         result = src_service.list_namespaces()
         return {"success": True, "data": result}
+    except NoAccessTokenFoundForService:
+        # Return authentication required error
+        raise HTTPException(status_code=401, detail="Authentication required. Please request a token first.")
     except Exception as e:
         logging.error(f"Error listing namespaces: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -182,6 +272,9 @@ async def list_services(
     try:
         result = src_service.list_services_enriched(service_type, node_name, site_name, scope)
         return {"success": True, "data": result}
+    except NoAccessTokenFoundForService:
+        # Return authentication required error
+        raise HTTPException(status_code=401, detail="Authentication required. Please request a token first.")
     except Exception as e:
         logging.error(f"Error listing services: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -196,6 +289,9 @@ async def list_sites(
     try:
         result = src_service.list_sites(node_name)
         return {"success": True, "data": result}
+    except NoAccessTokenFoundForService:
+        # Return authentication required error
+        raise HTTPException(status_code=401, detail="Authentication required. Please request a token first.")
     except Exception as e:
         logging.error(f"Error listing sites: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -11,14 +11,14 @@ try:
     from ska_src_clients.session.oidc import OIDCSession
     from ska_src_clients.api import DataAPI, SiteAPI, MetadataAPI
     from ska_src_clients.common.utility import load_config
-    from ska_src_clients.common.exceptions import CustomException
+    from ska_src_clients.common.exceptions import CustomException, NoAccessTokenFoundForService
 except ImportError:
     # Fallback for development - adjust the path to point to the correct location
     sys.path.append(os.path.join(os.path.dirname(__file__), '../../../ska-src-clients/src'))
     from ska_src_clients.session.oidc import OIDCSession
     from ska_src_clients.api import DataAPI, SiteAPI, MetadataAPI
     from ska_src_clients.common.utility import load_config
-    from ska_src_clients.common.exceptions import CustomException
+    from ska_src_clients.common.exceptions import CustomException, NoAccessTokenFoundForService
 
 
 class SRCClientService:
@@ -26,7 +26,11 @@ class SRCClientService:
     
     def __init__(self, config_path: Optional[str] = None):
         """Initialize the SRC client service."""
-        self.config = load_config([config_path] if config_path else None)
+        if config_path:
+            self.config = load_config([config_path])
+        else:
+            # Use default config paths when no specific path is provided
+            self.config = load_config()
         if not self.config:
             raise ValueError("No valid config file found")
         
@@ -227,6 +231,15 @@ class SRCClientService:
         except Exception as e:
             logging.error(f"Error listing tokens: {e}")
             raise
+
+    def has_valid_tokens(self) -> bool:
+        """Check if there are any valid tokens available."""
+        try:
+            tokens = self.session.list_access_tokens()
+            return len(tokens) > 0
+        except Exception as e:
+            logging.debug(f"Error checking tokens: {e}")
+            return False
     
     def inspect_token(self, service_name: str) -> Dict[str, Any]:
         """Inspect a specific access token."""
@@ -320,6 +333,10 @@ class SRCClientService:
     
     def list_namespaces(self) -> List[Dict[str, Any]]:
         """List available namespaces."""
+        # Check if we have valid tokens before making the API call
+        if not self.has_valid_tokens():
+            raise NoAccessTokenFoundForService("data-management-api")
+        
         try:
             result = self.data_api.list_namespaces()
             return result
@@ -338,6 +355,10 @@ class SRCClientService:
     
     def list_sites(self, node_name: Optional[str] = None) -> List[Dict[str, Any]]:
         """List sites."""
+        # Check if we have valid tokens before making the API call
+        if not self.has_valid_tokens():
+            raise NoAccessTokenFoundForService("site-capabilities-api")
+        
         try:
             result = self.site_api.list_sites(node_name=node_name)
             return result
@@ -375,6 +396,10 @@ class SRCClientService:
     def list_services(self, service_type: Optional[str] = None, node_name: Optional[str] = None,
                      site_name: Optional[str] = None, scope: str = "all") -> List[Dict[str, Any]]:
         """List services."""
+        # Check if we have valid tokens before making the API call
+        if not self.has_valid_tokens():
+            raise NoAccessTokenFoundForService("site-capabilities-api")
+        
         try:
             result = self.site_api.list_services(service_type=service_type, node_name=node_name,
                                                site_name=site_name, scope=scope)
@@ -407,6 +432,10 @@ class SRCClientService:
         List services, enriched with site/node info and extra details (host, port, path, etc).
         Only enriches the first 20 services for development. Fetches details in parallel.
         """
+        # Check if we have valid tokens before making the API call
+        if not self.has_valid_tokens():
+            raise NoAccessTokenFoundForService("site-capabilities-api")
+        
         try:
             from concurrent.futures import ThreadPoolExecutor, as_completed
             services = self.site_api.list_services(service_type=service_type, node_name=node_name,

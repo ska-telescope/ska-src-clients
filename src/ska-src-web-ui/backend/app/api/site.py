@@ -40,8 +40,16 @@ async def get_site(
             data=result
         )
     except Exception as e:
-        logging.error(f"Error getting site: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        error_str = str(e).lower()
+        if "authentication server is currently unavailable" in error_str:
+            logging.error(f"Authentication server connectivity issue: {e}")
+            raise HTTPException(
+                status_code=503, 
+                detail="Authentication server is currently unavailable. Please try again later."
+            )
+        else:
+            logging.error(f"Error getting site: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/", response_model=SiteResponse)
@@ -58,8 +66,16 @@ async def list_sites(
             data=result
         )
     except Exception as e:
-        logging.error(f"Error listing sites: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        error_str = str(e).lower()
+        if "authentication server is currently unavailable" in error_str:
+            logging.error(f"Authentication server connectivity issue: {e}")
+            raise HTTPException(
+                status_code=503, 
+                detail="Authentication server is currently unavailable. Please try again later."
+            )
+        else:
+            logging.error(f"Error listing sites: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/compute/{compute_id}", response_model=SiteResponse)
