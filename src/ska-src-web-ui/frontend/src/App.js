@@ -26,6 +26,7 @@ function App() {
   const [apiStatus, setApiStatus] = useState({
     backend: { status: 'unknown', lastCheck: null, error: null },
     auth: { status: 'unknown', lastCheck: null, error: null },
+    permissions: { status: 'unknown', lastCheck: null, error: null },
     'site-capabilities': { status: 'unknown', lastCheck: null, error: null },
     'data-management': { status: 'unknown', lastCheck: null, error: null },
     iam: { status: 'unknown', lastCheck: null, error: null },
@@ -151,10 +152,31 @@ function App() {
     }
   };
 
-  // Check if all systems are green
+  // Check if core systems are online (required for any token exchange)
+  const areCoreSystemsOnline = () => {
+    return apiStatus.backend.status === 'online' &&
+           apiStatus.auth.status === 'online' &&
+           apiStatus.permissions.status === 'online';
+  };
+
+  // Check if site capabilities exchange is available
+  const isSiteCapabilitiesExchangeAvailable = () => {
+    return areCoreSystemsOnline() && 
+           apiStatus['site-capabilities'].status === 'online';
+  };
+
+  // Check if data management exchange is available
+  const isDataManagementExchangeAvailable = () => {
+    return areCoreSystemsOnline() && 
+           apiStatus['site-capabilities'].status === 'online' &&
+           apiStatus['data-management'].status === 'online';
+  };
+
+  // Check if all systems are green (for display purposes)
   const areAllSystemsGreen = () => {
     return apiStatus.backend.status === 'online' &&
            apiStatus.auth.status === 'online' &&
+           apiStatus.permissions.status === 'online' &&
            apiStatus['site-capabilities'].status === 'online' &&
            apiStatus['data-management'].status === 'online' &&
            apiStatus.iam.status === 'online' &&
@@ -172,11 +194,28 @@ function App() {
     setClickedExchange(serviceName);
     setTimeout(() => setClickedExchange(null), 500); // Remove animation after 0.5s
     
-    // First check if all systems are green
-    if (!areAllSystemsGreen()) {
+    // Check if core systems are online (required for any token exchange)
+    if (!areCoreSystemsOnline()) {
       setStatus({ 
         type: 'error', 
-        message: 'Cannot exchange token: Not all systems are online. Please check the system status panel above.' 
+        message: 'Cannot exchange token: Authentication, Permissions, or Backend is offline. Please check the system status panel above.' 
+      });
+      return;
+    }
+    
+    // Check specific service availability based on cascading logic
+    if (serviceName === 'site-capabilities-api' && !isSiteCapabilitiesExchangeAvailable()) {
+      setStatus({ 
+        type: 'error', 
+        message: 'Cannot exchange token for Site Capabilities: Site Capabilities service is offline. Please check the system status panel above.' 
+      });
+      return;
+    }
+    
+    if (serviceName === 'data-management-api' && !isDataManagementExchangeAvailable()) {
+      setStatus({ 
+        type: 'error', 
+        message: 'Cannot exchange token for Data Management: Data Management service is offline. Please check the system status panel above.' 
       });
       return;
     }
@@ -241,6 +280,7 @@ function App() {
         console.error('Failed to check external API status:', error);
         apiStatusData = {
           auth: { status: 'unknown', error: 'Failed to check status' },
+          permissions: { status: 'unknown', error: 'Failed to check status' },
           'site-capabilities': { status: 'unknown', error: 'Failed to check status' },
           'data-management': { status: 'unknown', error: 'Failed to check status' },
           iam: { status: 'unknown', error: 'Failed to check status' },
@@ -264,6 +304,11 @@ function App() {
           status: apiStatusData.auth?.status || 'unknown', 
           lastCheck: now, 
           error: apiStatusData.auth?.error 
+        },
+        permissions: { 
+          status: apiStatusData.permissions?.status || 'unknown', 
+          lastCheck: now, 
+          error: apiStatusData.permissions?.error 
         },
         'site-capabilities': { 
           status: apiStatusData['site-capabilities']?.status || 'unknown', 
@@ -325,6 +370,7 @@ function App() {
       setApiStatus({
         backend: { status: 'unknown', lastCheck: now, error: 'Failed to check status' },
         auth: { status: 'unknown', lastCheck: now, error: 'Failed to check status' },
+        permissions: { status: 'unknown', lastCheck: now, error: 'Failed to check status' },
         'site-capabilities': { status: 'unknown', lastCheck: now, error: 'Failed to check status' },
         'data-management': { status: 'unknown', lastCheck: now, error: 'Failed to check status' },
         iam: { status: 'unknown', lastCheck: now, error: 'Failed to check status' },
@@ -621,23 +667,89 @@ function App() {
                   </span>
                 )}
                 {!areAllSystemsGreen() && (
-                  <span style={{ 
-                    fontSize: '0.8rem', 
-                    color: '#dc3545', 
-                    fontWeight: 'bold',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.25rem'
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: '0.25rem',
+                    alignItems: 'flex-start'
                   }}>
-                    <span style={{ 
-                      width: '8px', 
-                      height: '8px', 
-                      backgroundColor: '#dc3545', 
-                      borderRadius: '50%',
-                      display: 'inline-block'
-                    }}></span>
-                    Some Systems Offline - Token Exchange Disabled
-                  </span>
+                    {!areCoreSystemsOnline() && (
+                      <span style={{ 
+                        fontSize: '0.8rem', 
+                        color: '#dc3545', 
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem'
+                      }}>
+                        <span style={{ 
+                          width: '8px', 
+                          height: '8px', 
+                          backgroundColor: '#dc3545', 
+                          borderRadius: '50%',
+                          display: 'inline-block'
+                        }}></span>
+                        Token Exchange Disabled - Core Systems Offline
+                      </span>
+                    )}
+                    {areCoreSystemsOnline() && !isSiteCapabilitiesExchangeAvailable() && (
+                      <span style={{ 
+                        fontSize: '0.8rem', 
+                        color: '#ffc107', 
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem'
+                      }}>
+                        <span style={{ 
+                          width: '8px', 
+                          height: '8px', 
+                          backgroundColor: '#ffc107', 
+                          borderRadius: '50%',
+                          display: 'inline-block'
+                        }}></span>
+                        Site Capabilities Exchange Disabled
+                      </span>
+                    )}
+                    {areCoreSystemsOnline() && isSiteCapabilitiesExchangeAvailable() && !isDataManagementExchangeAvailable() && (
+                      <span style={{ 
+                        fontSize: '0.8rem', 
+                        color: '#ffc107', 
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem'
+                      }}>
+                        <span style={{ 
+                          width: '8px', 
+                          height: '8px', 
+                          backgroundColor: '#ffc107', 
+                          borderRadius: '50%',
+                          display: 'inline-block'
+                        }}></span>
+                        Data Management Exchange Disabled
+                      </span>
+                    )}
+                    {areCoreSystemsOnline() && isSiteCapabilitiesExchangeAvailable() && isDataManagementExchangeAvailable() && !areAllSystemsGreen() && (
+                      <span style={{ 
+                        fontSize: '0.8rem', 
+                        color: '#6c757d', 
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem'
+                      }}>
+                        <span style={{ 
+                          width: '8px', 
+                          height: '8px', 
+                          backgroundColor: '#6c757d', 
+                          borderRadius: '50%',
+                          display: 'inline-block'
+                        }}></span>
+                        Other Systems Offline
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -678,6 +790,21 @@ function App() {
               </div>
               {apiStatus.auth.error && (
                 <p className="error-message">{apiStatus.auth.error}</p>
+              )}
+            </div>
+
+            {/* Permissions Status */}
+            <div className={`status-box ${apiStatus.permissions.status}`}>
+              <h3>Permissions</h3>
+              <div className="status-indicator">
+                <span className={`status-dot ${apiStatus.permissions.status}`}></span>
+                <span className="status-text">
+                  {apiStatus.permissions.status === 'online' ? 'Online' : 
+                   apiStatus.permissions.status === 'offline' ? 'Offline' : 'Unknown'}
+                </span>
+              </div>
+              {apiStatus.permissions.error && (
+                <p className="error-message">{apiStatus.permissions.error}</p>
               )}
             </div>
 
@@ -924,17 +1051,36 @@ function App() {
                     <div className="token-actions">
                       <h5>Exchange for other services:</h5>
                       <div className="service-buttons">
-                        {availableServices.map((service) => (
-                          <button 
-                            key={service}
-                            className={`service-exchange-btn${clickedExchange === service ? ' clicked' : ''}`}
-                            onClick={() => exchangeToken(service)}
-                            disabled={service === token.service_name || !areAllSystemsGreen()}
-                            title={!areAllSystemsGreen() ? 'All systems must be online to exchange tokens' : ''}
-                          >
-                            {service}
-                          </button>
-                        ))}
+                        {availableServices.map((service) => {
+                          // Determine if this specific service exchange should be disabled
+                          let isDisabled = service === token.service_name;
+                          let tooltip = '';
+                          
+                          if (!isDisabled) {
+                            if (!areCoreSystemsOnline()) {
+                              isDisabled = true;
+                              tooltip = 'Authentication, Permissions, or Backend is offline';
+                            } else if (service === 'site-capabilities-api' && !isSiteCapabilitiesExchangeAvailable()) {
+                              isDisabled = true;
+                              tooltip = 'Site Capabilities service is offline';
+                            } else if (service === 'data-management-api' && !isDataManagementExchangeAvailable()) {
+                              isDisabled = true;
+                              tooltip = 'Data Management service is offline';
+                            }
+                          }
+                          
+                          return (
+                            <button 
+                              key={service}
+                              className={`service-exchange-btn${clickedExchange === service ? ' clicked' : ''}`}
+                              onClick={() => exchangeToken(service)}
+                              disabled={isDisabled}
+                              title={tooltip || (service === token.service_name ? 'Cannot exchange for same service' : '')}
+                            >
+                              {service}
+                            </button>
+                          );
+                        })}
                       </div>
                       {token.service_name === 'authn-api' && (
                         <p className="note">

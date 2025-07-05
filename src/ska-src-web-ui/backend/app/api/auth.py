@@ -195,6 +195,14 @@ async def check_api_status(
         except Exception:
             return False
     
+    def check_permissions_service():
+        """Check permissions service status with timeout."""
+        try:
+            response = requests.get("https://permissions.srcnet.skao.int/api/v1/health", timeout=2)
+            return response.status_code == 200
+        except Exception:
+            return False
+    
     def check_site_capabilities_service():
         """Check site capabilities service status with timeout."""
         try:
@@ -294,6 +302,7 @@ async def check_api_status(
         # Run all checks concurrently
         results = await asyncio.gather(
             check_service_async("auth", check_auth_service),
+            check_service_async("permissions", check_permissions_service),
             check_service_async("site-capabilities", check_site_capabilities_service),
             check_service_async("data-management", check_data_management_service),
             check_service_async("iam", check_iam_service),
@@ -309,7 +318,7 @@ async def check_api_status(
         
         # Handle any exceptions from gather
         service_names = [
-            "auth", "site-capabilities", "data-management", "iam", "fts", 
+            "auth", "permissions", "site-capabilities", "data-management", "iam", "fts", 
             "rucio", "gateway", "gatekeeper", "canfar", "soda", "prepare-data"
         ]
         
@@ -328,6 +337,7 @@ async def check_api_status(
         # Return all services as offline if there's a general error
         return {
             "auth": {"status": "offline", "error": "Failed to check status"},
+            "permissions": {"status": "offline", "error": "Failed to check status"},
             "site-capabilities": {"status": "offline", "error": "Failed to check status"},
             "data-management": {"status": "offline", "error": "Failed to check status"},
             "iam": {"status": "offline", "error": "Failed to check status"},
