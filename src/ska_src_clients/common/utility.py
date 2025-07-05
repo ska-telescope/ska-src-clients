@@ -54,8 +54,48 @@ def get_authenticated_requests_session(session, service_name):
     if not access_token:
         # attempt to exchange if we can't find an access token for the service
         try:
-        if not session.exchange_token(service_name):
-            raise NoAccessTokenFoundForService(service_name)
+            # Add timeout to the exchange_token call to prevent hanging
+            import threading
+            import queue
+            
+            result_queue = queue.Queue()
+            exception_queue = queue.Queue()
+            
+            def exchange_with_timeout():
+                try:
+                    result = session.exchange_token(service_name)
+                    result_queue.put(result)
+                except Exception as e:
+                    exception_queue.put(e)
+            
+            # Start the exchange in a separate thread
+            exchange_thread = threading.Thread(target=exchange_with_timeout)
+            exchange_thread.daemon = True
+            exchange_thread.start()
+            
+            # Wait for result with timeout
+            try:
+                exchange_thread.join(timeout=5)  # 5 second timeout
+                
+                if exchange_thread.is_alive():
+                    # Thread is still running, timeout occurred
+                    raise Exception("Authentication server is currently unavailable. Token exchange timed out.")
+                
+                # Check for exceptions first
+                try:
+                    exception = exception_queue.get_nowait()
+                    raise exception
+                except queue.Empty:
+                    pass
+                
+                # Get the result
+                result = result_queue.get_nowait()
+                if not result:
+                    raise NoAccessTokenFoundForService(service_name)
+                    
+            except queue.Empty:
+                raise Exception("Authentication server is currently unavailable. Token exchange timed out.")
+                
         except Exception as e:
             # Check if this is an authentication server connectivity issue
             error_str = str(e).lower()

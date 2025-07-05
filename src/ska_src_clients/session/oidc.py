@@ -22,7 +22,33 @@ def check_authentication_api_aliveness(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         instance = args[0]
-        instance.client_factory.get_authn_client().ping()
+        try:
+            # Add timeout to the ping call to prevent hanging
+            import signal
+            
+            def timeout_handler(signum, frame):
+                raise TimeoutError("Authentication API ping timed out")
+            
+            # Set a 5 second timeout for the ping
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(5)
+            
+            try:
+                instance.client_factory.get_authn_client().ping()
+                signal.alarm(0)  # Cancel the alarm
+            except TimeoutError:
+                signal.alarm(0)  # Cancel the alarm
+                logging.warning("Authentication API ping timed out - proceeding anyway")
+            except Exception as e:
+                signal.alarm(0)  # Cancel the alarm
+                logging.warning(f"Authentication API ping failed: {e} - proceeding anyway")
+            finally:
+                # Restore the original signal handler
+                signal.signal(signal.SIGALRM, old_handler)
+                
+        except Exception as e:
+            logging.warning(f"Could not check authentication API aliveness: {e} - proceeding anyway")
+        
         return func(*args, **kwargs)
     return wrapper
 
@@ -111,8 +137,63 @@ class OIDCSession(Session):
         :return: A device flow authorization response.
         :rtype: str
         """
-        login_response = self.client_factory.get_authn_client().login(flow='device')
-        return login_response.json()
+        # Add timeout protection to prevent hanging
+        import threading
+        import queue
+        import requests
+        
+        def login_with_timeout():
+            # Get the auth API URL
+            auth_api_url = self.session.get_api_url_by_service_name("authn-api")
+            
+            # Make direct HTTP request with timeout
+            login_url = f"{auth_api_url}/api/v1/login/device"
+            headers = {"Content-Type": "application/json"}
+            data = {
+                "redirect_uri": ""
+            }
+            
+            response = requests.get(login_url, headers=headers, timeout=5)
+            response.raise_for_status()
+            return response.json()
+        
+        # Start the request in a separate thread with timeout
+        result_queue = queue.Queue()
+        exception_queue = queue.Queue()
+        
+        def login_wrapper():
+            try:
+                result = login_with_timeout()
+                result_queue.put(result)
+            except Exception as e:
+                exception_queue.put(e)
+        
+        login_thread = threading.Thread(target=login_wrapper)
+        login_thread.daemon = True
+        login_thread.start()
+        
+        # Wait for result with timeout
+        try:
+            login_thread.join(timeout=10)  # 10 second timeout for login request
+            
+            if login_thread.is_alive():
+                # Thread is still running, timeout occurred
+                raise Exception("Authentication server is currently unavailable. Login request timed out.")
+            
+            # Check for exceptions first
+            try:
+                exception = exception_queue.get_nowait()
+                raise exception
+            except queue.Empty:
+                pass
+            
+            # Get the result
+            login_response = result_queue.get_nowait()
+            
+        except queue.Empty:
+            raise Exception("Authentication server is currently unavailable. Login request timed out.")
+        
+        return login_response
 
     @handle_client_exceptions
     @check_authentication_api_aliveness
@@ -136,82 +217,168 @@ class OIDCSession(Session):
         """
         logging.debug("Exchanging token for service {}".format(service_name))
         token = None
-        if by_refresh:
-            logging.debug(" - Attempting exchange using refresh grant")
-            if self.refresh_tokens:
-                logging.debug(" - Refresh token found")
-                # First check if we have BOTH a valid refresh and access token combination, if so, this exchange can be
-                # resolved with a call to the token exchange endpoint with these two tokens.
-                #
-                found_matching_access_token = False
-                for refresh_token_idx, refresh_token in enumerate(self.refresh_tokens):
-                    for aud, access_token in self.access_tokens.items():
-                        if access_token.get('token') == refresh_token.get('associated_access_token'):
-                            logging.debug(" - Found a valid matching access token, proceeding with exchange")
-                            token_exchange_response = self.client_factory.get_authn_client().exchange_token(
-                                service=service_name, version=version, refresh_token=refresh_token.get('token'),
-                                access_token=access_token.get('token'))
-                            token_exchange_response.raise_for_status()
-                            token = token_exchange_response.json()
-                            # need to remove previous (now invalid) access & refresh token from caches
-                            self.refresh_tokens.pop(refresh_token_idx)
-                            aud_to_pop = []
-                            for aud, attributes in self.access_tokens.items():
-                                if attributes.get('token') == refresh_token.get('associated_access_token'):
-                                    aud_to_pop.append(aud)
-                            for aud in aud_to_pop:
-                                self.access_tokens.pop(aud)
+        
+        # Add timeout protection to prevent hanging
+        import threading
+        import queue
+        import requests
+        
+        def exchange_with_timeout():
+            nonlocal token
+            try:
+                # Get the auth API URL
+                auth_api_url = self.session.get_api_url_by_service_name("authn-api")
+                
+                if by_refresh:
+                    logging.debug(" - Attempting exchange using refresh grant")
+                    if self.refresh_tokens:
+                        logging.debug(" - Refresh token found")
+                        # First check if we have BOTH a valid refresh and access token combination, if so, this exchange can be
+                        # resolved with a call to the token exchange endpoint with these two tokens.
+                        #
+                        found_matching_access_token = False
+                        for refresh_token_idx, refresh_token in enumerate(self.refresh_tokens):
+                            for aud, access_token in self.access_tokens.items():
+                                if access_token.get('token') == refresh_token.get('associated_access_token'):
+                                    logging.debug(" - Found a valid matching access token, proceeding with exchange")
+                                    
+                                    # Make direct HTTP request with timeout
+                                    exchange_url = f"{auth_api_url}/api/v1/exchange"
+                                    headers = {
+                                        "Authorization": f"Bearer {access_token.get('token')}",
+                                        "Content-Type": "application/json"
+                                    }
+                                    data = {
+                                        "service": service_name,
+                                        "version": version,
+                                        "refresh_token": refresh_token.get('token')
+                                    }
+                                    
+                                    response = requests.post(exchange_url, headers=headers, json=data, timeout=5)
+                                    response.raise_for_status()
+                                    token = response.json()
+                                    
+                                    # need to remove previous (now invalid) access & refresh token from caches
+                                    self.refresh_tokens.pop(refresh_token_idx)
+                                    aud_to_pop = []
+                                    for aud, attributes in self.access_tokens.items():
+                                        if attributes.get('token') == refresh_token.get('associated_access_token'):
+                                            aud_to_pop.append(aud)
+                                    for aud in aud_to_pop:
+                                        self.access_tokens.pop(aud)
 
-                            # and also on disk
-                            os.remove(refresh_token.get('path_on_disk'))
+                                    # and also on disk
+                                    os.remove(refresh_token.get('path_on_disk'))
 
-                            found_matching_access_token = True
-                            break
-                    if found_matching_access_token:
-                        break
+                                    found_matching_access_token = True
+                                    break
+                            if found_matching_access_token:
+                                break
 
-                # If we didn't find a valid access token then only a refresh token must exist. As such we will need to
-                # refresh the access token first using this.
-                #
-                if not found_matching_access_token:
-                    logging.debug(" - Unable to find a valid matching access token, proceeding with refresh")
-                    for refresh_token_idx, refresh_token in enumerate(self.refresh_tokens):
-                        try:
-                            token_refresh_response = self.client_factory.get_authn_client().refresh_token(
-                                refresh_token=refresh_token.get('token'))
-                            token_refresh_response.raise_for_status()
-                        except Exception as e:
-                            continue
-                        refreshed_token = token_refresh_response.json()
+                        # If we didn't find a valid access token then only a refresh token must exist. As such we will need to
+                        # refresh the access token first using this.
+                        #
+                        if not found_matching_access_token:
+                            logging.debug(" - Unable to find a valid matching access token, proceeding with refresh")
+                            for refresh_token_idx, refresh_token in enumerate(self.refresh_tokens):
+                                try:
+                                    # Make direct HTTP request with timeout for token refresh
+                                    refresh_url = f"{auth_api_url}/api/v1/token"
+                                    headers = {"Content-Type": "application/json"}
+                                    data = {
+                                        "grant_type": "refresh_token",
+                                        "refresh_token": refresh_token.get('token')
+                                    }
+                                    
+                                    response = requests.post(refresh_url, headers=headers, json=data, timeout=5)
+                                    response.raise_for_status()
+                                    refreshed_token = response.json()
 
-                        # need to remove previous (now invalid) refresh token from caches
-                        self.refresh_tokens.pop(refresh_token_idx)
+                                    # need to remove previous (now invalid) refresh token from caches
+                                    self.refresh_tokens.pop(refresh_token_idx)
 
-                        # and on disk
-                        os.remove(refresh_token.get('path_on_disk'))
+                                    # and on disk
+                                    os.remove(refresh_token.get('path_on_disk'))
 
-                        # Finally, exchange this refreshed token.
-                        logging.debug(" - Exchanging refresh token")
-                        token_exchange_response = self.client_factory.get_authn_client().exchange_token(
-                            service=service_name, version=version, refresh_token=refreshed_token.get('refresh_token'),
-                            access_token=refreshed_token.get('access_token'))
-                        token_exchange_response.raise_for_status()
-                        token = token_exchange_response.json()
-                        break
-            else:
-                logging.critical("Exchange requested by refresh but no valid refresh tokens exist.")
-        else:
-            logging.debug(" - Attempting direct access token exchange")
-            if not self.access_tokens:
-                logging.critical("Exchange requested but no valid access tokens exist.")
-            else:
-                # select any valid token randomly
-                random_access_token = random.choice(list(self.access_tokens.values()))
-                access_token_to_exchange = random_access_token.get('token')
-                token_exchange_response = self.client_factory.get_authn_client().exchange_token(
-                    service=service_name, access_token=access_token_to_exchange)
-                token_exchange_response.raise_for_status()
-                token = token_exchange_response.json()
+                                    # Finally, exchange this refreshed token.
+                                    logging.debug(" - Exchanging refresh token")
+                                    exchange_url = f"{auth_api_url}/api/v1/exchange"
+                                    headers = {
+                                        "Authorization": f"Bearer {refreshed_token.get('access_token')}",
+                                        "Content-Type": "application/json"
+                                    }
+                                    data = {
+                                        "service": service_name,
+                                        "version": version,
+                                        "refresh_token": refreshed_token.get('refresh_token')
+                                    }
+                                    
+                                    response = requests.post(exchange_url, headers=headers, json=data, timeout=5)
+                                    response.raise_for_status()
+                                    token = response.json()
+                                    break
+                                except Exception as e:
+                                    continue
+                    else:
+                        logging.critical("Exchange requested by refresh but no valid refresh tokens exist.")
+                else:
+                    logging.debug(" - Attempting direct access token exchange")
+                    if not self.access_tokens:
+                        logging.critical("Exchange requested but no valid access tokens exist.")
+                    else:
+                        # select any valid token randomly
+                        random_access_token = random.choice(list(self.access_tokens.values()))
+                        access_token_to_exchange = random_access_token.get('token')
+                        
+                        # Make direct HTTP request with timeout
+                        exchange_url = f"{auth_api_url}/api/v1/exchange"
+                        headers = {
+                            "Authorization": f"Bearer {access_token_to_exchange}",
+                            "Content-Type": "application/json"
+                        }
+                        data = {
+                            "service": service_name
+                        }
+                        
+                        response = requests.post(exchange_url, headers=headers, json=data, timeout=5)
+                        response.raise_for_status()
+                        token = response.json()
+            except Exception as e:
+                # Re-raise the exception to be caught by the timeout wrapper
+                raise e
+        
+        # Start the exchange in a separate thread with timeout
+        result_queue = queue.Queue()
+        exception_queue = queue.Queue()
+        
+        def exchange_wrapper():
+            try:
+                exchange_with_timeout()
+                result_queue.put(True)
+            except Exception as e:
+                exception_queue.put(e)
+        
+        exchange_thread = threading.Thread(target=exchange_wrapper)
+        exchange_thread.daemon = True
+        exchange_thread.start()
+        
+        # Wait for result with timeout
+        try:
+            exchange_thread.join(timeout=10)  # 10 second timeout for token exchange
+            
+            if exchange_thread.is_alive():
+                # Thread is still running, timeout occurred
+                raise Exception("Authentication server is currently unavailable. Token exchange timed out.")
+            
+            # Check for exceptions first
+            try:
+                exception = exception_queue.get_nowait()
+                raise exception
+            except queue.Empty:
+                pass
+            
+        except queue.Empty:
+            raise Exception("Authentication server is currently unavailable. Token exchange timed out.")
 
         if token:
             token_path_on_disk = None
@@ -288,7 +455,63 @@ class OIDCSession(Session):
         :return: Either the error code as a string or True.
         :rtype: Union[bool, dict]
         """
-        token_response = self.client_factory.get_authn_client().token(device_code=device_code).json()
+        # Add timeout protection to prevent hanging
+        import threading
+        import queue
+        import requests
+        
+        def request_with_timeout():
+            # Get the auth API URL
+            auth_api_url = self.session.get_api_url_by_service_name("authn-api")
+            
+            # Make direct HTTP request with timeout
+            token_url = f"{auth_api_url}/api/v1/token"
+            headers = {"Content-Type": "application/json"}
+            data = {
+                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                "device_code": device_code
+            }
+            
+            response = requests.post(token_url, headers=headers, json=data, timeout=5)
+            response.raise_for_status()
+            return response.json()
+        
+        # Start the request in a separate thread with timeout
+        result_queue = queue.Queue()
+        exception_queue = queue.Queue()
+        
+        def request_wrapper():
+            try:
+                result = request_with_timeout()
+                result_queue.put(result)
+            except Exception as e:
+                exception_queue.put(e)
+        
+        request_thread = threading.Thread(target=request_wrapper)
+        request_thread.daemon = True
+        request_thread.start()
+        
+        # Wait for result with timeout
+        try:
+            request_thread.join(timeout=10)  # 10 second timeout for token request
+            
+            if request_thread.is_alive():
+                # Thread is still running, timeout occurred
+                raise Exception("Authentication server is currently unavailable. Token request timed out.")
+            
+            # Check for exceptions first
+            try:
+                exception = exception_queue.get_nowait()
+                raise exception
+            except queue.Empty:
+                pass
+            
+            # Get the result
+            token_response = result_queue.get_nowait()
+            
+        except queue.Empty:
+            raise Exception("Authentication server is currently unavailable. Token request timed out.")
+        
         token = token_response.get('token')
         if token:
             token_path_on_disk = None

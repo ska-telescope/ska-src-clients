@@ -41,11 +41,23 @@ async def get_site(
         )
     except Exception as e:
         error_str = str(e).lower()
-        if "authentication server is currently unavailable" in error_str:
+        # Check for various authentication server connectivity issues
+        if ("authentication server is currently unavailable" in error_str or
+            "502 bad gateway" in error_str or
+            "502 server error" in error_str or
+            "http error occurred: 502" in error_str or
+            "bad gateway" in error_str):
             logging.error(f"Authentication server connectivity issue: {e}")
             raise HTTPException(
                 status_code=503, 
                 detail="Authentication server is currently unavailable. Please try again later."
+            )
+        # Check for 503 errors from external services
+        elif ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
+            logging.error(f"External service connectivity issue: {e}")
+            raise HTTPException(
+                status_code=503, 
+                detail="Site Capabilities service is currently unavailable. Please try again later."
             )
         else:
             logging.error(f"Error getting site: {e}")
@@ -67,11 +79,23 @@ async def list_sites(
         )
     except Exception as e:
         error_str = str(e).lower()
-        if "authentication server is currently unavailable" in error_str:
+        # Check for various authentication server connectivity issues
+        if ("authentication server is currently unavailable" in error_str or
+            "502 bad gateway" in error_str or
+            "502 server error" in error_str or
+            "http error occurred: 502" in error_str or
+            "bad gateway" in error_str):
             logging.error(f"Authentication server connectivity issue: {e}")
             raise HTTPException(
                 status_code=503, 
                 detail="Authentication server is currently unavailable. Please try again later."
+            )
+        # Check for 503 errors from external services
+        elif ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
+            logging.error(f"External service connectivity issue: {e}")
+            raise HTTPException(
+                status_code=503, 
+                detail="Site Capabilities service is currently unavailable. Please try again later."
             )
         else:
             logging.error(f"Error listing sites: {e}")
@@ -92,8 +116,17 @@ async def get_compute(
             data=result
         )
     except Exception as e:
-        logging.error(f"Error getting compute: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        error_str = str(e).lower()
+        # Check for 503 errors from external services
+        if ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
+            logging.error(f"External service connectivity issue: {e}")
+            raise HTTPException(
+                status_code=503, 
+                detail="Site Capabilities service is currently unavailable. Please try again later."
+            )
+        else:
+            logging.error(f"Error getting compute: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/compute/", response_model=SiteResponse)
@@ -111,8 +144,17 @@ async def list_compute(
             data=result
         )
     except Exception as e:
-        logging.error(f"Error listing compute: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        error_str = str(e).lower()
+        # Check for 503 errors from external services
+        if ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
+            logging.error(f"External service connectivity issue: {e}")
+            raise HTTPException(
+                status_code=503, 
+                detail="Site Capabilities service is currently unavailable. Please try again later."
+            )
+        else:
+            logging.error(f"Error listing compute: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/service/debug", response_model=SiteResponse)
@@ -157,8 +199,17 @@ async def debug_services(
             data=debug_data
         )
     except Exception as e:
-        logging.error(f"Error in debug endpoint: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        error_str = str(e).lower()
+        # Check for 503 errors from external services
+        if ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
+            logging.error(f"External service connectivity issue: {e}")
+            raise HTTPException(
+                status_code=503, 
+                detail="Site Capabilities service is currently unavailable. Please try again later."
+            )
+        else:
+            logging.error(f"Error in debug endpoint: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/service/{service_id}", response_model=SiteResponse)
@@ -175,8 +226,17 @@ async def get_service(
             data=result
         )
     except Exception as e:
-        logging.error(f"Error getting service: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        error_str = str(e).lower()
+        # Check for 503 errors from external services
+        if ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
+            logging.error(f"External service connectivity issue: {e}")
+            raise HTTPException(
+                status_code=503, 
+                detail="Site Capabilities service is currently unavailable. Please try again later."
+            )
+        else:
+            logging.error(f"Error getting service: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/service/", response_model=SiteResponse)
@@ -201,8 +261,17 @@ async def list_services(
             data=result
         )
     except Exception as e:
-        logging.error(f"Error listing services: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        error_str = str(e).lower()
+        # Check for 503 errors from external services
+        if ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
+            logging.error(f"External service connectivity issue: {e}")
+            raise HTTPException(
+                status_code=503, 
+                detail="Site Capabilities service is currently unavailable. Please try again later."
+            )
+        else:
+            logging.error(f"Error listing services: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/service/{service_id}/toggle", response_model=SiteResponse)
@@ -226,8 +295,17 @@ async def toggle_service(
             data={"service_id": service_id, "enabled": request.enable}
         )
     except Exception as e:
-        logging.error(f"Error toggling service: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        error_str = str(e).lower()
+        # Check for 503 errors from external services
+        if ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
+            logging.error(f"External service connectivity issue: {e}")
+            raise HTTPException(
+                status_code=503, 
+                detail="Site Capabilities service is currently unavailable. Please try again later."
+            )
+        else:
+            logging.error(f"Error toggling service: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/health")

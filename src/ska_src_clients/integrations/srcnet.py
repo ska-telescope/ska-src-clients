@@ -3,6 +3,14 @@ from ska_src_clients.common.utility import remove_expired_tokens, get_authentica
 from ska_src_data_management_api.client.data_management import DataManagementClient
 from ska_src_permissions_api.client.permissions import PermissionsClient
 from ska_src_site_capabilities_api.client.site_capabilities import SiteCapabilitiesClient
+import requests
+
+
+class TimeoutSession(requests.Session):
+    """Custom session that always includes a timeout."""
+    def request(self, *args, **kwargs):
+        kwargs.setdefault('timeout', 5)  # 5 second timeout
+        return super().request(*args, **kwargs)
 
 
 class SRCNetAPIClientFactory:
@@ -16,9 +24,14 @@ class SRCNetAPIClientFactory:
         if is_authenticated:
             authenticated_requests_session = get_authenticated_requests_session(
                 session=self.session, service_name=service_name)
-            instance = client(api_url=api_url, session=authenticated_requests_session)
+            # Wrap the authenticated session with timeout
+            timeout_session = TimeoutSession()
+            timeout_session.headers.update(authenticated_requests_session.headers)
+            instance = client(api_url=api_url, session=timeout_session)
         else:
-            instance = client(api_url=api_url, session=None)
+            # Use timeout session for unauthenticated requests too
+            timeout_session = TimeoutSession()
+            instance = client(api_url=api_url, session=timeout_session)
 
         # add token decorators to all client functions if the session uses tokens
         if getattr(self.session, 'stored_token_directory'):

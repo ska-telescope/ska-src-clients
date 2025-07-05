@@ -102,7 +102,12 @@ async def exchange_token(
         )
     except Exception as e:
         error_str = str(e).lower()
-        if "authentication server is currently unavailable" in error_str:
+        # Check for various authentication server connectivity issues
+        if ("authentication server is currently unavailable" in error_str or
+            "502 bad gateway" in error_str or
+            "502 server error" in error_str or
+            "http error occurred: 502" in error_str or
+            "bad gateway" in error_str):
             logging.error(f"Authentication server connectivity issue: {e}")
             raise HTTPException(
                 status_code=503, 
@@ -110,7 +115,7 @@ async def exchange_token(
             )
         else:
             logging.error(f"Error exchanging token: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/tokens", response_model=TokenListResponse)
@@ -299,8 +304,8 @@ async def check_api_status(
             return {"status": "offline", "error": str(e)}
     
     try:
-        # Run all checks concurrently
-        results = await asyncio.gather(
+        # Run all checks concurrently with a global timeout
+        tasks = [
             check_service_async("auth", check_auth_service),
             check_service_async("permissions", check_permissions_service),
             check_service_async("site-capabilities", check_site_capabilities_service),
@@ -312,8 +317,13 @@ async def check_api_status(
             check_service_async("gatekeeper", check_gatekeeper_service),
             check_service_async("canfar", check_canfar_service),
             check_service_async("soda", check_soda_service),
-            check_service_async("prepare-data", check_prepare_data_service),
-            return_exceptions=True
+            check_service_async("prepare-data", check_prepare_data_service)
+        ]
+        
+        # Add a global timeout of 10 seconds for all checks
+        results = await asyncio.wait_for(
+            asyncio.gather(*tasks, return_exceptions=True),
+            timeout=10.0
         )
         
         # Handle any exceptions from gather
@@ -332,6 +342,23 @@ async def check_api_status(
         
         return status_dict
         
+    except asyncio.TimeoutError:
+        logging.error("API status check timed out after 10 seconds")
+        # Return all services as offline if the global timeout is exceeded
+        return {
+            "auth": {"status": "offline", "error": "Status check timed out"},
+            "permissions": {"status": "offline", "error": "Status check timed out"},
+            "site-capabilities": {"status": "offline", "error": "Status check timed out"},
+            "data-management": {"status": "offline", "error": "Status check timed out"},
+            "iam": {"status": "offline", "error": "Status check timed out"},
+            "fts": {"status": "offline", "error": "Status check timed out"},
+            "rucio": {"status": "offline", "error": "Status check timed out"},
+            "gateway": {"status": "offline", "error": "Status check timed out"},
+            "gatekeeper": {"status": "offline", "error": "Status check timed out"},
+            "canfar": {"status": "offline", "error": "Status check timed out"},
+            "soda": {"status": "offline", "error": "Status check timed out"},
+            "prepare-data": {"status": "offline", "error": "Status check timed out"}
+        }
     except Exception as e:
         logging.error(f"Error checking API status: {e}")
         # Return all services as offline if there's a general error
@@ -364,8 +391,21 @@ async def list_namespaces(
         # Return authentication required error
         raise HTTPException(status_code=401, detail="Authentication required. Please request a token first.")
     except Exception as e:
-        logging.error(f"Error listing namespaces: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        error_str = str(e).lower()
+        # Check for various authentication server connectivity issues
+        if ("authentication server is currently unavailable" in error_str or
+            "502 bad gateway" in error_str or
+            "502 server error" in error_str or
+            "http error occurred: 502" in error_str or
+            "bad gateway" in error_str):
+            logging.error(f"Authentication server connectivity issue: {e}")
+            raise HTTPException(
+                status_code=503, 
+                detail="Authentication server is currently unavailable. Please try again later."
+            )
+        else:
+            logging.error(f"Error listing namespaces: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/data/files/{namespace}/{name}")
@@ -403,8 +443,21 @@ async def list_services(
         # Return authentication required error
         raise HTTPException(status_code=401, detail="Authentication required. Please request a token first.")
     except Exception as e:
-        logging.error(f"Error listing services: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        error_str = str(e).lower()
+        # Check for various authentication server connectivity issues
+        if ("authentication server is currently unavailable" in error_str or
+            "502 bad gateway" in error_str or
+            "502 server error" in error_str or
+            "http error occurred: 502" in error_str or
+            "bad gateway" in error_str):
+            logging.error(f"Authentication server connectivity issue: {e}")
+            raise HTTPException(
+                status_code=503, 
+                detail="Authentication server is currently unavailable. Please try again later."
+            )
+        else:
+            logging.error(f"Error listing services: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/site/sites")
