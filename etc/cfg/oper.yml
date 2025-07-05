@@ -25,7 +25,7 @@ storage:
 
 core:
   iam: 
-    url: https://iam.srcnet.skao.int/api/v1
+    url: https://ska-iam.stfc.ac.uk/login#!/home
   fts:
     url: https://fts3-ska.scd.rl.ac.uk:8449/fts3/ftsmon/#/
   rucio: 

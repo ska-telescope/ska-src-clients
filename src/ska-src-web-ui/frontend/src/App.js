@@ -27,7 +27,15 @@ function App() {
     backend: { status: 'unknown', lastCheck: null, error: null },
     auth: { status: 'unknown', lastCheck: null, error: null },
     'site-capabilities': { status: 'unknown', lastCheck: null, error: null },
-    'data-management': { status: 'unknown', lastCheck: null, error: null }
+    'data-management': { status: 'unknown', lastCheck: null, error: null },
+    iam: { status: 'unknown', lastCheck: null, error: null },
+    fts: { status: 'unknown', lastCheck: null, error: null },
+    rucio: { status: 'unknown', lastCheck: null, error: null },
+    gateway: { status: 'unknown', lastCheck: null, error: null },
+    gatekeeper: { status: 'unknown', lastCheck: null, error: null },
+    canfar: { status: 'unknown', lastCheck: null, error: null },
+    soda: { status: 'unknown', lastCheck: null, error: null },
+    'prepare-data': { status: 'unknown', lastCheck: null, error: null }
   });
   const [checkingApiStatus, setCheckingApiStatus] = useState(false);
 
@@ -148,7 +156,15 @@ function App() {
     return apiStatus.backend.status === 'online' &&
            apiStatus.auth.status === 'online' &&
            apiStatus['site-capabilities'].status === 'online' &&
-           apiStatus['data-management'].status === 'online';
+           apiStatus['data-management'].status === 'online' &&
+           apiStatus.iam.status === 'online' &&
+           apiStatus.fts.status === 'online' &&
+           apiStatus.rucio.status === 'online' &&
+           apiStatus.gateway.status === 'online' &&
+           apiStatus.gatekeeper.status === 'online' &&
+           apiStatus.canfar.status === 'online' &&
+           apiStatus.soda.status === 'online' &&
+           apiStatus['prepare-data'].status === 'online';
   };
 
   // Exchange token for a service
@@ -226,7 +242,15 @@ function App() {
         apiStatusData = {
           auth: { status: 'unknown', error: 'Failed to check status' },
           'site-capabilities': { status: 'unknown', error: 'Failed to check status' },
-          'data-management': { status: 'unknown', error: 'Failed to check status' }
+          'data-management': { status: 'unknown', error: 'Failed to check status' },
+          iam: { status: 'unknown', error: 'Failed to check status' },
+          fts: { status: 'unknown', error: 'Failed to check status' },
+          rucio: { status: 'unknown', error: 'Failed to check status' },
+          gateway: { status: 'unknown', error: 'Failed to check status' },
+          gatekeeper: { status: 'unknown', error: 'Failed to check status' },
+          canfar: { status: 'unknown', error: 'Failed to check status' },
+          soda: { status: 'unknown', error: 'Failed to check status' },
+          'prepare-data': { status: 'unknown', error: 'Failed to check status' }
         };
       }
       
@@ -237,19 +261,59 @@ function App() {
           error: backendStatus.error 
         },
         auth: { 
-          status: apiStatusData.auth.status, 
+          status: apiStatusData.auth?.status || 'unknown', 
           lastCheck: now, 
-          error: apiStatusData.auth.error 
+          error: apiStatusData.auth?.error 
         },
         'site-capabilities': { 
-          status: apiStatusData['site-capabilities'].status, 
+          status: apiStatusData['site-capabilities']?.status || 'unknown', 
           lastCheck: now, 
-          error: apiStatusData['site-capabilities'].error 
+          error: apiStatusData['site-capabilities']?.error 
         },
         'data-management': { 
-          status: apiStatusData['data-management'].status, 
+          status: apiStatusData['data-management']?.status || 'unknown', 
           lastCheck: now, 
-          error: apiStatusData['data-management'].error 
+          error: apiStatusData['data-management']?.error 
+        },
+        iam: { 
+          status: apiStatusData.iam?.status || 'unknown', 
+          lastCheck: now, 
+          error: apiStatusData.iam?.error 
+        },
+        fts: { 
+          status: apiStatusData.fts?.status || 'unknown', 
+          lastCheck: now, 
+          error: apiStatusData.fts?.error 
+        },
+        rucio: { 
+          status: apiStatusData.rucio?.status || 'unknown', 
+          lastCheck: now, 
+          error: apiStatusData.rucio?.error 
+        },
+        gateway: { 
+          status: apiStatusData.gateway?.status || 'unknown', 
+          lastCheck: now, 
+          error: apiStatusData.gateway?.error 
+        },
+        gatekeeper: { 
+          status: apiStatusData.gatekeeper?.status || 'unknown', 
+          lastCheck: now, 
+          error: apiStatusData.gatekeeper?.error 
+        },
+        canfar: { 
+          status: apiStatusData.canfar?.status || 'unknown', 
+          lastCheck: now, 
+          error: apiStatusData.canfar?.error 
+        },
+        soda: { 
+          status: apiStatusData.soda?.status || 'unknown', 
+          lastCheck: now, 
+          error: apiStatusData.soda?.error 
+        },
+        'prepare-data': { 
+          status: apiStatusData['prepare-data']?.status || 'unknown', 
+          lastCheck: now, 
+          error: apiStatusData['prepare-data']?.error 
         }
       };
       
@@ -262,7 +326,15 @@ function App() {
         backend: { status: 'unknown', lastCheck: now, error: 'Failed to check status' },
         auth: { status: 'unknown', lastCheck: now, error: 'Failed to check status' },
         'site-capabilities': { status: 'unknown', lastCheck: now, error: 'Failed to check status' },
-        'data-management': { status: 'unknown', lastCheck: now, error: 'Failed to check status' }
+        'data-management': { status: 'unknown', lastCheck: now, error: 'Failed to check status' },
+        iam: { status: 'unknown', lastCheck: now, error: 'Failed to check status' },
+        fts: { status: 'unknown', lastCheck: now, error: 'Failed to check status' },
+        rucio: { status: 'unknown', lastCheck: now, error: 'Failed to check status' },
+        gateway: { status: 'unknown', lastCheck: now, error: 'Failed to check status' },
+        gatekeeper: { status: 'unknown', lastCheck: now, error: 'Failed to check status' },
+        canfar: { status: 'unknown', lastCheck: now, error: 'Failed to check status' },
+        soda: { status: 'unknown', lastCheck: now, error: 'Failed to check status' },
+        'prepare-data': { status: 'unknown', lastCheck: now, error: 'Failed to check status' }
       });
     } finally {
       setCheckingApiStatus(false);
@@ -594,9 +666,9 @@ function App() {
               )}
             </div>
 
-            {/* Auth API Status */}
+            {/* Auth Status */}
             <div className={`status-box ${apiStatus.auth.status}`}>
-              <h3>Authentication API</h3>
+              <h3>Authentication</h3>
               <div className="status-indicator">
                 <span className={`status-dot ${apiStatus.auth.status}`}></span>
                 <span className="status-text">
@@ -609,9 +681,9 @@ function App() {
               )}
             </div>
 
-            {/* Site Capabilities API Status */}
+            {/* Site Capabilities Status */}
             <div className={`status-box ${apiStatus['site-capabilities'].status}`}>
-              <h3>Site Capabilities API</h3>
+              <h3>Site Capabilities</h3>
               <div className="status-indicator">
                 <span className={`status-dot ${apiStatus['site-capabilities'].status}`}></span>
                 <span className="status-text">
@@ -624,9 +696,9 @@ function App() {
               )}
             </div>
 
-            {/* Data Management API Status */}
+            {/* Data Management Status */}
             <div className={`status-box ${apiStatus['data-management'].status}`}>
-              <h3>Data Management API</h3>
+              <h3>Data Management</h3>
               <div className="status-indicator">
                 <span className={`status-dot ${apiStatus['data-management'].status}`}></span>
                 <span className="status-text">
@@ -639,6 +711,125 @@ function App() {
               )}
             </div>
 
+            {/* IAM Status */}
+            <div className={`status-box ${apiStatus.iam.status}`}>
+              <h3>IAM</h3>
+              <div className="status-indicator">
+                <span className={`status-dot ${apiStatus.iam.status}`}></span>
+                <span className="status-text">
+                  {apiStatus.iam.status === 'online' ? 'Online' : 
+                   apiStatus.iam.status === 'offline' ? 'Offline' : 'Unknown'}
+                </span>
+              </div>
+              {apiStatus.iam.error && (
+                <p className="error-message">{apiStatus.iam.error}</p>
+              )}
+            </div>
+
+            {/* FTS Status */}
+            <div className={`status-box ${apiStatus.fts.status}`}>
+              <h3>FTS</h3>
+              <div className="status-indicator">
+                <span className={`status-dot ${apiStatus.fts.status}`}></span>
+                <span className="status-text">
+                  {apiStatus.fts.status === 'online' ? 'Online' : 
+                   apiStatus.fts.status === 'offline' ? 'Offline' : 'Unknown'}
+                </span>
+              </div>
+              {apiStatus.fts.error && (
+                <p className="error-message">{apiStatus.fts.error}</p>
+              )}
+            </div>
+
+            {/* Rucio Status */}
+            <div className={`status-box ${apiStatus.rucio.status}`}>
+              <h3>Rucio</h3>
+              <div className="status-indicator">
+                <span className={`status-dot ${apiStatus.rucio.status}`}></span>
+                <span className="status-text">
+                  {apiStatus.rucio.status === 'online' ? 'Online' : 
+                   apiStatus.rucio.status === 'offline' ? 'Offline' : 'Unknown'}
+                </span>
+              </div>
+              {apiStatus.rucio.error && (
+                <p className="error-message">{apiStatus.rucio.error}</p>
+              )}
+            </div>
+
+            {/* Gateway Status */}
+            <div className={`status-box ${apiStatus.gateway.status}`}>
+              <h3>Gateway</h3>
+              <div className="status-indicator">
+                <span className={`status-dot ${apiStatus.gateway.status}`}></span>
+                <span className="status-text">
+                  {apiStatus.gateway.status === 'online' ? 'Online' : 
+                   apiStatus.gateway.status === 'offline' ? 'Offline' : 'Unknown'}
+                </span>
+              </div>
+              {apiStatus.gateway.error && (
+                <p className="error-message">{apiStatus.gateway.error}</p>
+              )}
+            </div>
+
+            {/* Gatekeeper Status */}
+            <div className={`status-box ${apiStatus.gatekeeper.status}`}>
+              <h3>Gatekeeper</h3>
+              <div className="status-indicator">
+                <span className={`status-dot ${apiStatus.gatekeeper.status}`}></span>
+                <span className="status-text">
+                  {apiStatus.gatekeeper.status === 'online' ? 'Online' : 
+                   apiStatus.gatekeeper.status === 'offline' ? 'Offline' : 'Unknown'}
+                </span>
+              </div>
+              {apiStatus.gatekeeper.error && (
+                <p className="error-message">{apiStatus.gatekeeper.error}</p>
+              )}
+            </div>
+
+            {/* CANFAR Status */}
+            <div className={`status-box ${apiStatus.canfar.status}`}>
+              <h3>CANFAR</h3>
+              <div className="status-indicator">
+                <span className={`status-dot ${apiStatus.canfar.status}`}></span>
+                <span className="status-text">
+                  {apiStatus.canfar.status === 'online' ? 'Online' : 
+                   apiStatus.canfar.status === 'offline' ? 'Offline' : 'Unknown'}
+                </span>
+              </div>
+              {apiStatus.canfar.error && (
+                <p className="error-message">{apiStatus.canfar.error}</p>
+              )}
+            </div>
+
+            {/* SODA Status */}
+            <div className={`status-box ${apiStatus.soda.status}`}>
+              <h3>SODA</h3>
+              <div className="status-indicator">
+                <span className={`status-dot ${apiStatus.soda.status}`}></span>
+                <span className="status-text">
+                  {apiStatus.soda.status === 'online' ? 'Online' : 
+                   apiStatus.soda.status === 'offline' ? 'Offline' : 'Unknown'}
+                </span>
+              </div>
+              {apiStatus.soda.error && (
+                <p className="error-message">{apiStatus.soda.error}</p>
+              )}
+            </div>
+
+            {/* Prepare Data Status */}
+            <div className={`status-box ${apiStatus['prepare-data'].status}`}>
+              <h3>Prepare Data</h3>
+              <div className="status-indicator">
+                <span className={`status-dot ${apiStatus['prepare-data'].status}`}></span>
+                <span className="status-text">
+                  {apiStatus['prepare-data'].status === 'online' ? 'Online' : 
+                   apiStatus['prepare-data'].status === 'offline' ? 'Offline' : 'Unknown'}
+                </span>
+              </div>
+              {apiStatus['prepare-data'].error && (
+                <p className="error-message">{apiStatus['prepare-data'].error}</p>
+              )}
+            </div>
 
           </div>
         </div>

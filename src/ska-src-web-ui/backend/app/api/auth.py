@@ -190,7 +190,6 @@ async def check_api_status(
     def check_auth_service():
         """Check auth service status with timeout."""
         try:
-            # Use direct HTTP request instead of client factory to avoid hanging
             response = requests.get("https://authn.srcnet.skao.int/api/v1/ping", timeout=2)
             return response.status_code == 200
         except Exception:
@@ -199,7 +198,6 @@ async def check_api_status(
     def check_site_capabilities_service():
         """Check site capabilities service status with timeout."""
         try:
-            # Use direct HTTP request instead of client factory to avoid hanging
             response = requests.get("https://site-capabilities.srcnet.skao.int/health", timeout=2)
             return response.status_code == 200
         except Exception:
@@ -208,8 +206,73 @@ async def check_api_status(
     def check_data_management_service():
         """Check data management service status with timeout."""
         try:
-            # Use direct HTTP request instead of client factory to avoid hanging
             response = requests.get("https://data-management.srcnet.skao.int/health", timeout=2)
+            return response.status_code == 200
+        except Exception:
+            return False
+    
+    def check_iam_service():
+        """Check IAM service status with timeout."""
+        try:
+            response = requests.get("https://ska-iam.stfc.ac.uk/login#!/home", timeout=2)
+            return response.status_code == 200
+        except Exception:
+            return False
+    
+    def check_fts_service():
+        """Check FTS service status with timeout."""
+        try:
+            # Try the base FTS endpoint without the fragment identifier
+            response = requests.get("https://fts3-ska.scd.rl.ac.uk:8449/fts3/ftsmon/", timeout=2, verify=False)
+            # Accept any successful response (2xx, 3xx status codes)
+            return 200 <= response.status_code < 400
+        except Exception:
+            return False
+    
+    def check_rucio_service():
+        """Check Rucio service status with timeout."""
+        try:
+            response = requests.get("https://rucio.srcnet.skao.int/health", timeout=2)
+            return response.status_code == 200
+        except Exception:
+            return False
+    
+    def check_gateway_service():
+        """Check Gateway service status with timeout."""
+        try:
+            response = requests.get("https://gateway-test.srcdev.skao.int/", timeout=2)
+            return response.status_code == 200
+        except Exception:
+            return False
+    
+    def check_gatekeeper_service():
+        """Check Gatekeeper service status with timeout."""
+        try:
+            response = requests.get("https://gatekeeper.srcnet.skao.int/echo", timeout=2)
+            return response.status_code == 200
+        except Exception:
+            return False
+    
+    def check_canfar_service():
+        """Check CANFAR service status with timeout."""
+        try:
+            response = requests.get("https://canfar.srcnet.skao.int/science-portal/", timeout=2)
+            return response.status_code == 200
+        except Exception:
+            return False
+    
+    def check_soda_service():
+        """Check SODA service status with timeout."""
+        try:
+            response = requests.get("https://gatekeeper.srcnet.skao.int/soda/ska/dataset/soda", timeout=2)
+            return response.status_code == 200
+        except Exception:
+            return False
+    
+    def check_prepare_data_service():
+        """Check Prepare Data service status with timeout."""
+        try:
+            response = requests.get("https://gatekeeper.srcnet.skao.int/preparedata", timeout=2)
             return response.status_code == 200
         except Exception:
             return False
@@ -229,26 +292,36 @@ async def check_api_status(
     
     try:
         # Run all checks concurrently
-        auth_status, site_status, data_status = await asyncio.gather(
+        results = await asyncio.gather(
             check_service_async("auth", check_auth_service),
             check_service_async("site-capabilities", check_site_capabilities_service),
             check_service_async("data-management", check_data_management_service),
+            check_service_async("iam", check_iam_service),
+            check_service_async("fts", check_fts_service),
+            check_service_async("rucio", check_rucio_service),
+            check_service_async("gateway", check_gateway_service),
+            check_service_async("gatekeeper", check_gatekeeper_service),
+            check_service_async("canfar", check_canfar_service),
+            check_service_async("soda", check_soda_service),
+            check_service_async("prepare-data", check_prepare_data_service),
             return_exceptions=True
         )
         
         # Handle any exceptions from gather
-        if isinstance(auth_status, Exception):
-            auth_status = {"status": "offline", "error": str(auth_status)}
-        if isinstance(site_status, Exception):
-            site_status = {"status": "offline", "error": str(site_status)}
-        if isinstance(data_status, Exception):
-            data_status = {"status": "offline", "error": str(data_status)}
+        service_names = [
+            "auth", "site-capabilities", "data-management", "iam", "fts", 
+            "rucio", "gateway", "gatekeeper", "canfar", "soda", "prepare-data"
+        ]
         
-        return {
-            "auth": auth_status,
-            "site-capabilities": site_status,
-            "data-management": data_status
-        }
+        status_dict = {}
+        for i, result in enumerate(results):
+            service_name = service_names[i]
+            if isinstance(result, Exception):
+                status_dict[service_name] = {"status": "offline", "error": str(result)}
+            else:
+                status_dict[service_name] = result
+        
+        return status_dict
         
     except Exception as e:
         logging.error(f"Error checking API status: {e}")
@@ -256,7 +329,15 @@ async def check_api_status(
         return {
             "auth": {"status": "offline", "error": "Failed to check status"},
             "site-capabilities": {"status": "offline", "error": "Failed to check status"},
-            "data-management": {"status": "offline", "error": "Failed to check status"}
+            "data-management": {"status": "offline", "error": "Failed to check status"},
+            "iam": {"status": "offline", "error": "Failed to check status"},
+            "fts": {"status": "offline", "error": "Failed to check status"},
+            "rucio": {"status": "offline", "error": "Failed to check status"},
+            "gateway": {"status": "offline", "error": "Failed to check status"},
+            "gatekeeper": {"status": "offline", "error": "Failed to check status"},
+            "canfar": {"status": "offline", "error": "Failed to check status"},
+            "soda": {"status": "offline", "error": "Failed to check status"},
+            "prepare-data": {"status": "offline", "error": "Failed to check status"}
         }
 
 
