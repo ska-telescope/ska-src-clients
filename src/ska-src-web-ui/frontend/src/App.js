@@ -298,8 +298,10 @@ function App() {
 
   // Set active token for a service
   const setActiveToken = (serviceName, fileName) => {
-    setActiveTokens((prev) => ({ ...prev, [serviceName]: fileName }));
-    setStatus({ type: 'success', message: `Set token file ${fileName} as active for ${serviceName}` });
+    setActiveTokens(prev => ({
+      ...prev,
+      [serviceName]: fileName
+    }));
   };
 
   // Check if core systems are online (required for any token exchange)

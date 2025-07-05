@@ -430,9 +430,15 @@ class SRCClientService:
             raise NoAccessTokenFoundForService("site-capabilities-api")
         
         try:
-            result = self.site_api.list_sites(node_name=node_name)
+            # Add timeout to the site_api call
+            import requests
+            try:
+                result = self.site_api.list_sites(node_name=node_name, timeout=5)
+            except requests.exceptions.Timeout:
+                raise Exception("Site Capabilities service timed out after 5 seconds")
             return result
         except Exception as e:
+            import logging
             logging.error(f"Error listing sites: {e}")
             raise
     
