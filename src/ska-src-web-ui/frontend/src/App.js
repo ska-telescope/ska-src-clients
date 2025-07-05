@@ -1205,28 +1205,24 @@ function App() {
 
           {/* Right Column - Existing Tokens */}
           <div className="card right-column">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <div>
-                <h2>Existing Tokens</h2>
-                <p style={{ fontSize: '0.9rem', color: '#6c757d', margin: '0.25rem 0 0 0' }}>
-                  {tokens.length} token{tokens.length !== 1 ? 's' : ''} loaded
-                </p>
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button className="button secondary small" onClick={loadTokens}
-                  disabled={!areCoreSystemsOnline()}
-                  title={!areCoreSystemsOnline() ? 'Authentication, Permissions, or Backend is offline. Cannot refresh tokens when core systems are unavailable.' : ''}
-                >
-                  Refresh Tokens
-                </button>
-                <button className="button danger small" onClick={() => {
-                  if (window.confirm('Are you sure you want to delete all tokens? This action cannot be undone.')) {
-                    tokens.forEach(token => deleteToken(token.file_name));
-                  }
-                }} disabled={tokens.length === 0}>
-                  Delete All
-                </button>
-              </div>
+            <h2>Existing Tokens</h2>
+            <p style={{ fontSize: '0.9rem', color: '#6c757d', margin: '0.25rem 0 0 0' }}>
+              {tokens.length} token{tokens.length !== 1 ? 's' : ''} loaded
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', margin: '1rem 0' }}>
+              <button className="button secondary small" onClick={loadTokens}
+                disabled={!areCoreSystemsOnline()}
+                title={!areCoreSystemsOnline() ? 'Authentication, Permissions, or Backend is offline. Cannot refresh tokens when core systems are unavailable.' : ''}
+              >
+                Refresh Tokens
+              </button>
+              <button className="button danger small" onClick={() => {
+                if (window.confirm('Are you sure you want to delete all tokens? This action cannot be undone.')) {
+                  tokens.forEach(token => deleteToken(token.file_name));
+                }
+              }} disabled={tokens.length === 0}>
+                Delete All
+              </button>
             </div>
             
             {tokens.length === 0 ? (
