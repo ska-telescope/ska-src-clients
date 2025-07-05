@@ -21,3 +21,22 @@ storage:
       package_name: ska_src_clients.integrations
       module_name: storage
       class_name: WebDAVStorageClient
+
+
+core:
+  iam: 
+    url: https://iam.srcnet.skao.int/api/v1
+  fts:
+    url: https://fts3-ska.scd.rl.ac.uk:8449/fts3/ftsmon/#/
+  rucio: 
+    url: https://rucio.srcnet.skao.int
+  gateway:
+    utl: https://gateway-test.srcdev.skao.int/
+  gatekeeper:
+    url: https://gatekeeper.srcnet.skao.int/echo
+  canfar: 
+    url: https://canfar.srcnet.skao.int/science-portal/
+  soda: 
+    url: https://gatekeeper.srcnet.skao.int/soda/ska/dataset/soda
+  prepare_data: 
+    url: https://gatekeeper.srcnet.skao.int/preparedata

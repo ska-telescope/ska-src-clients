@@ -110,7 +110,7 @@ async def exchange_token(
             )
         else:
             logging.error(f"Error exchanging token: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/tokens", response_model=TokenListResponse)
@@ -154,74 +154,110 @@ async def check_api_status(
     src_service: SRCClientService = Depends(get_src_service)
 ):
     """Check the status of external APIs using their /health endpoints."""
+    import asyncio
+    import requests
+    from concurrent.futures import ThreadPoolExecutor
+    import signal
+    import functools
+    
+    def timeout_handler(signum, frame):
+        raise TimeoutError("Operation timed out")
+    
+    def run_with_timeout(func, timeout_seconds=2):
+        """Run a function with a timeout using signal."""
+        import signal
+        
+        def timeout_handler(signum, frame):
+            raise TimeoutError(f"Operation timed out after {timeout_seconds} seconds")
+        
+        # Set the signal handler
+        old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(timeout_seconds)
+        
+        try:
+            result = func()
+            signal.alarm(0)  # Cancel the alarm
+            return result
+        except TimeoutError:
+            raise
+        except Exception as e:
+            signal.alarm(0)  # Cancel the alarm
+            raise e
+        finally:
+            # Restore the original signal handler
+            signal.signal(signal.SIGALRM, old_handler)
+    
+    def check_auth_service():
+        """Check auth service status with timeout."""
+        try:
+            # Use direct HTTP request instead of client factory to avoid hanging
+            response = requests.get("https://authn.srcnet.skao.int/api/v1/ping", timeout=2)
+            return response.status_code == 200
+        except Exception:
+            return False
+    
+    def check_site_capabilities_service():
+        """Check site capabilities service status with timeout."""
+        try:
+            # Use direct HTTP request instead of client factory to avoid hanging
+            response = requests.get("https://site-capabilities.srcnet.skao.int/health", timeout=2)
+            return response.status_code == 200
+        except Exception:
+            return False
+    
+    def check_data_management_service():
+        """Check data management service status with timeout."""
+        try:
+            # Use direct HTTP request instead of client factory to avoid hanging
+            response = requests.get("https://data-management.srcnet.skao.int/health", timeout=2)
+            return response.status_code == 200
+        except Exception:
+            return False
+    
+    async def check_service_async(service_name, check_func):
+        """Check a service asynchronously with proper timeout handling."""
+        try:
+            loop = asyncio.get_event_loop()
+            with ThreadPoolExecutor() as executor:
+                future = loop.run_in_executor(executor, check_func)
+                result = await asyncio.wait_for(future, timeout=3.0)
+                return {"status": "online" if result else "offline", "error": None}
+        except asyncio.TimeoutError:
+            return {"status": "offline", "error": "Timeout after 3 seconds"}
+        except Exception as e:
+            return {"status": "offline", "error": str(e)}
+    
     try:
-        status = {
-            "auth": {"status": "unknown", "error": None},
-            "site-capabilities": {"status": "unknown", "error": None},
-            "data-management": {"status": "unknown", "error": None}
+        # Run all checks concurrently
+        auth_status, site_status, data_status = await asyncio.gather(
+            check_service_async("auth", check_auth_service),
+            check_service_async("site-capabilities", check_site_capabilities_service),
+            check_service_async("data-management", check_data_management_service),
+            return_exceptions=True
+        )
+        
+        # Handle any exceptions from gather
+        if isinstance(auth_status, Exception):
+            auth_status = {"status": "offline", "error": str(auth_status)}
+        if isinstance(site_status, Exception):
+            site_status = {"status": "offline", "error": str(site_status)}
+        if isinstance(data_status, Exception):
+            data_status = {"status": "offline", "error": str(data_status)}
+        
+        return {
+            "auth": auth_status,
+            "site-capabilities": site_status,
+            "data-management": data_status
         }
         
-        # Check auth API status using /health endpoint
-        try:
-            # Get the auth client and check its health endpoint
-            auth_client = src_service.session.client_factory.get_authn_client()
-            # Most auth clients have a ping method that's equivalent to /health
-            auth_client.ping()
-            status["auth"]["status"] = "online"
-        except Exception as e:
-            status["auth"]["status"] = "offline"
-            status["auth"]["error"] = str(e)
-        
-        # Check site-capabilities API status using /health endpoint
-        try:
-            # Get the site capabilities client and check its health endpoint
-            site_client = src_service.session.client_factory.get_site_capabilities_client(is_authenticated=False)
-            # Try to access the health endpoint
-            import requests
-            site_url = site_client.base_url if hasattr(site_client, 'base_url') else None
-            if site_url:
-                health_response = requests.get(f"{site_url}/health", timeout=5)
-                if health_response.status_code == 200:
-                    status["site-capabilities"]["status"] = "online"
-                else:
-                    status["site-capabilities"]["status"] = "offline"
-                    status["site-capabilities"]["error"] = f"Health check returned {health_response.status_code}"
-            else:
-                # Fallback: try a simple API call
-                site_client.list_sites()
-                status["site-capabilities"]["status"] = "online"
-        except Exception as e:
-            status["site-capabilities"]["status"] = "offline"
-            status["site-capabilities"]["error"] = str(e)
-        
-        # Check data-management API status using /health endpoint
-        try:
-            # Get the data management client and check its health endpoint
-            data_client = src_service.session.client_factory.get_data_management_client(is_authenticated=False)
-            # Try to access the health endpoint
-            import requests
-            data_url = data_client.base_url if hasattr(data_client, 'base_url') else None
-            if data_url:
-                health_response = requests.get(f"{data_url}/health", timeout=5)
-                if health_response.status_code == 200:
-                    status["data-management"]["status"] = "online"
-                else:
-                    status["data-management"]["status"] = "offline"
-                    status["data-management"]["error"] = f"Health check returned {health_response.status_code}"
-            else:
-                # Fallback: try a simple API call
-                data_client.list_namespaces()
-                status["data-management"]["status"] = "online"
-        except Exception as e:
-            status["data-management"]["status"] = "offline"
-            status["data-management"]["error"] = str(e)
-
-
-        
-        return status
     except Exception as e:
         logging.error(f"Error checking API status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Return all services as offline if there's a general error
+        return {
+            "auth": {"status": "offline", "error": "Failed to check status"},
+            "site-capabilities": {"status": "offline", "error": "Failed to check status"},
+            "data-management": {"status": "offline", "error": "Failed to check status"}
+        }
 
 
 # Data Management API endpoints

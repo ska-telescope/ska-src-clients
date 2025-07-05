@@ -21,7 +21,7 @@ function App() {
   const [selectedServiceIds, setSelectedServiceIds] = useState([]);
   // Add state to track which exchange button is animating
   const [clickedExchange, setClickedExchange] = useState(null);
-  
+
   // API status monitoring
   const [apiStatus, setApiStatus] = useState({
     backend: { status: 'unknown', lastCheck: null, error: null },
@@ -193,11 +193,11 @@ function App() {
           message: 'Authentication server is currently unavailable. Please try again later.' 
         });
       } else {
-        setStatus({ 
-          type: 'error', 
-          message: `Token exchange error for ${serviceName}: ${errorMessage}` 
-        });
-      }
+      setStatus({ 
+        type: 'error', 
+        message: `Token exchange error for ${serviceName}: ${errorMessage}` 
+      });
+    }
     }
   };
 
@@ -209,10 +209,10 @@ function App() {
     try {
       // Check backend health first
       let backendStatus = { status: 'unknown', error: null };
-      try {
-        await axios.get(`${API_BASE}/auth/health`);
+    try {
+      await axios.get(`${API_BASE}/auth/health`);
         backendStatus = { status: 'online', error: null };
-      } catch (error) {
+    } catch (error) {
         backendStatus = { status: 'offline', error: error.message };
       }
 
@@ -313,7 +313,7 @@ function App() {
           message: 'Authentication required. Please request a token to access this data.' 
         });
       } else {
-        setStatus({ type: 'error', message: `Failed to load ${serviceName} data: ${error.message}` });
+      setStatus({ type: 'error', message: `Failed to load ${serviceName} data: ${error.message}` });
       }
     } finally {
       setLoadingServiceData(false);
@@ -342,7 +342,7 @@ function App() {
           message: 'Authentication server is currently unavailable. Please try again later.' 
         });
       } else {
-        setStatus({ type: 'error', message: `Failed to load storage data: ${error.message}` });
+      setStatus({ type: 'error', message: `Failed to load storage data: ${error.message}` });
       }
     } finally {
       setLoadingStorageData(false);
@@ -475,7 +475,7 @@ function App() {
               message: 'Authentication server is currently unavailable. Please try again later.' 
             });
           } else {
-            setStatus({ type: 'error', message: `Failed to load services for site ${filters.site}: ${error.message}` });
+          setStatus({ type: 'error', message: `Failed to load services for site ${filters.site}: ${error.message}` });
           }
         })
         .finally(() => setLoadingServiceData(false));

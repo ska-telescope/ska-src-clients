@@ -54,8 +54,8 @@ def get_authenticated_requests_session(session, service_name):
     if not access_token:
         # attempt to exchange if we can't find an access token for the service
         try:
-            if not session.exchange_token(service_name):
-                raise NoAccessTokenFoundForService(service_name)
+        if not session.exchange_token(service_name):
+            raise NoAccessTokenFoundForService(service_name)
         except Exception as e:
             # Check if this is an authentication server connectivity issue
             error_str = str(e).lower()
