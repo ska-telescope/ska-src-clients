@@ -92,12 +92,14 @@ function App() {
       console.error('Token request error:', error);
       
       let errorMessage = 'Failed to request token';
-      if (error.name === 'AbortError' || error.code === 'ECONNABORTED') {
+      if (error.response?.data?.detail) {
+        errorMessage = `Failed to request token: ${error.response.data.detail}`;
+      } else if (error.name === 'AbortError' || error.code === 'ECONNABORTED') {
         errorMessage = 'Token request timed out. The authentication server may be unavailable. Please try again later.';
       } else if (error.response?.status === 503) {
         errorMessage = 'Authentication server is currently unavailable. Please try again later.';
       } else {
-        errorMessage = `${errorMessage}: ${error.response?.data?.detail || error.message}`;
+        errorMessage = `${errorMessage}: ${error.message}`;
       }
       
       setStatus({ 
@@ -1306,11 +1308,6 @@ function App() {
                           );
                         })}
                       </div>
-                      {token.service_name === 'authn-api' && (
-                        <p className="note">
-                          <em>Note: authn-api tokens cannot be exchanged (authentication service)</em>
-                        </p>
-                      )}
                     </div>
                     
                     <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
