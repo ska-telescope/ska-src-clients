@@ -808,14 +808,7 @@ function App() {
         </div>
       </div>
 
-      <div className="container">
-        {/* Status Messages */}
-        {status && (
-          <div className={`status ${status.type}`}>
-            {status.message}
-          </div>
-        )}
-
+      <div className="panel-container">
         {/* API Status Panel */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
@@ -1150,6 +1143,25 @@ function App() {
 
           </div>
         </div>
+        {/* Status/Message Bar */}
+        {status && status.message && (
+          <div className={`status-bar ${status.type || ''}`} style={{
+            margin: '1.5rem 0 1.5rem 0',
+            padding: '1rem',
+            borderRadius: '6px',
+            background: status.type === 'error' ? '#ffeaea' : status.type === 'success' ? '#eaffea' : '#f8f9fa',
+            color: status.type === 'error' ? '#dc3545' : status.type === 'success' ? '#28a745' : '#333',
+            border: status.type === 'error' ? '1px solid #dc3545' : status.type === 'success' ? '1px solid #28a745' : '1px solid #e0e0e0',
+            fontWeight: 500,
+            fontSize: '1rem',
+            textAlign: 'center',
+            maxWidth: '1100px',
+            marginLeft: 'auto',
+            marginRight: 'auto'
+          }}>
+            {status.message}
+          </div>
+        )}
 
         {/* Token Management Section - Two Column Layout */}
         <div className="two-column-layout">
