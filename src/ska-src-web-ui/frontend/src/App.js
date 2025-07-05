@@ -22,6 +22,12 @@ function App() {
   // Add state to track which exchange button is animating
   const [clickedExchange, setClickedExchange] = useState(null);
   const [activeTokens, setActiveTokens] = useState({}); // { service_name: file_name }
+  const [configPanelOpen, setConfigPanelOpen] = useState(false);
+  const [operConfig, setOperConfig] = useState(null);
+  const [configLoading, setConfigLoading] = useState(false);
+  const [configError, setConfigError] = useState(null);
+  const [configEdit, setConfigEdit] = useState({});
+  const [configSaving, setConfigSaving] = useState({});
 
   // API status monitoring
   const [apiStatus, setApiStatus] = useState({
@@ -753,6 +759,90 @@ function App() {
     }
   }, [tokens]);
 
+  // Fetch config on mount
+  useEffect(() => {
+    const fetchConfig = async () => {
+      setConfigLoading(true);
+      setConfigError(null);
+      try {
+        const response = await axios.get('/api/v1/auth/config/oper');
+        setOperConfig(response.data);
+        setConfigEdit({});
+      } catch (e) {
+        setConfigError('Failed to load configuration: ' + (e.response?.data?.detail || e.message));
+      } finally {
+        setConfigLoading(false);
+      }
+    };
+    fetchConfig();
+  }, []);
+
+  // Helper to get all URL fields as { path, value, label }
+  const getUrlFields = (config) => {
+    const urls = [];
+    if (!config) return urls;
+    // apis
+    if (config.apis) {
+      for (const apiKey of Object.keys(config.apis)) {
+        const api = config.apis[apiKey];
+        if (api.url) {
+          urls.push({
+            path: `apis.${apiKey}.url`,
+            value: api.url,
+            label: `${apiKey} URL`
+          });
+        }
+      }
+    }
+    // core
+    if (config.core) {
+      for (const coreKey of Object.keys(config.core)) {
+        const core = config.core[coreKey];
+        if (core.url) {
+          urls.push({
+            path: `core.${coreKey}.url`,
+            value: core.url,
+            label: `${coreKey} URL`
+          });
+        }
+        if (core.utl) { // typo in oper.yml for gateway
+          urls.push({
+            path: `core.${coreKey}.utl`,
+            value: core.utl,
+            label: `${coreKey} URL`
+          });
+        }
+      }
+    }
+    return urls;
+  };
+
+  const urlFields = getUrlFields(operConfig);
+
+  // Save a config value
+  const saveConfigValue = async (path, value) => {
+    setConfigSaving((prev) => ({ ...prev, [path]: true }));
+    setConfigError(null);
+    try {
+      await axios.post('/api/v1/auth/config/oper', { path, value });
+      setOperConfig((prev) => {
+        // Update local config state
+        const newConfig = JSON.parse(JSON.stringify(prev));
+        const keys = path.split('.');
+        let d = newConfig;
+        for (let i = 0; i < keys.length - 1; i++) d = d[keys[i]];
+        d[keys[keys.length - 1]] = value;
+        return newConfig;
+      });
+      setConfigEdit((prev) => ({ ...prev, [path]: undefined }));
+      setStatus({ type: 'success', message: `Saved ${path}` });
+    } catch (e) {
+      setConfigError('Failed to save: ' + (e.response?.data?.detail || e.message));
+      setStatus({ type: 'error', message: 'Failed to save: ' + (e.response?.data?.detail || e.message) });
+    } finally {
+      setConfigSaving((prev) => ({ ...prev, [path]: false }));
+    }
+  };
 
   // When a site is selected, load services and storage for that site
   useEffect(() => {
@@ -809,6 +899,47 @@ function App() {
       </div>
 
       <div className="panel-container">
+        <div className="card" style={{ marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+            onClick={() => setConfigPanelOpen((open) => !open)}>
+            <h2 style={{ margin: 0 }}>Configuration</h2>
+            <span style={{ fontSize: '1.5rem', userSelect: 'none' }}>{configPanelOpen ? '▼' : '▶'}</span>
+          </div>
+          {configPanelOpen && (
+            <div style={{ marginTop: '1.5rem' }}>
+              {configLoading ? (
+                <div>Loading configuration...</div>
+              ) : configError ? (
+                <div style={{ color: '#dc3545' }}>{configError}</div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  {urlFields.map(({ path, value, label }) => (
+                    <div key={path} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', background: '#f8f9fa', borderRadius: '6px', padding: '0.75rem', border: '1px solid #e0e0e0' }}>
+                      <label style={{ fontWeight: 500, marginBottom: '0.25rem' }}>{label.replace(/ URL$/, '')}</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <input
+                          type="text"
+                          value={configEdit[path] !== undefined ? configEdit[path] : value}
+                          onChange={e => setConfigEdit(prev => ({ ...prev, [path]: e.target.value }))}
+                          style={{ padding: '0.4rem', borderRadius: '4px', border: '1px solid #ccc', fontSize: '0.95rem', flex: 1 }}
+                          disabled={configSaving[path]}
+                        />
+                        <button
+                          className="button secondary small"
+                          style={{ margin: 0, padding: '0.4rem 0.9rem', fontSize: '0.95rem' }}
+                          onClick={() => saveConfigValue(path, configEdit[path] !== undefined ? configEdit[path] : value)}
+                          disabled={configSaving[path] || (configEdit[path] === undefined || configEdit[path] === value)}
+                        >
+                          {configSaving[path] ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         {/* API Status Panel */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>

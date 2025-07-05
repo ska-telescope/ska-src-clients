@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends
-from typing import List, Optional
+import os
+from fastapi import APIRouter, HTTPException, Depends, Body
+from typing import List, Optional, Any
 import logging
 
 from app.models.auth import (
@@ -9,6 +10,7 @@ from app.models.auth import (
 from app.services.src_client import SRCClientService
 from app.core.config import settings
 from ska_src_clients.common.exceptions import NoAccessTokenFoundForService
+from ruamel.yaml import YAML
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -540,3 +542,47 @@ async def list_compute(
     except Exception as e:
         logging.error(f"Error listing compute: {e}")
         raise HTTPException(status_code=500, detail=str(e)) 
+
+# --- OPER.YML CONFIG ENDPOINTS ---
+OPER_YML_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../../etc/cfg/oper.yml'))
+
+def read_oper_config() -> dict:
+    yaml = YAML()
+    try:
+        with open(OPER_YML_PATH, 'r') as f:
+            return yaml.load(f)
+    except Exception as e:
+        logging.error(f"Failed to read oper.yml: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to read oper.yml: {e}")
+
+def write_oper_config(config: dict):
+    yaml = YAML()
+    try:
+        with open(OPER_YML_PATH, 'w') as f:
+            yaml.dump(config, f)
+    except Exception as e:
+        logging.error(f"Failed to write oper.yml: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to write oper.yml: {e}")
+
+@router.get("/config/oper")
+def get_oper_config():
+    """Return the oper.yml config as JSON."""
+    return read_oper_config()
+
+@router.post("/config/oper")
+def update_oper_config(
+    path: str = Body(..., description="Dot-separated path to the config value, e.g. 'apis.authn-api.url'"),
+    value: Any = Body(..., description="New value to set")
+):
+    """Update a value in oper.yml and write it back."""
+    config = read_oper_config()
+    # Traverse the path and set the value
+    keys = path.split('.')
+    d = config
+    for k in keys[:-1]:
+        if k not in d:
+            raise HTTPException(status_code=400, detail=f"Key '{k}' not found in config at path '{'.'.join(keys[:-1])}'")
+        d = d[k]
+    d[keys[-1]] = value
+    write_oper_config(config)
+    return {"success": True, "message": f"Updated {path} in oper.yml"} 

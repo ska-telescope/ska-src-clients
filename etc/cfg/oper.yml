@@ -24,19 +24,19 @@ storage:
 
 
 core:
-  iam: 
+  iam:
     url: https://ska-iam.stfc.ac.uk/login#!/home
   fts:
     url: https://fts3-ska.scd.rl.ac.uk:8449/fts3/ftsmon/#/
-  rucio: 
+  rucio:
     url: https://rucio.srcnet.skao.int
   gateway:
     utl: https://gateway-test.srcdev.skao.int/
   gatekeeper:
     url: https://gatekeeper.srcnet.skao.int/echo
-  canfar: 
+  canfar:
     url: https://canfar.srcnet.skao.int/science-portal/
-  soda: 
+  soda:
     url: https://gatekeeper.srcnet.skao.int/soda/ska/dataset/soda
-  prepare_data: 
+  prepare_data:
     url: https://gatekeeper.srcnet.skao.int/preparedata
