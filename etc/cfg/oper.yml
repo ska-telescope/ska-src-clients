@@ -33,7 +33,7 @@ core:
   gateway:
     utl: https://gateway-test.srcdev.skao.int/
   gatekeeper:
-    url: https://gatekeeper.srcnet.skao.int/echo
+    url: https://dmapi.itsrc.oact.inaf.it/echo
   canfar:
     url: https://canfar.srcnet.skao.int/science-portal/
   soda:

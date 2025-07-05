@@ -9,6 +9,7 @@ import SwitzerlandFlag from './flags/Switzerland.png';
 import ChinaFlag from './flags/China.png';
 import SwedenFlag from './flags/Sweden.png';
 import CanadaFlag from './flags/Canada.png';
+import ItalyFlag from './flags/Italy.jpg';
 import SKAOFlag from './flags/SKAO.png';
 
 function App() {
@@ -95,21 +96,28 @@ function App() {
       soda: 'https://gatekeeper-sweden.example.com/soda/ska/dataset/soda',
       prepare_data: 'https://gatekeeper-sweden.example.com/preparedata',
     },
-    Canada: {
+        Canada: {
       canfar: 'https://canfar-canada.example.com/science-portal/',
       soda: 'https://gatekeeper-canada.example.com/soda/ska/dataset/soda',
       prepare_data: 'https://gatekeeper-canada.example.com/preparedata',
     },
-  SKAO: {
-    canfar: 'https://canfar.srcnet.skao.int/science-portal/',
-    soda: 'https://gatekeeper.srcnet.skao.int/soda/ska/dataset/soda',
-    prepare_data: 'https://gatekeeper.srcnet.skao.int/preparedata',
-  },
+    Italy: {
+      canfar: 'https://canfar.itsrc.oact.inaf.it/science-portal/',
+      gatekeeper: 'https://dmapi.itsrc.oact.inaf.it/echo',
+      soda: 'https://dmapi.itsrc.oact.inaf.it/soda',
+      prepare_data: 'https://dmapi.itsrc.oact.inaf.it/preparedata',
+    },
+    SKAO: {
+      canfar: 'https://canfar.srcnet.skao.int/science-portal/',
+      soda: 'https://gatekeeper.srcnet.skao.int/soda/ska/dataset/soda',
+      prepare_data: 'https://gatekeeper.srcnet.skao.int/preparedata',
+    },
   };
 
   const flagList = [
     { key: 'Canada', img: CanadaFlag, label: 'Canada' },
     { key: 'China', img: ChinaFlag, label: 'China' },
+    { key: 'Italy', img: ItalyFlag, label: 'Italy' },
     { key: 'Japan', img: JapanFlag, label: 'Japan' },
     { key: 'Spain', img: SpainFlag, label: 'Spain' },
     { key: 'Sweden', img: SwedenFlag, label: 'Sweden' },
@@ -130,7 +138,7 @@ function App() {
         if (preset) {
           try {
             setSkaoPresetLoaded(true); // Mark as loaded to prevent re-running
-            // Update config fields and save to backend (only canfar, soda, prepare_data)
+            // Update config fields and save to backend (only canfar, gatekeeper, soda, prepare_data)
             for (const [service, url] of Object.entries(preset)) {
               const path = `core.${service}.url`;
               await saveConfigValue(path, url);
@@ -187,6 +195,7 @@ function App() {
             // Extract URLs from the current site
             const siteUrls = {
               canfar: currentSite.canfar_url || currentSite.canfar?.url,
+              gatekeeper: currentSite.gatekeeper_url || currentSite.gatekeeper?.url,
               soda: currentSite.soda_url || currentSite.soda?.url,
               prepare_data: currentSite.prepare_data_url || currentSite.prepare_data?.url
             };
@@ -249,12 +258,12 @@ function App() {
     if (!preset) return;
     
     try {
-      // Update config fields and save to backend (only canfar, soda, prepare_data)
-      for (const [service, url] of Object.entries(preset)) {
-        // Only update canfar, soda, and prepare_data - not gateway
-        const path = `core.${service}.url`;
-        await saveConfigValue(path, url);
-      }
+                  // Update config fields and save to backend (only canfar, gatekeeper, soda, prepare_data)
+            for (const [service, url] of Object.entries(preset)) {
+              // Only update canfar, gatekeeper, soda, and prepare_data - not gateway
+              const path = `core.${service}.url`;
+              await saveConfigValue(path, url);
+            }
       // Update the configEdit state to reflect new values
       setConfigEdit((prev) => {
         const updated = { ...prev };
