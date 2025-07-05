@@ -374,11 +374,18 @@ function App() {
       return;
     }
     
+    const fileName = activeTokens[serviceName];
+    if (!fileName) {
+      setStatus({ type: 'error', message: `No active token set for ${serviceName}` });
+      return;
+    }
+
     try {
       setStatus({ type: 'info', message: `Exchanging token for ${serviceName}...` });
       const response = await axios.post(`${API_BASE}/auth/token/exchange`, {
         service_name: serviceName,
-        version: version
+        version: version,
+        file_name: fileName
       });
       
       if (response.data.success) {
@@ -388,6 +395,17 @@ function App() {
         });
         // Refresh tokens after successful exchange
         loadTokens();
+        // Automatically set the new token as active for the exchanged service
+        // Wait for tokens to reload, then set active
+        setTimeout(() => {
+          setTokens(currentTokens => {
+            const newToken = currentTokens.find(t => t.service_name === serviceName);
+            if (newToken) {
+              setActiveTokens(prev => ({ ...prev, [serviceName]: newToken.file_name }));
+            }
+            return currentTokens;
+          });
+        }, 500);
       } else {
         setStatus({ 
           type: 'warning', 
@@ -724,6 +742,16 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    // If there is only one token, set it as active for its service
+    if (tokens.length === 1) {
+      const token = tokens[0];
+      setActiveTokens(prev => ({
+        ...prev,
+        [token.service_name]: token.file_name
+      }));
+    }
+  }, [tokens]);
 
 
   // When a site is selected, load services and storage for that site
