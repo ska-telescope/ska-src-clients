@@ -51,6 +51,15 @@ function App() {
 
   // Request a new token
   const requestToken = async () => {
+    // Check if core systems are online before starting token request
+    if (!areCoreSystemsOnline()) {
+      setStatus({ 
+        type: 'error', 
+        message: 'Cannot request token: Authentication, Permissions, or Backend is offline. Please check the system status panel above.' 
+      });
+      return;
+    }
+    
     setLoading(true);
     setStatus({ type: 'info', message: 'Starting token request...' });
     
@@ -86,6 +95,18 @@ function App() {
     if (pollingIntervalRef.current) return;
     const poll = async () => {
       try {
+        // Check if Authentication is still online before polling
+        if (apiStatus.auth.status === 'offline') {
+          console.log('Authentication went offline, stopping polling');
+          setStatus({ 
+            type: 'error', 
+            message: 'Authentication service went offline. Token request cancelled. Please try again when the service is back online.' 
+          });
+          stopPolling();
+          setTokenRequest(null); // Clear the device flow info
+          return;
+        }
+
         const response = await axios.get(`${API_BASE}/auth/token/check/${deviceCode}`);
         
         console.log('Polling response:', response.data);
@@ -114,7 +135,29 @@ function App() {
         // If not success and not fatal, continue polling (pending state)
       } catch (error) {
         console.error('Polling error:', error);
-        // Don't show error for polling failures, just continue
+        
+        // Check if the error is due to Authentication being offline
+        if (error.response?.status === 503 || error.code === 'ECONNREFUSED' || error.message.includes('Network Error')) {
+          console.log('Network error during polling, checking if Authentication is offline');
+          // Try to check Authentication status
+          try {
+            const authCheck = await axios.get(`${API_BASE}/auth/api-status`);
+            if (authCheck.data.auth?.status === 'offline') {
+              console.log('Authentication confirmed offline, stopping polling');
+              setStatus({ 
+                type: 'error', 
+                message: 'Authentication service went offline. Token request cancelled. Please try again when the service is back online.' 
+              });
+              stopPolling();
+              setTokenRequest(null);
+              return;
+            }
+          } catch (authError) {
+            console.log('Could not check Authentication status, continuing to poll');
+          }
+        }
+        
+        // Don't show error for other polling failures, just continue
       }
     };
 
@@ -608,7 +651,7 @@ function App() {
   }, [filters.site]);
 
   return (
-    <div className="App">
+    <>
       <div className="header" style={{ justifyContent: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <img src={skaLogo} alt="SKAO Logo" className="ska-logo" style={{ height: '90px', marginRight: '1.5rem' }} />
@@ -961,75 +1004,76 @@ function App() {
           </div>
         </div>
 
-        {/* Token Request Section */}
-        <div className="card">
-          <h2>Request New Token</h2>
-          <p>Start the OIDC device flow to obtain a new authentication token.</p>
-          
-          <button 
-            className="button" 
-            onClick={requestToken} 
-            disabled={loading || pollingInterval}
-          >
-            {loading && <span className="loading"></span>}
-            {loading ? 'Requesting Token...' : 'Request Token'}
-          </button>
+        {/* Token Management Section - Two Column Layout */}
+        <div className="two-column-layout">
+          {/* Left Column - Request New Token */}
+          <div className="card left-column">
+            <h2>Request New Token</h2>
+            <p>Start the OIDC device flow to obtain a new authentication token.</p>
+            
+            <button 
+              className="button" 
+              onClick={requestToken} 
+              disabled={loading || pollingInterval || !areCoreSystemsOnline()}
+              title={!areCoreSystemsOnline() ? 'Authentication, Permissions, or Backend is offline. Cannot request tokens when core systems are unavailable.' : ''}
+            >
+              {loading && <span className="loading"></span>}
+              {loading ? 'Requesting Token...' : 'Request Token'}
+            </button>
 
-          {tokenRequest && (
-            <div className="device-flow-info">
-              <h3>Device Flow Authentication</h3>
-              <p>Please complete authentication using one of the following methods:</p>
-              
-              <div>
-                <strong>User Code:</strong>
-                <div className="code">{tokenRequest.user_code}</div>
-              </div>
-              
-              <div>
-                <strong>Verification URI:</strong>
-                <br />
-                <a 
-                  href={tokenRequest.verification_uri} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="link"
-                >
-                  {tokenRequest.verification_uri}
-                </a>
-              </div>
-              
-              {tokenRequest.verification_uri_complete && (
+            {tokenRequest && (
+              <div className="device-flow-info">
+                <h3>Device Flow Authentication</h3>
+                <p>Please complete authentication using one of the following methods:</p>
+                
                 <div>
-                  <strong>Complete URI (with code):</strong>
+                  <strong>User Code:</strong>
+                  <div className="code">{tokenRequest.user_code}</div>
+                </div>
+                
+                <div>
+                  <strong>Verification URI:</strong>
                   <br />
                   <a 
-                    href={tokenRequest.verification_uri_complete} 
+                    href={tokenRequest.verification_uri} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="link"
                   >
-                    {tokenRequest.verification_uri_complete}
+                    {tokenRequest.verification_uri}
                   </a>
                 </div>
-              )}
-              
-              <p><strong>Expires in:</strong> {tokenRequest.expires_in} seconds</p>
-              <p><strong>Polling interval:</strong> {tokenRequest.interval} seconds</p>
-              
-              {pollingInterval && (
-                <div className="status info">
-                  <span className="loading"></span>
-                  Polling for authentication completion...
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+                
+                {tokenRequest.verification_uri_complete && (
+                  <div>
+                    <strong>Complete URI (with code):</strong>
+                    <br />
+                    <a 
+                      href={tokenRequest.verification_uri_complete} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="link"
+                    >
+                      {tokenRequest.verification_uri_complete}
+                    </a>
+                  </div>
+                )}
+                
+                <p><strong>Expires in:</strong> {tokenRequest.expires_in} seconds</p>
+                <p><strong>Polling interval:</strong> {tokenRequest.interval} seconds</p>
+                
+                {pollingInterval && (
+                  <div className="status info">
+                    <span className="loading"></span>
+                    Polling for authentication completion...
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
-        {/* Two Column Layout */}
-        <div className="two-column-layout">
-          {/* Left Column - Existing Tokens */}
-          <div className="card left-column">
+          {/* Right Column - Existing Tokens */}
+          <div className="card right-column">
             <h2>Existing Tokens</h2>
             <button className="button secondary" onClick={loadTokens}>
               Refresh Tokens
@@ -1093,9 +1137,10 @@ function App() {
               </div>
             )}
           </div>
+        </div>
 
-          {/* Right Column - Service Functions */}
-          <div className="card right-column">
+        {/* Service Functions Section - Full Width */}
+        <div className="card">
             <h2>Service Functions</h2>
             
             {/* Site Selection - Always Visible */}
@@ -1421,9 +1466,7 @@ function App() {
             )}
           </div>
         </div>
-
-      </div>
-    </div>
+    </>
   );
 }
 
