@@ -2,6 +2,14 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import './App.css';
 import skaLogo from './skao-logo.png';
+import UKFlag from './flags/UK.png';
+import SpainFlag from './flags/Spain.png';
+import JapanFlag from './flags/Japan.png';
+import SwitzerlandFlag from './flags/Switzerland.png';
+import ChinaFlag from './flags/China.png';
+import SwedenFlag from './flags/Sweden.png';
+import CanadaFlag from './flags/Canada.png';
+import SKAOFlag from './flags/SKAO.png';
 
 function App() {
   const [tokenRequest, setTokenRequest] = useState(null);
@@ -55,6 +63,220 @@ function App() {
     'data-management-api',
     'site-capabilities-api'
   ];
+
+    const flagPresets = {
+    UK: {
+      canfar: 'https://canfar-uk.example.com/science-portal/',
+      soda: 'https://gatekeeper-uk.example.com/soda/ska/dataset/soda',
+      prepare_data: 'https://gatekeeper-uk.example.com/preparedata',
+    },
+    Spain: {
+      canfar: 'https://canfar-spain.example.com/science-portal/',
+      soda: 'https://gatekeeper-spain.example.com/soda/ska/dataset/soda',
+      prepare_data: 'https://gatekeeper-spain.example.com/preparedata',
+    },
+    Japan: {
+      canfar: 'https://canfar-japan.example.com/science-portal/',
+      soda: 'https://gatekeeper-japan.example.com/soda/ska/dataset/soda',
+      prepare_data: 'https://gatekeeper-japan.example.com/preparedata',
+    },
+    Switzerland: {
+      canfar: 'https://canfar-switzerland.example.com/science-portal/',
+      soda: 'https://gatekeeper-switzerland.example.com/soda/ska/dataset/soda',
+      prepare_data: 'https://gatekeeper-switzerland.example.com/preparedata',
+    },
+    China: {
+      canfar: 'https://canfar-china.example.com/science-portal/',
+      soda: 'https://gatekeeper-china.example.com/soda/ska/dataset/soda',
+      prepare_data: 'https://gatekeeper-china.example.com/preparedata',
+    },
+    Sweden: {
+      canfar: 'https://canfar-sweden.example.com/science-portal/',
+      soda: 'https://gatekeeper-sweden.example.com/soda/ska/dataset/soda',
+      prepare_data: 'https://gatekeeper-sweden.example.com/preparedata',
+    },
+    Canada: {
+      canfar: 'https://canfar-canada.example.com/science-portal/',
+      soda: 'https://gatekeeper-canada.example.com/soda/ska/dataset/soda',
+      prepare_data: 'https://gatekeeper-canada.example.com/preparedata',
+    },
+  SKAO: {
+    canfar: 'https://canfar.srcnet.skao.int/science-portal/',
+    soda: 'https://gatekeeper.srcnet.skao.int/soda/ska/dataset/soda',
+    prepare_data: 'https://gatekeeper.srcnet.skao.int/preparedata',
+  },
+  };
+
+  const flagList = [
+    { key: 'Canada', img: CanadaFlag, label: 'Canada' },
+    { key: 'China', img: ChinaFlag, label: 'China' },
+    { key: 'Japan', img: JapanFlag, label: 'Japan' },
+    { key: 'Spain', img: SpainFlag, label: 'Spain' },
+    { key: 'Sweden', img: SwedenFlag, label: 'Sweden' },
+    { key: 'Switzerland', img: SwitzerlandFlag, label: 'Switzerland' },
+    { key: 'UK', img: UKFlag, label: 'UK' },
+    { key: 'SKAO', img: SKAOFlag, label: 'SKAO' },
+  ];
+
+  const [selectedFlag, setSelectedFlag] = useState('SKAO');
+  const [skaoPresetLoaded, setSkaoPresetLoaded] = useState(false);
+
+  // Load SKAO preset after configuration is loaded (only once)
+  useEffect(() => {
+    const loadSKAOPreset = async () => {
+      // Only load SKAO preset if configuration is loaded and not already loaded
+      if (!configLoading && !configError && operConfig && Object.keys(operConfig).length > 0 && !skaoPresetLoaded) {
+        const preset = flagPresets.SKAO;
+        if (preset) {
+          try {
+            setSkaoPresetLoaded(true); // Mark as loaded to prevent re-running
+            // Update config fields and save to backend (only canfar, soda, prepare_data)
+            for (const [service, url] of Object.entries(preset)) {
+              const path = `core.${service}.url`;
+              await saveConfigValue(path, url);
+            }
+            // Update the configEdit state to reflect new values
+            setConfigEdit((prev) => {
+              const updated = { ...prev };
+              for (const [service, url] of Object.entries(preset)) {
+                const path = `core.${service}.url`;
+                updated[path] = url;
+              }
+              return updated;
+            });
+          } catch (error) {
+            console.error('Failed to load SKAO preset:', error);
+            setSkaoPresetLoaded(false); // Reset flag on error so it can retry
+          }
+        }
+      }
+    };
+    
+    loadSKAOPreset();
+  }, [configLoading, configError, operConfig, skaoPresetLoaded]); // Run when configuration loading state changes
+
+  // Auto-update URLs from site capabilities when available
+  useEffect(() => {
+    const updateUrlsFromSiteCapabilities = async () => {
+      // Check if site-capabilities is online and we have a token for it
+      const siteCapabilitiesToken = tokens.find(t => t.service_name === 'site-capabilities-api');
+      const hasSiteCapabilitiesToken = siteCapabilitiesToken && activeTokens['site-capabilities-api'] === siteCapabilitiesToken.file_name;
+      
+      if (apiStatus['site-capabilities'].status === 'online' && hasSiteCapabilitiesToken) {
+        try {
+          setStatus({ type: 'info', message: 'Fetching latest URLs from site capabilities...' });
+          
+          // Fetch sites from site capabilities API
+          const response = await axios.get(`${API_BASE}/auth/site/sites`);
+          const sitesData = response.data.data;
+          
+          if (sitesData && sitesData.length > 0) {
+            // Find the current site based on selected flag or default to first site
+            let currentSite = sitesData[0]; // Default to first site
+            
+            // Try to find a site that matches the selected flag
+            if (selectedFlag && selectedFlag !== 'SKAO') {
+              const matchingSite = sitesData.find(site => 
+                site.name && site.name.toLowerCase().includes(selectedFlag.toLowerCase())
+              );
+              if (matchingSite) {
+                currentSite = matchingSite;
+              }
+            }
+            
+            // Extract URLs from the current site
+            const siteUrls = {
+              canfar: currentSite.canfar_url || currentSite.canfar?.url,
+              soda: currentSite.soda_url || currentSite.soda?.url,
+              prepare_data: currentSite.prepare_data_url || currentSite.prepare_data?.url
+            };
+            
+            // Update only URLs that are available and different from current
+            let updatedCount = 0;
+            for (const [service, url] of Object.entries(siteUrls)) {
+              if (url && url.trim() !== '') {
+                const path = `core.${service}.url`;
+                const currentValue = operConfig?.core?.[service]?.url;
+                
+                if (currentValue !== url) {
+                  await saveConfigValue(path, url);
+                  updatedCount++;
+                }
+              }
+            }
+            
+            if (updatedCount > 0) {
+              setStatus({ 
+                type: 'success', 
+                message: `Updated ${updatedCount} URL(s) from site capabilities for ${currentSite.name || 'current site'}` 
+              });
+              
+              // Update configEdit state
+              setConfigEdit((prev) => {
+                const updated = { ...prev };
+                for (const [service, url] of Object.entries(siteUrls)) {
+                  if (url && url.trim() !== '') {
+                    const path = `core.${service}.url`;
+                    updated[path] = url;
+                  }
+                }
+                return updated;
+              });
+            } else {
+              setStatus({ 
+                type: 'info', 
+                message: 'URLs are already up to date from site capabilities' 
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to update URLs from site capabilities:', error);
+          setStatus({ 
+            type: 'warning', 
+            message: `Failed to update URLs from site capabilities: ${error.response?.data?.detail || error.message}` 
+          });
+        }
+      }
+    };
+    
+    // Run this effect when site-capabilities status changes or when we get new tokens
+    updateUrlsFromSiteCapabilities();
+  }, [apiStatus['site-capabilities'].status, tokens, activeTokens, selectedFlag, operConfig]);
+
+  const handleFlagSelect = async (flagKey) => {
+    setSelectedFlag(flagKey);
+    const preset = flagPresets[flagKey];
+    if (!preset) return;
+    
+    try {
+      // Update config fields and save to backend (only canfar, soda, prepare_data)
+      for (const [service, url] of Object.entries(preset)) {
+        // Only update canfar, soda, and prepare_data - not gateway
+        const path = `core.${service}.url`;
+        await saveConfigValue(path, url);
+      }
+      // Update the configEdit state to reflect new values
+      setConfigEdit((prev) => {
+        const updated = { ...prev };
+        for (const [service, url] of Object.entries(preset)) {
+          const path = `core.${service}.url`;
+          updated[path] = url;
+        }
+        return updated;
+      });
+      
+      // Show success message with preset name
+      setStatus({ 
+        type: 'success', 
+        message: `Switched to preset: ${flagKey}` 
+      });
+    } catch (error) {
+      setStatus({ 
+        type: 'error', 
+        message: `Failed to switch to ${flagKey} preset: ${error.message}` 
+      });
+    }
+  };
 
   // Request a new token
   const requestToken = async () => {
@@ -900,10 +1122,47 @@ function App() {
 
       <div className="panel-container">
         <div className="card" style={{ marginBottom: '1.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
-            onClick={() => setConfigPanelOpen((open) => !open)}>
-            <h2 style={{ margin: 0 }}>Configuration</h2>
-            <span style={{ fontSize: '1.5rem', userSelect: 'none' }}>{configPanelOpen ? '▼' : '▶'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+                onClick={() => setConfigPanelOpen((open) => !open)}>
+                <h2 style={{ margin: 0 }}>Configuration</h2>
+                <span style={{ fontSize: '1.5rem', userSelect: 'none', marginLeft: '0.5rem' }}>{configPanelOpen ? '▼' : '▶'}</span>
+              </div>
+              
+              {/* Flag Selector - Always Visible */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '1rem' }}>
+                <span style={{ fontSize: '0.9rem', color: '#6c757d', fontWeight: '500' }}>Site Presets:</span>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  {flagList.map(flag => (
+                    <img
+                      key={flag.key}
+                      src={flag.img}
+                      alt={flag.label}
+                      title={`Load ${flag.label} preset URLs`}
+                      onClick={() => handleFlagSelect(flag.key)}
+                      style={{
+                        width: '32px',
+                        height: '22px',
+                        borderRadius: '3px',
+                        border: selectedFlag === flag.key ? '2px solid #007bff' : '1px solid #ccc',
+                        boxShadow: selectedFlag === flag.key ? '0 0 4px #007bff' : 'none',
+                        cursor: 'pointer',
+                        opacity: selectedFlag === flag.key ? 1 : 0.8,
+                        transition: 'all 0.2s',
+                        background: '#fff',
+                        objectFit: 'cover',
+                      }}
+                    />
+                  ))}
+                </div>
+                {selectedFlag && (
+                  <span style={{ fontSize: '0.8rem', color: '#28a745', fontWeight: '500', marginLeft: '0.5rem' }}>
+                    ✓ {selectedFlag}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
           {configPanelOpen && (
             <div style={{ marginTop: '1.5rem' }}>

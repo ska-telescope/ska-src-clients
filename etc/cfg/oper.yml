@@ -35,8 +35,8 @@ core:
   gatekeeper:
     url: https://gatekeeper.srcnet.skao.int/echo
   canfar:
-    url: https://canfar.srcnet.skao.int/science-portal/
+    url: https://canfar-canada.example.com/science-portal/
   soda:
-    url: https://gatekeeper.srcnet.skao.int/soda/ska/dataset/soda
+    url: https://gatekeeper-canada.example.com/soda/ska/dataset/soda
   prepare_data:
-    url: https://gatekeeper.srcnet.skao.int/preparedata
+    url: https://gatekeeper-canada.example.com/preparedata
