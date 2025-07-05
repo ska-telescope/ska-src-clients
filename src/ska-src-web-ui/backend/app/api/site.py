@@ -41,8 +41,27 @@ async def get_site(
         )
     except Exception as e:
         error_str = str(e).lower()
+        
+        # Check if the exception has a status code (from handle_client_exceptions)
+        if hasattr(e, 'status_code'):
+            if e.status_code == 503:
+                logging.error(f"External service connectivity issue: {e}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Site Capabilities service is currently unavailable. Please try again later."
+                )
+            elif e.status_code == 502:
+                logging.error(f"Authentication server connectivity issue: {e}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Authentication server is currently unavailable. Please try again later."
+                )
+            else:
+                logging.error(f"HTTP error from external service: {e}")
+                raise HTTPException(status_code=e.status_code, detail=str(e))
+        
         # Check for various authentication server connectivity issues
-        if ("authentication server is currently unavailable" in error_str or
+        elif ("authentication server is currently unavailable" in error_str or
             "502 bad gateway" in error_str or
             "502 server error" in error_str or
             "http error occurred: 502" in error_str or
@@ -79,8 +98,27 @@ async def list_sites(
         )
     except Exception as e:
         error_str = str(e).lower()
+        
+        # Check if the exception has a status code (from handle_client_exceptions)
+        if hasattr(e, 'status_code'):
+            if e.status_code == 503:
+                logging.error(f"External service connectivity issue: {e}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Site Capabilities service is currently unavailable. Please try again later."
+                )
+            elif e.status_code == 502:
+                logging.error(f"Authentication server connectivity issue: {e}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Authentication server is currently unavailable. Please try again later."
+                )
+            else:
+                logging.error(f"HTTP error from external service: {e}")
+                raise HTTPException(status_code=e.status_code, detail=str(e))
+        
         # Check for various authentication server connectivity issues
-        if ("authentication server is currently unavailable" in error_str or
+        elif ("authentication server is currently unavailable" in error_str or
             "502 bad gateway" in error_str or
             "502 server error" in error_str or
             "http error occurred: 502" in error_str or
@@ -117,8 +155,27 @@ async def get_compute(
         )
     except Exception as e:
         error_str = str(e).lower()
+        
+        # Check if the exception has a status code (from handle_client_exceptions)
+        if hasattr(e, 'status_code'):
+            if e.status_code == 503:
+                logging.error(f"External service connectivity issue: {e}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Site Capabilities service is currently unavailable. Please try again later."
+                )
+            elif e.status_code == 502:
+                logging.error(f"Authentication server connectivity issue: {e}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Authentication server is currently unavailable. Please try again later."
+                )
+            else:
+                logging.error(f"HTTP error from external service: {e}")
+                raise HTTPException(status_code=e.status_code, detail=str(e))
+        
         # Check for 503 errors from external services
-        if ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
+        elif ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
             logging.error(f"External service connectivity issue: {e}")
             raise HTTPException(
                 status_code=503, 
@@ -145,8 +202,27 @@ async def list_compute(
         )
     except Exception as e:
         error_str = str(e).lower()
+        
+        # Check if the exception has a status code (from handle_client_exceptions)
+        if hasattr(e, 'status_code'):
+            if e.status_code == 503:
+                logging.error(f"External service connectivity issue: {e}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Site Capabilities service is currently unavailable. Please try again later."
+                )
+            elif e.status_code == 502:
+                logging.error(f"Authentication server connectivity issue: {e}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Authentication server is currently unavailable. Please try again later."
+                )
+            else:
+                logging.error(f"HTTP error from external service: {e}")
+                raise HTTPException(status_code=e.status_code, detail=str(e))
+        
         # Check for 503 errors from external services
-        if ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
+        elif ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
             logging.error(f"External service connectivity issue: {e}")
             raise HTTPException(
                 status_code=503, 
@@ -200,8 +276,27 @@ async def debug_services(
         )
     except Exception as e:
         error_str = str(e).lower()
+        
+        # Check if the exception has a status code (from handle_client_exceptions)
+        if hasattr(e, 'status_code'):
+            if e.status_code == 503:
+                logging.error(f"External service connectivity issue: {e}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Site Capabilities service is currently unavailable. Please try again later."
+                )
+            elif e.status_code == 502:
+                logging.error(f"Authentication server connectivity issue: {e}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Authentication server is currently unavailable. Please try again later."
+                )
+            else:
+                logging.error(f"HTTP error from external service: {e}")
+                raise HTTPException(status_code=e.status_code, detail=str(e))
+        
         # Check for 503 errors from external services
-        if ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
+        elif ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
             logging.error(f"External service connectivity issue: {e}")
             raise HTTPException(
                 status_code=503, 
@@ -227,8 +322,27 @@ async def get_service(
         )
     except Exception as e:
         error_str = str(e).lower()
+        
+        # Check if the exception has a status code (from handle_client_exceptions)
+        if hasattr(e, 'status_code'):
+            if e.status_code == 503:
+                logging.error(f"External service connectivity issue: {e}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Site Capabilities service is currently unavailable. Please try again later."
+                )
+            elif e.status_code == 502:
+                logging.error(f"Authentication server connectivity issue: {e}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Authentication server is currently unavailable. Please try again later."
+                )
+            else:
+                logging.error(f"HTTP error from external service: {e}")
+                raise HTTPException(status_code=e.status_code, detail=str(e))
+        
         # Check for 503 errors from external services
-        if ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
+        elif ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
             logging.error(f"External service connectivity issue: {e}")
             raise HTTPException(
                 status_code=503, 
@@ -262,8 +376,27 @@ async def list_services(
         )
     except Exception as e:
         error_str = str(e).lower()
+        
+        # Check if the exception has a status code (from handle_client_exceptions)
+        if hasattr(e, 'status_code'):
+            if e.status_code == 503:
+                logging.error(f"External service connectivity issue: {e}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Site Capabilities service is currently unavailable. Please try again later."
+                )
+            elif e.status_code == 502:
+                logging.error(f"Authentication server connectivity issue: {e}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Authentication server is currently unavailable. Please try again later."
+                )
+            else:
+                logging.error(f"HTTP error from external service: {e}")
+                raise HTTPException(status_code=e.status_code, detail=str(e))
+        
         # Check for 503 errors from external services
-        if ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
+        elif ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
             logging.error(f"External service connectivity issue: {e}")
             raise HTTPException(
                 status_code=503, 
@@ -296,8 +429,27 @@ async def toggle_service(
         )
     except Exception as e:
         error_str = str(e).lower()
+        
+        # Check if the exception has a status code (from handle_client_exceptions)
+        if hasattr(e, 'status_code'):
+            if e.status_code == 503:
+                logging.error(f"External service connectivity issue: {e}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Site Capabilities service is currently unavailable. Please try again later."
+                )
+            elif e.status_code == 502:
+                logging.error(f"Authentication server connectivity issue: {e}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Authentication server is currently unavailable. Please try again later."
+                )
+            else:
+                logging.error(f"HTTP error from external service: {e}")
+                raise HTTPException(status_code=e.status_code, detail=str(e))
+        
         # Check for 503 errors from external services
-        if ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
+        elif ("503" in error_str and "service temporarily unavailable" in error_str) or "http error occurred: 503" in error_str:
             logging.error(f"External service connectivity issue: {e}")
             raise HTTPException(
                 status_code=503, 

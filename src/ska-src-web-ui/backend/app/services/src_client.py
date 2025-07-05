@@ -152,15 +152,55 @@ class SRCClientService:
     def complete_token_request(self, device_code: str) -> Dict[str, Any]:
         """Complete a token request by polling for completion."""
         try:
-            # Poll for token completion
+            # Poll for token completion with timeout protection
             success = False
             max_attempts = 60
             wait_between_polling_s = 5
             
             for attempt in range(0, max_attempts):
                 try:
-                    # This will raise an exception if authorization is still pending
-                    result = self.session.request_token(device_code=device_code)
+                    # Add timeout to each polling attempt
+                    import threading
+                    import queue
+                    
+                    result_queue = queue.Queue()
+                    exception_queue = queue.Queue()
+                    
+                    def poll_with_timeout():
+                        try:
+                            result = self.session.request_token(device_code=device_code)
+                            result_queue.put(result)
+                        except Exception as e:
+                            exception_queue.put(e)
+                    
+                    # Start polling in a separate thread with timeout
+                    poll_thread = threading.Thread(target=poll_with_timeout)
+                    poll_thread.daemon = True
+                    poll_thread.start()
+                    
+                    # Wait for result with timeout
+                    try:
+                        poll_thread.join(timeout=10)  # 10 second timeout for each poll
+                        
+                        if poll_thread.is_alive():
+                            # Thread is still running, timeout occurred
+                            logging.debug(f"Polling attempt {attempt + 1} timed out")
+                            continue
+                        
+                        # Check for exceptions first
+                        try:
+                            exception = exception_queue.get_nowait()
+                            raise exception
+                        except queue.Empty:
+                            pass
+                        
+                        # Get the result
+                        result = result_queue.get_nowait()
+                        
+                    except queue.Empty:
+                        logging.debug(f"Polling attempt {attempt + 1} timed out")
+                        continue
+                    
                     if result is True:
                         success = True
                         break
@@ -204,33 +244,54 @@ class SRCClientService:
             raise
     
     def list_tokens(self) -> List[Dict[str, Any]]:
-        """List all available access tokens."""
-        try:
-            result = self.session.list_access_tokens()
-            reformatted = []
-            
-            for service, data in result.items():
-                expires_at_epoch = data.get("expires_at")
-                if expires_at_epoch:
-                    expires_dt_utc = datetime.datetime.utcfromtimestamp(expires_at_epoch).strftime('%Y-%m-%d %H:%M:%S UTC')
-                    expires_dt_local = datetime.datetime.fromtimestamp(expires_at_epoch).strftime('%Y-%m-%d %H:%M:%S')
-                else:
-                    expires_dt_utc = "-"
-                    expires_dt_local = "-"
-
-                reformatted.append({
-                    "service_name": service,
-                    "access_token": data.get("access_token", "")[:20] + "...",
+        """List all tokens on disk, each with its file name as file_name."""
+        import glob
+        tokens = []
+        for token_path in glob.glob(os.path.join(self.session.stored_token_directory, "*.token")):
+            try:
+                with open(token_path, 'r') as f:
+                    token_data = json.load(f)
+                access_token = token_data.get('access_token', '')
+                # Decode JWT to get audience and expiration
+                import jwt
+                try:
+                    decoded = jwt.decode(access_token, options={"verify_signature": False})
+                    service_name = decoded.get('aud', 'unknown')
+                    expires_at_epoch = decoded.get('exp')
+                    if expires_at_epoch:
+                        expires_dt_utc = datetime.datetime.utcfromtimestamp(expires_at_epoch).strftime('%Y-%m-%d %H:%M:%S UTC')
+                        expires_dt_local = datetime.datetime.fromtimestamp(expires_at_epoch).strftime('%Y-%m-%d %H:%M:%S')
+                    else:
+                        expires_dt_utc = "-"
+                        expires_dt_local = "-"
+                except Exception:
+                    service_name = 'unknown'
+                    expires_dt_utc = expires_dt_local = "-"
+                tokens.append({
+                    "service_name": service_name,
+                    "access_token": access_token[:20] + "...",
                     "expires_utc": expires_dt_utc,
                     "expires_local": expires_dt_local,
-                    "path_on_disk": data.get("path_on_disk"),
-                    "has_refresh_token": bool(data.get("has_associated_refresh_token"))
+                    "path_on_disk": token_path,
+                    "has_refresh_token": bool(token_data.get('refresh_token')),
+                    "file_name": os.path.basename(token_path)
                 })
-            
-            return reformatted
-        except Exception as e:
-            logging.error(f"Error listing tokens: {e}")
-            raise
+            except Exception as e:
+                logging.error(f"Error reading token file {token_path}: {e}")
+        return tokens
+
+    def delete_token_by_file(self, file_name: str) -> bool:
+        """Delete a token by its file name."""
+        token_path = os.path.join(self.session.stored_token_directory, file_name)
+        if os.path.exists(token_path):
+            try:
+                os.remove(token_path)
+                return True
+            except Exception as e:
+                logging.error(f"Error deleting token file {token_path}: {e}")
+                return False
+        else:
+            return False
 
     def has_valid_tokens(self) -> bool:
         """Check if there are any valid tokens available."""
@@ -248,6 +309,15 @@ class SRCClientService:
             return result
         except Exception as e:
             logging.error(f"Error inspecting token for {service_name}: {e}")
+            raise
+
+    def delete_token(self, service_name: str) -> bool:
+        """Delete a specific access token."""
+        try:
+            result = self.session.delete_access_token(service_name)
+            return result
+        except Exception as e:
+            logging.error(f"Error deleting token for {service_name}: {e}")
             raise
     
     def download_data(self, namespace: str, name: str, sort: str = "nearest_by_ip", 

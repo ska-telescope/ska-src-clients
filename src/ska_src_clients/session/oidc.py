@@ -445,6 +445,54 @@ class OIDCSession(Session):
         return access_token_decoded
 
     @handle_client_exceptions
+    @remove_expired_tokens
+    def delete_access_token(self, service_name):
+        """ Delete an access token for a service.
+
+        :param str service_name: The service name to delete a token for.
+        :return: Success flag indicating if the token was deleted.
+        :rtype: bool
+        """
+        logging.debug("Deleting access token for service {}".format(service_name))
+        
+        # Find the token in access_tokens
+        token_to_delete = None
+        for aud, attributes in self.access_tokens.items():
+            if aud == service_name:
+                token_to_delete = attributes
+                break
+        
+        if not token_to_delete:
+            logging.warning("No access token found for service {}".format(service_name))
+            return False
+        
+        # Remove from memory
+        self.access_tokens.pop(service_name, None)
+        
+        # Remove associated refresh tokens
+        token_path = token_to_delete.get('path_on_disk')
+        if token_path and token_path != 'INTERNAL':
+            # Remove refresh tokens associated with this access token
+            refresh_tokens_to_remove = []
+            for refresh_token in self.refresh_tokens:
+                if refresh_token.get('associated_access_token') == token_to_delete.get('token'):
+                    refresh_tokens_to_remove.append(refresh_token)
+            
+            for refresh_token in refresh_tokens_to_remove:
+                self.refresh_tokens.remove(refresh_token)
+            
+            # Remove from disk
+            try:
+                if os.path.exists(token_path):
+                    os.remove(token_path)
+                    logging.debug("Removed token file from disk: {}".format(token_path))
+            except Exception as e:
+                logging.error("Failed to remove token file from disk: {}".format(e))
+        
+        logging.debug("Successfully deleted access token for service {}".format(service_name))
+        return True
+
+    @handle_client_exceptions
     @check_authentication_api_aliveness
     @remove_expired_tokens
     def request_token(self, device_code, store_to_disk=True):

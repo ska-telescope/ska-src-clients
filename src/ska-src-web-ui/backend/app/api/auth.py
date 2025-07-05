@@ -122,7 +122,7 @@ async def exchange_token(
 async def list_tokens(
     src_service: SRCClientService = Depends(get_src_service)
 ):
-    """List all available access tokens."""
+    """List all tokens on disk, each with its file name as file_name."""
     try:
         tokens = src_service.list_tokens()
         return TokenListResponse(tokens=tokens)
@@ -131,6 +131,39 @@ async def list_tokens(
         return TokenListResponse(tokens=[])
     except Exception as e:
         logging.error(f"Error listing tokens: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/tokens/by-file/{file_name}")
+async def get_token_by_file(
+    file_name: str,
+    src_service: SRCClientService = Depends(get_src_service)
+):
+    """Get a single token's info by file name."""
+    try:
+        tokens = src_service.list_tokens()
+        token = next((t for t in tokens if t['file_name'] == file_name), None)
+        if token:
+            return token
+        else:
+            raise HTTPException(status_code=404, detail=f"Token file {file_name} not found")
+    except Exception as e:
+        logging.error(f"Error getting token file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/tokens/by-file/{file_name}")
+async def delete_token_by_file(
+    file_name: str,
+    src_service: SRCClientService = Depends(get_src_service)
+):
+    """Delete a token by its file name."""
+    try:
+        success = src_service.delete_token_by_file(file_name)
+        if success:
+            return {"success": True, "message": f"Token file {file_name} deleted successfully"}
+        else:
+            raise HTTPException(status_code=404, detail=f"Token file {file_name} not found")
+    except Exception as e:
+        logging.error(f"Error deleting token file: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -145,6 +178,23 @@ async def inspect_token(
         return TokenInspectResponse(token_data=token_data)
     except Exception as e:
         logging.error(f"Error inspecting token: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/tokens/{service_name}")
+async def delete_token(
+    service_name: str,
+    src_service: SRCClientService = Depends(get_src_service)
+):
+    """Delete a specific access token."""
+    try:
+        success = src_service.delete_token(service_name)
+        if success:
+            return {"success": True, "message": f"Token for {service_name} deleted successfully"}
+        else:
+            raise HTTPException(status_code=404, detail=f"Token for {service_name} not found")
+    except Exception as e:
+        logging.error(f"Error deleting token: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

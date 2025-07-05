@@ -21,6 +21,7 @@ function App() {
   const [selectedServiceIds, setSelectedServiceIds] = useState([]);
   // Add state to track which exchange button is animating
   const [clickedExchange, setClickedExchange] = useState(null);
+  const [activeTokens, setActiveTokens] = useState({}); // { service_name: file_name }
 
   // API status monitoring
   const [apiStatus, setApiStatus] = useState({
@@ -64,10 +65,19 @@ function App() {
     setStatus({ type: 'info', message: 'Starting token request...' });
     
     try {
+      // Add timeout to the request
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
       const response = await axios.post(`${API_BASE}/auth/token/request`, {
         max_polling_attempts: 60,
         wait_between_polling_s: 5
+      }, {
+        signal: controller.signal,
+        timeout: 30000 // 30 second timeout
       });
+      
+      clearTimeout(timeoutId);
       
       setTokenRequest(response.data);
       setStatus({ 
@@ -80,9 +90,19 @@ function App() {
       
     } catch (error) {
       console.error('Token request error:', error);
+      
+      let errorMessage = 'Failed to request token';
+      if (error.name === 'AbortError' || error.code === 'ECONNABORTED') {
+        errorMessage = 'Token request timed out. The authentication server may be unavailable. Please try again later.';
+      } else if (error.response?.status === 503) {
+        errorMessage = 'Authentication server is currently unavailable. Please try again later.';
+      } else {
+        errorMessage = `${errorMessage}: ${error.response?.data?.detail || error.message}`;
+      }
+      
       setStatus({ 
         type: 'error', 
-        message: `Failed to request token: ${error.response?.data?.detail || error.message}` 
+        message: errorMessage
       });
     } finally {
       setLoading(false);
@@ -107,7 +127,9 @@ function App() {
           return;
         }
 
-        const response = await axios.get(`${API_BASE}/auth/token/check/${deviceCode}`);
+        const response = await axios.get(`${API_BASE}/auth/token/check/${deviceCode}`, {
+          timeout: 10000 // 10 second timeout for each poll
+        });
         
         console.log('Polling response:', response.data);
         
@@ -182,7 +204,9 @@ function App() {
   const loadTokens = async () => {
     try {
       setStatus({ type: 'info', message: 'Loading tokens...' });
-      const response = await axios.get(`${API_BASE}/auth/tokens`);
+      const response = await axios.get(`${API_BASE}/auth/tokens`, {
+        timeout: 10000 // 10 second timeout
+      });
       setTokens(response.data.tokens || []);
       if (response.data.tokens?.length > 0) {
         setStatus({ type: 'success', message: `Loaded ${response.data.tokens.length} tokens` });
@@ -191,8 +215,91 @@ function App() {
       }
     } catch (error) {
       console.error('Failed to load tokens:', error);
-      setStatus({ type: 'error', message: `Failed to load tokens: ${error.message}` });
+      let errorMessage = 'Failed to load tokens';
+      if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Loading tokens timed out. Please try again.';
+      } else if (error.response?.status === 503) {
+        errorMessage = 'Authentication server is currently unavailable. Please try again later.';
+      } else {
+        errorMessage = `${errorMessage}: ${error.message}`;
+      }
+      setStatus({ type: 'error', message: errorMessage });
     }
+  };
+
+  // Delete a specific token by file name
+  const deleteToken = async (fileName) => {
+    try {
+      setStatus({ type: 'info', message: `Deleting token file ${fileName}...` });
+      const response = await axios.delete(`${API_BASE}/auth/tokens/by-file/${fileName}`, {
+        timeout: 10000 // 10 second timeout
+      });
+      if (response.data.success) {
+        setStatus({ type: 'success', message: `Token file ${fileName} deleted successfully` });
+        // Refresh the token list
+        loadTokens();
+      } else {
+        setStatus({ type: 'error', message: `Failed to delete token file ${fileName}` });
+      }
+    } catch (error) {
+      console.error('Failed to delete token:', error);
+      let errorMessage = 'Failed to delete token';
+      if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Delete operation timed out. Please try again.';
+      } else if (error.response?.status === 503) {
+        errorMessage = 'Authentication server is currently unavailable. Please try again later.';
+      } else if (error.response?.status === 404) {
+        errorMessage = `Token file ${fileName} not found`;
+      } else {
+        errorMessage = `${errorMessage}: ${error.response?.data?.detail || error.message}`;
+      }
+      setStatus({ type: 'error', message: errorMessage });
+    }
+  };
+
+  // Refresh a single token by file name
+  const refreshToken = async (fileName) => {
+    try {
+      setStatus({ type: 'info', message: `Refreshing token file ${fileName}...` });
+      const response = await axios.get(`${API_BASE}/auth/tokens/by-file/${fileName}`, {
+        timeout: 10000 // 10 second timeout
+      });
+      if (response.data) {
+        setTokens((prevTokens) => {
+          // Replace the token with the same file_name, or add if not present
+          const idx = prevTokens.findIndex(t => t.file_name === fileName);
+          if (idx !== -1) {
+            const newTokens = [...prevTokens];
+            newTokens[idx] = response.data;
+            return newTokens;
+          } else {
+            return [...prevTokens, response.data];
+          }
+        });
+        setStatus({ type: 'success', message: `Token file ${fileName} refreshed` });
+      } else {
+        setStatus({ type: 'error', message: `Failed to refresh token file ${fileName}` });
+      }
+    } catch (error) {
+      console.error('Failed to refresh token:', error);
+      let errorMessage = 'Failed to refresh token';
+      if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Refresh operation timed out. Please try again.';
+      } else if (error.response?.status === 503) {
+        errorMessage = 'Authentication server is currently unavailable. Please try again later.';
+      } else if (error.response?.status === 404) {
+        errorMessage = `Token file ${fileName} not found`;
+      } else {
+        errorMessage = `${errorMessage}: ${error.response?.data?.detail || error.message}`;
+      }
+      setStatus({ type: 'error', message: errorMessage });
+    }
+  };
+
+  // Set active token for a service
+  const setActiveToken = (serviceName, fileName) => {
+    setActiveTokens((prev) => ({ ...prev, [serviceName]: fileName }));
+    setStatus({ type: 'success', message: `Set token file ${fileName} as active for ${serviceName}` });
   };
 
   // Check if core systems are online (required for any token exchange)
@@ -650,6 +757,14 @@ function App() {
     }
   }, [filters.site]);
 
+  // Mapping from aud to friendly service name
+  const serviceNameMap = {
+    'authn-api': 'Authentication',
+    'site-capabilities-api': 'Site Capabilities',
+    'data-management-api': 'Data Management',
+    // Add more mappings as needed
+  };
+
   return (
     <>
       <div className="header" style={{ justifyContent: 'center' }}>
@@ -1009,18 +1124,30 @@ function App() {
           {/* Left Column - Request New Token */}
           <div className="card left-column">
             <h2>Request New Token</h2>
-            <p>Start the OIDC device flow to obtain a new authentication token.</p>
-            
-            <button 
-              className="button" 
-              onClick={requestToken} 
-              disabled={loading || pollingInterval || !areCoreSystemsOnline()}
-              title={!areCoreSystemsOnline() ? 'Authentication, Permissions, or Backend is offline. Cannot request tokens when core systems are unavailable.' : ''}
-            >
-              {loading && <span className="loading"></span>}
-              {loading ? 'Requesting Token...' : 'Request Token'}
-            </button>
-
+            <div className="device-flow-info">
+              <p><strong>Step 1:</strong> Click the button below to start the device flow authentication process.</p>
+              <p><strong>Step 2:</strong> You'll be redirected to the authentication server to log in.</p>
+              <p><strong>Step 3:</strong> After successful authentication, you'll be redirected back with a token.</p>
+              {!areCoreSystemsOnline() && (
+                <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#fff3cd', border: '1px solid #ffeaa7', borderRadius: '4px' }}>
+                  <h4 style={{ color: '#856404', margin: '0 0 0.5rem 0' }}>⚠️ Core Systems Offline</h4>
+                  <p style={{ color: '#856404', margin: '0', fontSize: '0.9rem' }}>
+                    Token requests are disabled because one or more core systems (Authentication, Permissions, Backend) are currently offline.
+                  </p>
+                </div>
+              )}
+              <div style={{ marginTop: '1rem' }}>
+                <button 
+                  className="button"
+                  onClick={requestToken}
+                  disabled={loading || pollingInterval || !areCoreSystemsOnline()}
+                  title={!areCoreSystemsOnline() ? 'Authentication, Permissions, or Backend is offline. Cannot request tokens when core systems are unavailable.' : ''}
+                >
+                  {loading && <span className="loading"></span>}
+                  {loading ? 'Requesting Token...' : 'Request Token'}
+                </button>
+              </div>
+            </div>
             {tokenRequest && (
               <div className="device-flow-info">
                 <h3>Device Flow Authentication</h3>
@@ -1074,18 +1201,69 @@ function App() {
 
           {/* Right Column - Existing Tokens */}
           <div className="card right-column">
-            <h2>Existing Tokens</h2>
-            <button className="button secondary" onClick={loadTokens}>
-              Refresh Tokens
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <div>
+                <h2>Existing Tokens</h2>
+                <p style={{ fontSize: '0.9rem', color: '#6c757d', margin: '0.25rem 0 0 0' }}>
+                  {tokens.length} token{tokens.length !== 1 ? 's' : ''} loaded
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="button secondary small" onClick={loadTokens}
+                  disabled={!areCoreSystemsOnline()}
+                  title={!areCoreSystemsOnline() ? 'Authentication, Permissions, or Backend is offline. Cannot refresh tokens when core systems are unavailable.' : ''}
+                >
+                  Refresh Tokens
+                </button>
+                <button className="button danger small" onClick={() => {
+                  if (window.confirm('Are you sure you want to delete all tokens? This action cannot be undone.')) {
+                    tokens.forEach(token => deleteToken(token.file_name));
+                  }
+                }} disabled={tokens.length === 0}>
+                  Delete All
+                </button>
+              </div>
+            </div>
             
             {tokens.length === 0 ? (
               <p>No tokens found. Request a new token to get started.</p>
             ) : (
-              <div>
+              <div className="token-scroll-container" style={{ 
+                display: 'flex',
+                overflowX: 'auto',
+                gap: '1rem',
+                padding: '0.5rem',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '4px',
+                border: '1px solid #e0e0e0',
+                minHeight: '400px',
+                alignItems: 'flex-start',
+                width: '100%',
+                maxWidth: '100%'
+              }}
+              >
                 {tokens.map((token, index) => (
-                  <div key={index} className="device-flow-info">
-                    <h4>{token.service_name || 'Unknown Service'}</h4>
+                  <div key={token.file_name} className="device-flow-info" style={{ 
+                    width: '300px',
+                    minWidth: '300px',
+                    minHeight: '420px',
+                    padding: '1rem', 
+                    border: '1px solid #dee2e6', 
+                    borderRadius: '8px',
+                    backgroundColor: 'white',
+                    position: 'relative',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    flexShrink: 0
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                      <div>
+                        <h4 style={{ margin: 0 }}>{serviceNameMap[token.service_name] || token.service_name || 'Unknown Service'}</h4>
+                        <div style={{ fontSize: '0.8rem', color: '#888' }}>File: {token.file_name}</div>
+                        {activeTokens[token.service_name] === token.file_name && (
+                          <span style={{ color: '#28a745', fontWeight: 'bold', fontSize: '0.85rem' }}>Active</span>
+                        )}
+                      </div>
+                    </div>
                     <p><strong>Access Token:</strong> {token.access_token || 'Not available'}</p>
                     <p><strong>Expires (Local):</strong> {token.expires_local || 'Unknown'}</p>
                     <p><strong>Expires (UTC):</strong> {token.expires_utc || 'Unknown'}</p>
@@ -1131,6 +1309,37 @@ function App() {
                           <em>Note: authn-api tokens cannot be exchanged (authentication service)</em>
                         </p>
                       )}
+                    </div>
+                    
+                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+                      <button 
+                        className="button secondary small"
+                        onClick={() => setActiveToken(token.service_name, token.file_name)}
+                        disabled={activeTokens[token.service_name] === token.file_name}
+                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                      >
+                        Set Active
+                      </button>
+                      <button 
+                        className="button small"
+                        onClick={() => refreshToken(token.file_name)}
+                        disabled={apiStatus.auth.status === 'offline'}
+                        title={apiStatus.auth.status === 'offline' ? 'Authentication service is offline. Cannot refresh tokens when authentication server is unavailable.' : ''}
+                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                      >
+                        Refresh
+                      </button>
+                      <button 
+                        className="button danger small"
+                        onClick={() => {
+                          if (window.confirm(`Are you sure you want to delete the token file ${token.file_name}?`)) {
+                            deleteToken(token.file_name);
+                          }
+                        }}
+                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
                 ))}

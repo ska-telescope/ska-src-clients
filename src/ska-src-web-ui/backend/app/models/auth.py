@@ -56,6 +56,7 @@ class TokenInfo(BaseModel):
     expires_local: str
     path_on_disk: Optional[str] = None
     has_refresh_token: bool
+    file_name: str  # New field for unique identification
 
 
 class TokenListResponse(BaseModel):

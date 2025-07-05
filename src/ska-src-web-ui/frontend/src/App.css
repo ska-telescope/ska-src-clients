@@ -140,7 +140,7 @@
   margin: 0;
 }
 
-.button, .button.secondary {
+.button, .button.secondary, .button.danger {
   background: var(--ska-magenta);
   color: #fff;
   border: none;
@@ -154,8 +154,14 @@
 .button.secondary {
   background: var(--ska-navy);
 }
+.button.danger {
+  background: #dc3545;
+}
 .button:hover, .button.secondary:hover {
   background: #b8004e;
+}
+.button.danger:hover {
+  background: #c82333;
 }
 
 .section-header h4, .filters h4 {
@@ -239,11 +245,33 @@
   margin: 0.5rem 0 0 0;
 }
 
+.panel-container {
+  max-width: 1100px;
+  margin: 2rem auto;
+  padding: 0 1.5rem;
+}
+
 .two-column-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 2rem;
+  gap: 1.5rem;
   margin-top: 2rem;
+}
+
+.left-column, .right-column {
+  min-width: 320px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+  .two-column-layout {
+    grid-template-columns: 1fr;
+  }
+  .left-column, .right-column {
+    min-width: 0;
+  }
 }
 
 .data-list {
@@ -536,4 +564,29 @@
   .site-storage-group .data-item strong {
     font-size: 1rem;
   }
+} 
+
+/* Custom scrollbar styling for token panel */
+.token-scroll-container::-webkit-scrollbar {
+  height: 8px;
+}
+
+.token-scroll-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.token-scroll-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.token-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Firefox scrollbar */
+.token-scroll-container {
+  scrollbar-width: thin;
+  scrollbar-color: #c1c1c1 #f1f1f1;
 } 

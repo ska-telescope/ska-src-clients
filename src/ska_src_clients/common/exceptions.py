@@ -11,7 +11,11 @@ def handle_client_exceptions(func):
             return func(*args, **kwargs)
         except requests.exceptions.HTTPError as e:
             detail = f"HTTP error occurred: {e}, response: {e.response.text}"
-            raise Exception(detail)
+            # Create a custom exception that preserves the HTTP status code
+            error = Exception(detail)
+            error.status_code = e.response.status_code
+            error.response_text = e.response.text
+            raise error
         except CustomException as e:
             raise Exception(message=e.message)
         except Exception as e:
