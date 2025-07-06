@@ -1,6 +1,7 @@
 # TODO
 
 - [ ] Add all the data operations 
+    - [ ] Data namespace ls -> list namespaces 
     - [ ] Data ls 
     - [ ] Data locate
     - [ ] Data move 

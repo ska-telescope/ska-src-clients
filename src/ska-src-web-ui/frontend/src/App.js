@@ -128,6 +128,7 @@ function App() {
 
   const [selectedFlag, setSelectedFlag] = useState('SKAO');
   const [skaoPresetLoaded, setSkaoPresetLoaded] = useState(false);
+  const [activeTab, setActiveTab] = useState('site-capabilities'); // 'site-capabilities' or 'data-management'
 
   // Load SKAO preset after configuration is loaded (only once)
   useEffect(() => {
@@ -141,7 +142,7 @@ function App() {
             // Update config fields and save to backend (only canfar, gatekeeper, soda, prepare_data)
             for (const [service, url] of Object.entries(preset)) {
               const path = `core.${service}.url`;
-              await saveConfigValue(path, url);
+              await saveConfigValue(path, url, true); // Suppress individual "Saved" messages
             }
             // Update the configEdit state to reflect new values
             setConfigEdit((prev) => {
@@ -152,6 +153,8 @@ function App() {
               }
               return updated;
             });
+            // Show the "Loaded SKAO default profile" message
+            setStatus({ type: 'success', message: 'Loaded SKAO default profile' });
           } catch (error) {
             console.error('Failed to load SKAO preset:', error);
             setSkaoPresetLoaded(false); // Reset flag on error so it can retry
@@ -1051,7 +1054,7 @@ function App() {
   const urlFields = getUrlFields(operConfig);
 
   // Save a config value
-  const saveConfigValue = async (path, value) => {
+  const saveConfigValue = async (path, value, suppressMessage = false) => {
     setConfigSaving((prev) => ({ ...prev, [path]: true }));
     setConfigError(null);
     try {
@@ -1066,7 +1069,9 @@ function App() {
         return newConfig;
       });
       setConfigEdit((prev) => ({ ...prev, [path]: undefined }));
-      setStatus({ type: 'success', message: `Saved ${path}` });
+      if (!suppressMessage) {
+        setStatus({ type: 'success', message: `Saved ${path}` });
+      }
     } catch (e) {
       setConfigError('Failed to save: ' + (e.response?.data?.detail || e.message));
       setStatus({ type: 'error', message: 'Failed to save: ' + (e.response?.data?.detail || e.message) });
@@ -1782,30 +1787,79 @@ function App() {
           </div>
         </div>
 
-        {/* Service Functions Section - Full Width */}
+        {/* Service Functions Section - Tabbed Interface */}
         <div className="card">
             <h2>Service Functions</h2>
             
-            {/* Site Selection - Always Visible */}
-            <div className="filters">
-              <h4>Select Site</h4>
-              <div className="filter-row">
-                <select 
-                  value={filters.site || ''} 
-                  onChange={(e) => setFilters({...filters, site: e.target.value})}
-                  className="filter-select"
-                >
-                  <option value="">Select a site to view services...</option>
-                  {sitesList.map((site, index) => (
-                    <option key={index} value={site.node}>{site.name || site.node}</option>
-                  ))}
-                </select>
-              </div>
+            {/* Tab Navigation */}
+            <div style={{ 
+              display: 'flex', 
+              borderBottom: '2px solid #e0e0e0', 
+              marginBottom: '1.5rem',
+              backgroundColor: '#f8f9fa',
+              borderRadius: '6px 6px 0 0'
+            }}>
+              <button
+                onClick={() => setActiveTab('site-capabilities')}
+                style={{
+                  flex: 1,
+                  padding: '1rem',
+                  border: 'none',
+                  backgroundColor: activeTab === 'site-capabilities' ? '#E70068' : 'transparent',
+                  color: activeTab === 'site-capabilities' ? 'white' : '#333',
+                  fontWeight: activeTab === 'site-capabilities' ? 'bold' : 'normal',
+                  cursor: 'pointer',
+                  fontSize: '1rem',
+                  transition: 'all 0.2s',
+                  borderRadius: activeTab === 'site-capabilities' ? '6px 6px 0 0' : '0'
+                }}
+              >
+                Site Capabilities
+              </button>
+              <button
+                onClick={() => setActiveTab('data-management')}
+                style={{
+                  flex: 1,
+                  padding: '1rem',
+                  border: 'none',
+                  backgroundColor: activeTab === 'data-management' ? '#E70068' : 'transparent',
+                  color: activeTab === 'data-management' ? 'white' : '#333',
+                  fontWeight: activeTab === 'data-management' ? 'bold' : 'normal',
+                  cursor: 'pointer',
+                  fontSize: '1rem',
+                  transition: 'all 0.2s',
+                  borderRadius: activeTab === 'data-management' ? '6px 6px 0 0' : '0'
+                }}
+              >
+                Data Management
+              </button>
             </div>
 
-            {loadingServiceData ? (
-              <div className="status info">Loading services for selected site...</div>
-            ) : selectedService && serviceData?.services ? (
+            {/* Site Selection - Only for Site Capabilities */}
+            {activeTab === 'site-capabilities' && (
+              <div className="filters">
+                <h4>Select Site</h4>
+                <div className="filter-row">
+                  <select 
+                    value={filters.site || ''} 
+                    onChange={(e) => setFilters({...filters, site: e.target.value})}
+                    className="filter-select"
+                  >
+                    <option value="">Select a site to view services...</option>
+                    {sitesList.map((site, index) => (
+                      <option key={index} value={site.node}>{site.name || site.node}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Site Capabilities Tab Content */}
+            {activeTab === 'site-capabilities' && (
+              <>
+                {loadingServiceData ? (
+                  <div className="status info">Loading services for selected site...</div>
+                ) : selectedService && serviceData?.services ? (
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                   <h3>Services for {filters.site}</h3>
@@ -2106,6 +2160,17 @@ function App() {
               </div>
             ) : (
               <p>Select a site from the dropdown above to see available services.</p>
+            )}
+              </>
+            )}
+
+            {/* Data Management Tab Content */}
+            {activeTab === 'data-management' && (
+              <div>
+                <h3>Data Management Functions</h3>
+                <p>Data management functionality will be implemented here.</p>
+                <p>This tab will contain data upload, download, and management features.</p>
+              </div>
             )}
           </div>
         </div>
