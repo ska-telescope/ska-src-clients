@@ -129,6 +129,15 @@ function App() {
   const [selectedFlag, setSelectedFlag] = useState('SKAO');
   const [skaoPresetLoaded, setSkaoPresetLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState('site-capabilities'); // 'site-capabilities' or 'data-management'
+  
+  // Data Management state
+  const [namespaces, setNamespaces] = useState([]);
+  const [selectedNamespace, setSelectedNamespace] = useState('');
+  const [namespaceFiles, setNamespaceFiles] = useState([]);
+  const [loadingNamespaces, setLoadingNamespaces] = useState(false);
+  const [loadingFiles, setLoadingFiles] = useState(false);
+  const [namespaceError, setNamespaceError] = useState(null);
+  const [filesError, setFilesError] = useState(null);
 
   // Load SKAO preset after configuration is loaded (only once)
   useEffect(() => {
@@ -559,11 +568,23 @@ function App() {
            apiStatus['site-capabilities'].status === 'online';
   };
 
+  // Check if we have an active site capabilities token
+  const hasSiteCapabilitiesToken = () => {
+    const siteCapabilitiesToken = tokens.find(t => t.service_name === 'site-capabilities-api');
+    return siteCapabilitiesToken && activeTokens['site-capabilities-api'] === siteCapabilitiesToken.file_name;
+  };
+
   // Check if data management exchange is available
   const isDataManagementExchangeAvailable = () => {
     return areCoreSystemsOnline() && 
            apiStatus['site-capabilities'].status === 'online' &&
            apiStatus['data-management'].status === 'online';
+  };
+
+  // Check if we have an active data management token
+  const hasDataManagementToken = () => {
+    const dataManagementToken = tokens.find(t => t.service_name === 'data-management-api');
+    return dataManagementToken && activeTokens['data-management-api'] === dataManagementToken.file_name;
   };
 
   // Check if all systems are green (for display purposes)
@@ -879,6 +900,67 @@ function App() {
     }
   };
 
+  // Data Management API functions
+  const loadNamespaces = async () => {
+    // Check if we have a data management token
+    if (!hasDataManagementToken()) {
+      setNamespaceError('Data Management token required. Please exchange a token for data-management-api first.');
+      setStatus({ 
+        type: 'error', 
+        message: 'Data Management token required. Please exchange a token for data-management-api first.' 
+      });
+      return;
+    }
+
+    setLoadingNamespaces(true);
+    setNamespaceError(null);
+    
+    try {
+      const response = await axios.get(`${API_BASE}/data/namespaces`);
+      setNamespaces(response.data.data || []);
+    } catch (error) {
+      console.error('Failed to load namespaces:', error);
+      setNamespaceError(`Failed to load namespaces: ${error.response?.data?.detail || error.message}`);
+      setStatus({ 
+        type: 'error', 
+        message: `Failed to load namespaces: ${error.response?.data?.detail || error.message}` 
+      });
+    } finally {
+      setLoadingNamespaces(false);
+    }
+  };
+
+  const loadNamespaceFiles = async (namespace) => {
+    if (!namespace) return;
+    
+    // Check if we have a data management token
+    if (!hasDataManagementToken()) {
+      setFilesError('Data Management token required. Please exchange a token for data-management-api first.');
+      setStatus({ 
+        type: 'error', 
+        message: 'Data Management token required. Please exchange a token for data-management-api first.' 
+      });
+      return;
+    }
+    
+    setLoadingFiles(true);
+    setFilesError(null);
+    
+    try {
+      const response = await axios.get(`${API_BASE}/data/list?namespace=${encodeURIComponent(namespace)}&name=*&detail=true`);
+      setNamespaceFiles(response.data.data || []);
+    } catch (error) {
+      console.error('Failed to load namespace files:', error);
+      setFilesError(`Failed to load files for namespace ${namespace}: ${error.response?.data?.detail || error.message}`);
+      setStatus({ 
+        type: 'error', 
+        message: `Failed to load files for namespace ${namespace}: ${error.response?.data?.detail || error.message}` 
+      });
+    } finally {
+      setLoadingFiles(false);
+    }
+  };
+
   // Filter data based on selected filters
   const getFilteredData = (data, type) => {
     if (!data) return [];
@@ -1011,6 +1093,20 @@ function App() {
     fetchConfig();
   }, []);
 
+  // Load namespaces when data management tab is selected
+  useEffect(() => {
+    if (activeTab === 'data-management' && namespaces.length === 0 && !loadingNamespaces && hasDataManagementToken()) {
+      loadNamespaces();
+    }
+  }, [activeTab, namespaces.length, loadingNamespaces, hasDataManagementToken]);
+
+  // Load files when namespace is selected
+  useEffect(() => {
+    if (selectedNamespace && activeTab === 'data-management') {
+      loadNamespaceFiles(selectedNamespace);
+    }
+  }, [selectedNamespace, activeTab]);
+
   // Helper to get all URL fields as { path, value, label }
   const getUrlFields = (config) => {
     const urls = [];
@@ -1083,6 +1179,15 @@ function App() {
   // When a site is selected, load services and storage for that site
   useEffect(() => {
     if (filters.site) {
+      // Check if we have a site capabilities token
+      if (!hasSiteCapabilitiesToken()) {
+        setStatus({ 
+          type: 'error', 
+          message: 'Site Capabilities token required. Please exchange a token for site-capabilities-api first.' 
+        });
+        return;
+      }
+
       setSelectedService('site-capabilities-api');
       setLoadingServiceData(true);
       setServiceData(null);
@@ -1113,7 +1218,7 @@ function App() {
       setSelectedService(null);
       setStorageData(null);
     }
-  }, [filters.site]);
+  }, [filters.site, hasSiteCapabilitiesToken]);
 
   // Mapping from aud to friendly service name
   const serviceNameMap = {
@@ -1835,8 +1940,8 @@ function App() {
               </button>
             </div>
 
-            {/* Site Selection - Only for Site Capabilities */}
-            {activeTab === 'site-capabilities' && (
+            {/* Site Selection - Only for Site Capabilities with Token */}
+            {activeTab === 'site-capabilities' && hasSiteCapabilitiesToken() && (
               <div className="filters">
                 <h4>Select Site</h4>
                 <div className="filter-row">
@@ -1857,9 +1962,28 @@ function App() {
             {/* Site Capabilities Tab Content */}
             {activeTab === 'site-capabilities' && (
               <>
-                {loadingServiceData ? (
-                  <div className="status info">Loading services for selected site...</div>
-                ) : selectedService && serviceData?.services ? (
+                {/* Token Requirement Check */}
+                {!hasSiteCapabilitiesToken() && (
+                  <div style={{ 
+                    marginBottom: '1.5rem', 
+                    padding: '1rem', 
+                    backgroundColor: '#fff3cd', 
+                    border: '1px solid #ffeaa7', 
+                    borderRadius: '4px' 
+                  }}>
+                    <h4 style={{ color: '#856404', margin: '0 0 0.5rem 0' }}>🔐 Site Capabilities Token Required</h4>
+                    <p style={{ color: '#856404', margin: '0', fontSize: '0.9rem' }}>
+                      To access Site Capabilities functions, you need to exchange a token for the site-capabilities-api service. 
+                      Please go to the token management section above and exchange a token for site-capabilities-api.
+                    </p>
+                  </div>
+                )}
+                
+                {hasSiteCapabilitiesToken() && (
+                  <>
+                    {loadingServiceData ? (
+                      <div className="status info">Loading services for selected site...</div>
+                    ) : selectedService && serviceData?.services ? (
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                   <h3>Services for {filters.site}</h3>
@@ -2161,15 +2285,149 @@ function App() {
             ) : (
               <p>Select a site from the dropdown above to see available services.</p>
             )}
+                  </>
+                )}
               </>
             )}
 
             {/* Data Management Tab Content */}
             {activeTab === 'data-management' && (
               <div>
-                <h3>Data Management Functions</h3>
-                <p>Data management functionality will be implemented here.</p>
-                <p>This tab will contain data upload, download, and management features.</p>
+                
+                {/* Token Requirement Check */}
+                {!hasDataManagementToken() && (
+                  <div style={{ 
+                    marginBottom: '1.5rem', 
+                    padding: '1rem', 
+                    backgroundColor: '#fff3cd', 
+                    border: '1px solid #ffeaa7', 
+                    borderRadius: '4px' 
+                  }}>
+                    <h4 style={{ color: '#856404', margin: '0 0 0.5rem 0' }}>🔐 Data Management Token Required</h4>
+                    <p style={{ color: '#856404', margin: '0', fontSize: '0.9rem' }}>
+                      To access Data Management functions, you need to exchange a token for the data-management-api service. 
+                      Please go to the token management section above and exchange a token for data-management-api.
+                    </p>
+                  </div>
+                )}
+                
+                {/* Namespace Selection */}
+                {hasDataManagementToken() && (
+                  <div className="filters" style={{ marginBottom: '1.5rem' }}>
+                    <h4>Select Namespace</h4>
+                    <div className="filter-row">
+                      <select 
+                        value={selectedNamespace} 
+                        onChange={(e) => setSelectedNamespace(e.target.value)}
+                        className="filter-select"
+                        disabled={loadingNamespaces}
+                      >
+                        <option value="">Select a namespace to view files...</option>
+                        {namespaces.map((namespace, index) => (
+                          <option key={index} value={namespace}>{namespace}</option>
+                        ))}
+                      </select>
+                      <button 
+                        className="button secondary small"
+                        onClick={loadNamespaces}
+                        disabled={loadingNamespaces}
+                        style={{ marginLeft: '0.5rem' }}
+                      >
+                        {loadingNamespaces ? 'Loading...' : 'Refresh Namespaces'}
+                      </button>
+                    </div>
+                    {namespaceError && (
+                      <div style={{ color: '#dc3545', fontSize: '0.9rem', marginTop: '0.5rem' }}>
+                        {namespaceError}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Files List */}
+                {hasDataManagementToken() && selectedNamespace && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                      <h4>Files in namespace: {selectedNamespace}</h4>
+                      <button 
+                        className="button secondary small"
+                        onClick={() => loadNamespaceFiles(selectedNamespace)}
+                        disabled={loadingFiles}
+                      >
+                        {loadingFiles ? 'Loading...' : 'Refresh Files'}
+                      </button>
+                    </div>
+                    
+                    {loadingFiles ? (
+                      <div className="status info">Loading files for namespace {selectedNamespace}...</div>
+                    ) : filesError ? (
+                      <div style={{ color: '#dc3545', fontSize: '0.9rem' }}>
+                        {filesError}
+                      </div>
+                    ) : namespaceFiles.length > 0 ? (
+                      <div style={{ 
+                        maxHeight: '600px', 
+                        overflowY: 'auto', 
+                        border: '1px solid #e0e0e0', 
+                        borderRadius: '6px',
+                        padding: '1rem',
+                        backgroundColor: '#f8f9fa'
+                      }}>
+                        {namespaceFiles.map((file, index) => (
+                          <div key={index} className="data-item" style={{ 
+                            marginBottom: '1rem', 
+                            padding: '1rem', 
+                            backgroundColor: 'white', 
+                            borderRadius: '4px',
+                            border: '1px solid #dee2e6'
+                          }}>
+                            <strong>{file.name || file.id || 'Unknown File'}</strong>
+                            <table className="service-details-table" style={{ marginTop: '0.5rem' }}>
+                              <tbody>
+                                {file.namespace && (
+                                  <tr><td>Namespace</td><td>{file.namespace}</td></tr>
+                                )}
+                                {file.size !== undefined && (
+                                  <tr><td>Size</td><td>{file.size} bytes</td></tr>
+                                )}
+                                {file.created_at && (
+                                  <tr><td>Created</td><td>{file.created_at}</td></tr>
+                                )}
+                                {file.updated_at && (
+                                  <tr><td>Updated</td><td>{file.updated_at}</td></tr>
+                                )}
+                                {file.type && (
+                                  <tr><td>Type</td><td>{file.type}</td></tr>
+                                )}
+                                {file.status && (
+                                  <tr><td>Status</td><td>{file.status}</td></tr>
+                                )}
+                                {file.path && (
+                                  <tr><td>Path</td><td>{file.path}</td></tr>
+                                )}
+                                {file.metadata && Object.keys(file.metadata).length > 0 && (
+                                  <tr>
+                                    <td>Metadata</td>
+                                    <td>
+                                      <pre style={{ fontSize: '0.8rem', margin: 0, whiteSpace: 'pre-wrap' }}>
+                                        {JSON.stringify(file.metadata, null, 2)}
+                                      </pre>
+                                    </td>
+                                  </tr>
+                                )}
+                                {file.id && (
+                                  <tr><td>ID</td><td>{file.id}</td></tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p>No files found in namespace {selectedNamespace}.</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
