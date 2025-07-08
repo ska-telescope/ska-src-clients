@@ -3,16 +3,19 @@ version: '3.8'
 services:
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: src/ska-src-web-ui/backend/Dockerfile
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app
+      - ./src/ska-src-web-ui/backend:/app
+      - ./etc/cfg:/etc/cfg:rw
       - /tmp/srcnet:/tmp/srcnet  # Mount token storage
     environment:
       - PYTHONPATH=/app
-      - SRCNET_CONFIG_PATH=/app/config.yml
+      - SRCNET_CONFIG_PATH=/etc/cfg/oper.yml
+    working_dir: /app
+    command: python main.py
     depends_on:
       - frontend
     networks:
@@ -20,15 +23,17 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: src/ska-src-web-ui/frontend/Dockerfile
     ports:
       - "3000:3000"
     volumes:
-      - ./frontend:/app
+      - ./src/ska-src-web-ui/frontend:/app
       - /app/node_modules
     environment:
       - VITE_API_URL=http://localhost:8000/api/v1
+    working_dir: /app
+    command: npm start
     networks:
       - ska-web-ui
 

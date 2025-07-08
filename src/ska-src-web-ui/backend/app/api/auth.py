@@ -544,7 +544,7 @@ async def list_compute(
         raise HTTPException(status_code=500, detail=str(e)) 
 
 # --- OPER.YML CONFIG ENDPOINTS ---
-OPER_YML_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../../etc/cfg/oper.yml'))
+OPER_YML_PATH = '/etc/cfg/oper.yml'
 
 def read_oper_config() -> dict:
     yaml = YAML()
