@@ -36,6 +36,6 @@ core:
   canfar:
     url: https://canfar.srcnet.skao.int/science-portal/
   soda:
-    url: https://gateway.srcnet.skao.int/soda/ska/dataset/soda
+    url: https://gatekeeper.srcnet.skao.int/soda/ska/dataset/soda
   prepare_data:
-    url: http://host.docker.internal:18000 
+    url: https://gatekeeper.srcnet.skao.int/preparedata
