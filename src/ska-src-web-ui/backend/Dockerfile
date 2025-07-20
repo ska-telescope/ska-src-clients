@@ -11,6 +11,10 @@ RUN apt-get update && apt-get install -y \
 
 # Copy the entire project
 COPY . /app/
+# Copy the config files
+RUN mkdir -p /app/etc/cfg
+COPY ./etc/cfg/oper.yml /app/etc/cfg/oper.yml
+COPY ./etc/cfg/oper-dev.yml /app/etc/cfg/oper-dev.yml
 
 # Install poetry
 RUN pip install poetry
