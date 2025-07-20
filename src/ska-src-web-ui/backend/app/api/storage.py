@@ -34,19 +34,31 @@ def get_src_service() -> SRCClientService:
         logging.debug(f"Using existing SRC service with config_path={_current_config_path}")
     return _src_service
 
-@router.get("/{storage_id}")
-def get_storage(storage_id: str, src_service: SRCClientService = Depends(get_src_service)):
-    """Get storage details by unique ID."""
+@router.get("/areas")
+def list_storage_areas(
+    node_name: Optional[str] = Query(None, description="Filter by node name"),
+    site_name: Optional[str] = Query(None, description="Filter by site name"),
+    parent_node_name: Optional[str] = Query(None, description="Filter by parent node name"),
+    src_service: SRCClientService = Depends(get_src_service)
+):
+    """List storage areas."""
     try:
-        result = src_service.site_api.get_storage(storage_id)
+        logging.info(f"Storage areas list request - node_name: {node_name}, site_name: {site_name}, parent_node_name: {parent_node_name}")
+        
+        # Use parent_node_name if provided, otherwise fall back to node_name
+        filter_node = parent_node_name or node_name
+        
+        result = src_service.site_api.list_storage_areas(node_name=filter_node, site_name=site_name)
+        logging.info(f"Storage areas list result - returned {len(result)} storage areas")
+        
         return {
             "success": True,
-            "message": "Storage details retrieved successfully",
+            "message": "Storage areas listed successfully",
             "data": result
         }
     except Exception as e:
-        logging.error(f"Error getting storage: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
+        logging.error(f"Error listing storage areas: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/")
 def list_storage(
@@ -74,29 +86,16 @@ def list_storage(
         logging.error(f"Error listing storage: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/areas")
-def list_storage_areas(
-    node_name: Optional[str] = Query(None, description="Filter by node name"),
-    site_name: Optional[str] = Query(None, description="Filter by site name"),
-    parent_node_name: Optional[str] = Query(None, description="Filter by parent node name"),
-    src_service: SRCClientService = Depends(get_src_service)
-):
-    """List storage areas."""
+@router.get("/{storage_id}")
+def get_storage(storage_id: str, src_service: SRCClientService = Depends(get_src_service)):
+    """Get storage details by unique ID."""
     try:
-        logging.info(f"Storage areas list request - node_name: {node_name}, site_name: {site_name}, parent_node_name: {parent_node_name}")
-        
-        # Use parent_node_name if provided, otherwise fall back to node_name
-        filter_node = parent_node_name or node_name
-        
-        result = src_service.site_api.list_storage_areas(node_name=filter_node, site_name=site_name)
-        logging.info(f"Storage areas list result - returned {len(result)} storage areas")
-        
+        result = src_service.site_api.get_storage(storage_id)
         return {
             "success": True,
-            "message": "Storage areas listed successfully",
+            "message": "Storage details retrieved successfully",
             "data": result
         }
     except Exception as e:
-        logging.error(f"Error listing storage areas: {e}")
-        raise HTTPException(status_code=500, detail=str(e)) 
+        logging.error(f"Error getting storage: {e}")
+        raise HTTPException(status_code=404, detail=str(e)) 
