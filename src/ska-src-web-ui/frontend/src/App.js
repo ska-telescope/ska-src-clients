@@ -1782,8 +1782,6 @@ function App() {
       
       const formData = new FormData();
       formData.append('file', selectedUploadFile);
-      formData.append('namespace', selectedNamespace);
-      formData.append('ingest_service_id', selectedIngestService);
       
       // Create metadata object
       const metadata = {
@@ -1792,13 +1790,18 @@ function App() {
         lifetime: uploadMetadata.lifetime
       };
       
-      formData.append('metadata', JSON.stringify(metadata));
+      formData.append('extra_metadata', JSON.stringify(metadata));
       
-      const response = await axios.post(`${API_BASE}/data/upload`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      // Send namespace and ingest_service_id as query parameters
+      const response = await axios.post(
+        `${API_BASE}/data/upload?namespace=${encodeURIComponent(selectedNamespace)}&ingest_service_id=${encodeURIComponent(selectedIngestService)}`, 
+        formData, 
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
       
       if (response.data.success) {
         setStatus({ type: 'success', message: 'File uploaded successfully!' });
