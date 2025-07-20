@@ -419,25 +419,66 @@ class SRCClientService:
     def upload_for_ingest(self, path: str, ingest_service_id: str, namespace: str, 
                          metadata_suffix: str = ".meta", extra_metadata: str = "{}", 
                          debug: bool = False) -> Dict[str, Any]:
-        """Upload data for ingest."""
-        # Check if we have a data-management-api token before making the API call
+        """Upload data for ingest with enhanced error handling and logging."""
+        logging.info(f"Starting upload_for_ingest: path={path}, ingest_service_id={ingest_service_id}, namespace={namespace}")
+        
+        # Step 1: Validate token availability
         try:
             tokens = self.list_tokens()
             has_data_management_token = any(token.get('service_name') == 'data-management-api' for token in tokens)
             if not has_data_management_token:
+                logging.error("No data-management-api token found")
                 raise NoAccessTokenFoundForService("data-management-api")
+            logging.info("Data Management API token validated")
         except Exception as e:
-            logging.debug(f"Error checking data-management-api tokens: {e}")
+            logging.error(f"Token validation failed: {e}")
             raise NoAccessTokenFoundForService("data-management-api")
         
+        # Step 2: Validate input parameters
+        if not os.path.exists(path):
+            raise ValueError(f"Upload path does not exist: {path}")
+        
+        if not ingest_service_id:
+            raise ValueError("ingest_service_id is required")
+        
+        if not namespace:
+            raise ValueError("namespace is required")
+        
+        logging.info("Input parameters validated successfully")
+        
+        # Step 3: Attempt upload with detailed error handling
         try:
+            logging.info("Calling data_api.upload_for_ingest")
             result = self.data_api.upload_for_ingest(
                 path, ingest_service_id, namespace, metadata_suffix, extra_metadata, debug
             )
+            logging.info("Upload completed successfully")
             return result
+            
         except Exception as e:
-            logging.error(f"Error uploading for ingest: {e}")
-            raise
+            error_str = str(e).lower()
+            logging.error(f"Upload failed with error: {e}")
+            
+            # Enhanced error classification
+            if "invalid_scope" in error_str or "oauth" in error_str:
+                logging.error("OAuth token scope error detected")
+                raise Exception(f"OAuth token scope error: {e}")
+            
+            elif "token" in error_str and ("exchange" in error_str or "unauthorized" in error_str):
+                logging.error("Token exchange/authorization error detected")
+                raise Exception(f"Token authorization error: {e}")
+            
+            elif "storage" in error_str or "rucio" in error_str:
+                logging.error("Storage/Rucio service error detected")
+                raise Exception(f"Storage service error: {e}")
+            
+            elif "connection" in error_str or "timeout" in error_str:
+                logging.error("Network connectivity error detected")
+                raise Exception(f"Network error: {e}")
+            
+            else:
+                logging.error("Unexpected upload error")
+                raise Exception(f"Upload error: {e}")
     
     def move_request(self, to_storage_area_id: str, dids: List[str], lifetime: str, 
                     parent_namespace: Optional[str] = None) -> Dict[str, Any]:

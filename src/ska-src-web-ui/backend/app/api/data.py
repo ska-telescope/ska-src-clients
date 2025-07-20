@@ -3,6 +3,7 @@ from typing import List, Optional
 import logging
 import tempfile
 import os
+import json
 
 from app.models.data import (
     DataDownloadRequest, DataLocateRequest, DataListRequest, DataUploadRequest,
@@ -113,34 +114,120 @@ async def upload_file(
     debug: bool = False,
     src_service: SRCClientService = Depends(get_src_service)
 ):
-    """Upload a file for ingest."""
+    """Upload a file for ingest with complete flow reproduction."""
     if not namespace or not ingest_service_id:
         raise HTTPException(status_code=400, detail="namespace and ingest_service_id are required")
     
     try:
-        # Create temporary directory for upload
+        logging.info(f"Starting upload process for file: {file.filename}")
+        logging.info(f"Parameters: namespace={namespace}, ingest_service_id={ingest_service_id}, metadata_suffix={metadata_suffix}")
+        
+        # Step 1: Validate and prepare metadata
+        try:
+            extra_metadata_dict = json.loads(extra_metadata) if extra_metadata else {}
+            reserved_keys = ['namespace', 'ingest_service_id']
+            for key in reserved_keys:
+                if key in extra_metadata_dict:
+                    raise HTTPException(status_code=400, detail=f"Reserved key '{key}' cannot be used in extra_metadata")
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid JSON in extra_metadata")
+        
+        # Step 2: Check token availability
+        try:
+            tokens = src_service.list_tokens()
+            has_data_management_token = any(token.get('service_name') == 'data-management-api' for token in tokens)
+            if not has_data_management_token:
+                raise HTTPException(
+                    status_code=401, 
+                    detail="Data Management API token required. Please exchange a token for data-management-api first."
+                )
+            logging.info("Data Management API token found")
+        except Exception as e:
+            logging.error(f"Token validation failed: {e}")
+            raise HTTPException(status_code=401, detail="Token validation failed")
+        
+        # Step 3: Create temporary directory and save file
         with tempfile.TemporaryDirectory() as temp_dir:
             file_path = os.path.join(temp_dir, file.filename)
             
             # Save uploaded file
+            logging.info(f"Saving uploaded file to temporary location: {file_path}")
             with open(file_path, "wb") as buffer:
                 content = await file.read()
                 buffer.write(content)
             
-            # Upload for ingest
-            result = src_service.upload_for_ingest(
-                temp_dir, ingest_service_id, namespace, 
-                metadata_suffix, extra_metadata, debug
-            )
+            logging.info(f"File saved successfully. Size: {len(content)} bytes")
             
-            return DataResponse(
-                success=True,
-                message="File uploaded successfully",
-                data=result
-            )
+            # Step 4: Attempt upload with enhanced error handling
+            try:
+                logging.info("Starting upload_for_ingest process")
+                result = src_service.upload_for_ingest(
+                    temp_dir, ingest_service_id, namespace, 
+                    metadata_suffix, extra_metadata, debug
+                )
+                
+                logging.info("Upload completed successfully")
+                return DataResponse(
+                    success=True,
+                    message="File uploaded successfully",
+                    data={
+                        "filename": file.filename,
+                        "namespace": namespace,
+                        "ingest_service_id": ingest_service_id,
+                        "file_size": len(content),
+                        "upload_result": result
+                    }
+                )
+                
+            except Exception as upload_error:
+                error_str = str(upload_error).lower()
+                
+                # Handle specific OAuth token scope errors
+                if "invalid_scope" in error_str or "oauth" in error_str:
+                    logging.error(f"OAuth token scope error during upload: {upload_error}")
+                    raise HTTPException(
+                        status_code=401,
+                        detail="OAuth token scope error. The data management API token needs additional Rucio scopes for upload operations. Please try exchanging a new token for data-management-api."
+                    )
+                
+                # Handle token exchange errors
+                elif "token" in error_str and ("exchange" in error_str or "unauthorized" in error_str):
+                    logging.error(f"Token exchange error during upload: {upload_error}")
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Token exchange failed. Please ensure you have a valid token for data-management-api and try again."
+                    )
+                
+                # Handle storage/network errors
+                elif any(keyword in error_str for keyword in ["connection", "timeout", "network", "storage"]):
+                    logging.error(f"Storage/network error during upload: {upload_error}")
+                    raise HTTPException(
+                        status_code=503,
+                        detail="Storage service unavailable. Please check your connection and try again."
+                    )
+                
+                # Handle validation errors
+                elif any(keyword in error_str for keyword in ["validation", "invalid", "bad request"]):
+                    logging.error(f"Validation error during upload: {upload_error}")
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Upload validation failed: {str(upload_error)}"
+                    )
+                
+                # Generic error handling
+                else:
+                    logging.error(f"Unexpected error during upload: {upload_error}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Upload failed: {str(upload_error)}"
+                    )
+                    
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
-        logging.error(f"Error uploading file: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"Unexpected error in upload endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @router.post("/move", response_model=DataResponse)
