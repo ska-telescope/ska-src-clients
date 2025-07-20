@@ -170,6 +170,7 @@ function App() {
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [namespaceError, setNamespaceError] = useState(null);
   const [filesError, setFilesError] = useState(null);
+  const [namespaceLoadFailed, setNamespaceLoadFailed] = useState(false);
 
   // Load SKAO preset after configuration is loaded (only once)
   useEffect(() => {
@@ -756,40 +757,70 @@ function App() {
     });
   };
 
+  // Function to automatically set the first available token for a service as active
+  const autoSetFirstTokenForService = useCallback((serviceName) => {
+    const serviceTokens = tokens.filter(t => t.service_name === serviceName);
+    if (serviceTokens.length > 0 && !activeTokens[serviceName]) {
+      // Set the first token as active (only this token, clear others)
+      const firstToken = serviceTokens[0];
+      setActiveTokens({
+        [serviceName]: firstToken.file_name
+      });
+      setStatus({ 
+        type: 'success', 
+        message: `Automatically set ${serviceName} token as active` 
+      });
+      return true;
+    }
+    return false;
+  }, [tokens, activeTokens]);
+
+  // Function to handle tab switching with automatic token activation
+  const handleTabSwitch = useCallback((newTab) => {
+    setActiveTab(newTab);
+    
+    // Auto-set first token for the selected service if available
+    if (newTab === 'site-capabilities') {
+      autoSetFirstTokenForService('site-capabilities-api');
+    } else if (newTab === 'data-management') {
+      autoSetFirstTokenForService('data-management-api');
+    }
+  }, [autoSetFirstTokenForService]);
+
   // Check if core systems are online (required for any token exchange)
-  const areCoreSystemsOnline = () => {
+  const areCoreSystemsOnline = useCallback(() => {
     return apiStatus.backend.status === 'online' &&
            apiStatus.auth.status === 'online' &&
            apiStatus.permissions.status === 'online';
-  };
+  }, [apiStatus]);
 
   // Check if site capabilities exchange is available
-  const isSiteCapabilitiesExchangeAvailable = () => {
+  const isSiteCapabilitiesExchangeAvailable = useCallback(() => {
     return areCoreSystemsOnline() && 
            apiStatus['site-capabilities'].status === 'online';
-  };
+  }, [apiStatus]);
 
   // Check if we have an active site capabilities token
-  const hasSiteCapabilitiesToken = () => {
+  const hasSiteCapabilitiesToken = useCallback(() => {
     const siteCapabilitiesToken = tokens.find(t => t.service_name === 'site-capabilities-api');
     return siteCapabilitiesToken && activeTokens['site-capabilities-api'] === siteCapabilitiesToken.file_name;
-  };
+  }, [tokens, activeTokens]);
 
   // Check if data management exchange is available
-  const isDataManagementExchangeAvailable = () => {
+  const isDataManagementExchangeAvailable = useCallback(() => {
     return areCoreSystemsOnline() && 
            apiStatus['site-capabilities'].status === 'online' &&
            apiStatus['data-management'].status === 'online';
-  };
+  }, [apiStatus]);
 
   // Check if we have an active data management token
-  const hasDataManagementToken = () => {
+  const hasDataManagementToken = useCallback(() => {
     const dataManagementToken = tokens.find(t => t.service_name === 'data-management-api');
     return dataManagementToken && activeTokens['data-management-api'] === dataManagementToken.file_name;
-  };
+  }, [tokens, activeTokens]);
 
   // Check if all systems are green (for display purposes)
-  const areAllSystemsGreen = () => {
+  const areAllSystemsGreen = useCallback(() => {
     return apiStatus.backend.status === 'online' &&
            apiStatus.auth.status === 'online' &&
            apiStatus.permissions.status === 'online' &&
@@ -803,7 +834,7 @@ function App() {
            apiStatus.canfar.status === 'online' &&
            apiStatus.soda.status === 'online' &&
            apiStatus['prepare-data'].status === 'online';
-  };
+  }, [apiStatus]);
 
   // Exchange token for a service
   const exchangeToken = async (serviceName, version = 'latest', tokenFileName = null) => {
@@ -1082,7 +1113,7 @@ function App() {
   };
 
   // Load storage data
-  const loadStorageData = async (siteName = null) => {
+  const loadStorageData = useCallback(async (siteName = null) => {
     try {
       setLoadingStorageData(true);
       setStatus({ type: 'info', message: 'Loading storage areas...' });
@@ -1108,10 +1139,10 @@ function App() {
     } finally {
       setLoadingStorageData(false);
     }
-  };
+  }, []);
 
   // Data Management API functions
-  const loadNamespaces = async () => {
+  const loadNamespaces = useCallback(async (clearError = true) => {
     // Check if we have a data management token
     if (!hasDataManagementToken()) {
       setNamespaceError('Data Management token required. Please exchange a token for data-management-api first.');
@@ -1123,24 +1154,34 @@ function App() {
     }
 
     setLoadingNamespaces(true);
-    setNamespaceError(null);
+    if (clearError) {
+      setNamespaceError(null);
+      setNamespaceLoadFailed(false);
+    }
     
     try {
       const response = await axios.get(`${API_BASE}/data/namespaces`);
-      setNamespaces(response.data.data || []);
+      // Backend returns {"namespaces": [...]}
+      const namespacesData = response.data.data?.namespaces || [];
+      setNamespaces(Array.isArray(namespacesData) ? namespacesData : []);
+      setNamespaceLoadFailed(false);
     } catch (error) {
       console.error('Failed to load namespaces:', error);
-      setNamespaceError(`Failed to load namespaces: ${error.response?.data?.detail || error.message}`);
+      const errorMessage = error.response?.data?.detail || error.message;
+      setNamespaceError(`Failed to load namespaces: ${errorMessage}`);
       setStatus({ 
         type: 'error', 
-        message: `Failed to load namespaces: ${error.response?.data?.detail || error.message}` 
+        message: `Failed to load namespaces: ${errorMessage}` 
       });
+      // Set empty array to prevent infinite loops
+      setNamespaces([]);
+      setNamespaceLoadFailed(true);
     } finally {
       setLoadingNamespaces(false);
     }
-  };
+  }, [hasDataManagementToken]);
 
-  const loadNamespaceFiles = async (namespace) => {
+  const loadNamespaceFiles = useCallback(async (namespace) => {
     if (!namespace) return;
     
     // Check if we have a data management token
@@ -1157,8 +1198,14 @@ function App() {
     setFilesError(null);
     
     try {
-      const response = await axios.get(`${API_BASE}/data/list?namespace=${encodeURIComponent(namespace)}&name=*&detail=true`);
-      setNamespaceFiles(response.data.data || []);
+      const response = await axios.post(`${API_BASE}/data/list`, {
+        namespace: namespace,
+        name: '*',
+        detail: true
+      });
+      // Backend returns {"files": [...]}
+      const filesData = response.data.data?.files || [];
+      setNamespaceFiles(Array.isArray(filesData) ? filesData : []);
     } catch (error) {
       console.error('Failed to load namespace files:', error);
       setFilesError(`Failed to load files for namespace ${namespace}: ${error.response?.data?.detail || error.message}`);
@@ -1169,7 +1216,7 @@ function App() {
     } finally {
       setLoadingFiles(false);
     }
-  };
+  }, [hasDataManagementToken]);
 
   // Filter data based on selected filters
   const getFilteredData = (data, type) => {
@@ -1323,19 +1370,26 @@ function App() {
     fetchConfig();
   }, []);
 
+  // Reset namespace load failed state when data management token becomes active
+  useEffect(() => {
+    if (hasDataManagementToken() && namespaceLoadFailed) {
+      setNamespaceLoadFailed(false);
+    }
+  }, [hasDataManagementToken, namespaceLoadFailed]);
+
   // Load namespaces when data management tab is selected
   useEffect(() => {
-    if (activeTab === 'data-management' && namespaces.length === 0 && !loadingNamespaces && hasDataManagementToken()) {
-      loadNamespaces();
+    if (activeTab === 'data-management' && namespaces.length === 0 && !loadingNamespaces && !namespaceError && !namespaceLoadFailed && hasDataManagementToken()) {
+      loadNamespaces(false);
     }
-  }, [activeTab, namespaces.length, loadingNamespaces, hasDataManagementToken]);
+  }, [activeTab, hasDataManagementToken, loadNamespaces]);
 
   // Load files when namespace is selected
   useEffect(() => {
     if (selectedNamespace && activeTab === 'data-management') {
       loadNamespaceFiles(selectedNamespace);
     }
-  }, [selectedNamespace, activeTab]);
+  }, [selectedNamespace, activeTab, loadNamespaceFiles]);
 
   // Helper to get all URL fields as { path, value, label }
   const getUrlFields = (config) => {
@@ -1451,7 +1505,7 @@ function App() {
       setSelectedService(null);
       setStorageData(null);
     }
-  }, [filters.site, tokens, activeTokens]);
+  }, [filters.site, tokens, activeTokens, loadStorageData]);
 
   // Mapping from aud to friendly service name
   const serviceNameMap = {
@@ -2166,7 +2220,7 @@ function App() {
               borderRadius: '6px 6px 0 0'
             }}>
               <button 
-                onClick={() => setActiveTab('site-capabilities')}
+                onClick={() => handleTabSwitch('site-capabilities')}
                 style={{
                   flex: 1,
                   padding: '1rem',
@@ -2183,7 +2237,7 @@ function App() {
                 Site Capabilities
               </button>
               <button
-                onClick={() => setActiveTab('data-management')}
+                onClick={() => handleTabSwitch('data-management')}
                 style={{
                   flex: 1,
                   padding: '1rem',
@@ -2568,7 +2622,7 @@ function App() {
                 </select>
                 <button 
                   className="button secondary small"
-                  onClick={loadNamespaces}
+                  onClick={() => loadNamespaces(true)}
                   disabled={loadingNamespaces}
                   style={{ marginLeft: '0.5rem' }}
                 >
@@ -2583,89 +2637,95 @@ function App() {
                 </div>
               )}
 
-                {/* Files List */}
+                {/* Two Column Layout for Files and Functions */}
                 {hasDataManagementToken() && selectedNamespace && (
-                  <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                      <h4>Files in namespace: {selectedNamespace}</h4>
-            <button 
-              className="button secondary small"
-                        onClick={() => loadNamespaceFiles(selectedNamespace)}
-                        disabled={loadingFiles}
-            >
-                        {loadingFiles ? 'Loading...' : 'Refresh Files'}
-            </button>
-          </div>
-
-                    {loadingFiles ? (
-                      <div className="status info">Loading files for namespace {selectedNamespace}...</div>
-                    ) : filesError ? (
-                      <div style={{ color: '#dc3545', fontSize: '0.9rem' }}>
-                        {filesError}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                    
+                    {/* Left Column - Files List */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h4>Files in namespace: {selectedNamespace}</h4>
+                        <button 
+                          className="button secondary small"
+                          onClick={() => loadNamespaceFiles(selectedNamespace)}
+                          disabled={loadingFiles}
+                        >
+                          {loadingFiles ? 'Loading...' : 'Refresh Files'}
+                        </button>
                       </div>
-                    ) : namespaceFiles.length > 0 ? (
+
+                      {loadingFiles ? (
+                        <div className="status info">Loading files for namespace {selectedNamespace}...</div>
+                      ) : filesError ? (
+                        <div style={{ color: '#dc3545', fontSize: '0.9rem' }}>
+                          {filesError}
+                        </div>
+                      ) : namespaceFiles.length > 0 ? (
+                        <div style={{ 
+                          maxHeight: '600px', 
+                          overflowY: 'auto', 
+                          border: '1px solid #e0e0e0', 
+                          borderRadius: '6px',
+                          padding: '0.5rem',
+                          backgroundColor: '#f8f9fa'
+                        }}>
+                          {namespaceFiles.map((file, index) => (
+                            <div key={index} style={{ 
+                              padding: '0.5rem',
+                              borderBottom: index < namespaceFiles.length - 1 ? '1px solid #dee2e6' : 'none',
+                              fontSize: '0.9rem',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center'
+                            }}>
+                              <div style={{ flex: 1 }}>
+                                <strong>{file.name || file.id || 'Unknown File'}</strong>
+                                {file.size !== undefined && (
+                                  <span style={{ color: '#6c757d', marginLeft: '0.5rem' }}>
+                                    ({file.size} bytes)
+                                  </span>
+                                )}
+                              </div>
+                              {file.type && (
+                                <span style={{ 
+                                  fontSize: '0.8rem', 
+                                  color: '#6c757d',
+                                  backgroundColor: '#e9ecef',
+                                  padding: '0.2rem 0.4rem',
+                                  borderRadius: '3px'
+                                }}>
+                                  {file.type}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p>No files found in namespace {selectedNamespace}.</p>
+                      )}
+                    </div>
+
+                    {/* Right Column - Future Data Management Functions */}
+                    <div>
+                      <h4>Data Management Functions</h4>
                       <div style={{ 
-                        maxHeight: '600px', 
-                        overflowY: 'auto', 
+                        padding: '1rem', 
+                        backgroundColor: '#f8f9fa', 
                         border: '1px solid #e0e0e0', 
                         borderRadius: '6px',
-                        padding: '1rem',
-                        backgroundColor: '#f8f9fa'
+                        minHeight: '200px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#6c757d'
                       }}>
-                        {namespaceFiles.map((file, index) => (
-                          <div key={index} className="data-item" style={{ 
-                            marginBottom: '1rem', 
-                            padding: '1rem', 
-                            backgroundColor: 'white', 
-                            borderRadius: '4px',
-                            border: '1px solid #dee2e6'
-                          }}>
-                            <strong>{file.name || file.id || 'Unknown File'}</strong>
-                            <table className="service-details-table" style={{ marginTop: '0.5rem' }}>
-                              <tbody>
-                                {file.namespace && (
-                                  <tr><td>Namespace</td><td>{file.namespace}</td></tr>
-                                )}
-                                {file.size !== undefined && (
-                                  <tr><td>Size</td><td>{file.size} bytes</td></tr>
-                                )}
-                                {file.created_at && (
-                                  <tr><td>Created</td><td>{file.created_at}</td></tr>
-                                )}
-                                {file.updated_at && (
-                                  <tr><td>Updated</td><td>{file.updated_at}</td></tr>
-                                )}
-                                {file.type && (
-                                  <tr><td>Type</td><td>{file.type}</td></tr>
-                                )}
-                                {file.status && (
-                                  <tr><td>Status</td><td>{file.status}</td></tr>
-                                )}
-                                {file.path && (
-                                  <tr><td>Path</td><td>{file.path}</td></tr>
-                                )}
-                                {file.metadata && Object.keys(file.metadata).length > 0 && (
-                                  <tr>
-                                    <td>Metadata</td>
-                                    <td>
-                                      <pre style={{ fontSize: '0.8rem', margin: 0, whiteSpace: 'pre-wrap' }}>
-                                        {JSON.stringify(file.metadata, null, 2)}
-              </pre>
-                                    </td>
-                                  </tr>
-                                )}
-                                {file.id && (
-                                  <tr><td>ID</td><td>{file.id}</td></tr>
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-                        ))}
-            </div>
-          ) : (
-                      <p>No files found in namespace {selectedNamespace}.</p>
-          )}
-        </div>
+                        <p style={{ textAlign: 'center', margin: 0 }}>
+                          Data management functions will be available here.<br/>
+                          (Download, Upload, Move, Stage, etc.)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             )}

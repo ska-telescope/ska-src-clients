@@ -96,7 +96,7 @@ async def list_files(
         return DataResponse(
             success=True,
             message="Files listed successfully",
-            data=result
+            data={"files": result}
         )
     except Exception as e:
         logging.error(f"Error listing files: {e}")
@@ -233,7 +233,7 @@ async def list_namespaces(
         return DataResponse(
             success=True,
             message="Namespaces listed successfully",
-            data=result
+            data={"namespaces": result}
         )
     except Exception as e:
         logging.error(f"Error listing namespaces: {e}")
