@@ -30,7 +30,7 @@ function App() {
   const [selectedServiceIds, setSelectedServiceIds] = useState([]);
   // Add state to track which exchange button is animating
   const [clickedExchange, setClickedExchange] = useState(null);
-  const [activeTokens, setActiveTokens] = useState({}); // { service_name: file_name }
+  // Removed activeTokens state - we'll use the first available token for each service
   const [configPanelOpen, setConfigPanelOpen] = useState(false);
   const [operConfig, setOperConfig] = useState(null);
   const [configLoading, setConfigLoading] = useState(false);
@@ -112,6 +112,18 @@ function App() {
       soda: 'https://gatekeeper.srcnet.skao.int/soda/ska/dataset/soda',
       prepare_data: 'https://gatekeeper.srcnet.skao.int/preparedata',
     },
+    DEV: {
+      canfar: 'http://localhost:8080/science-portal/',
+      gatekeeper: 'http://localhost:8081/echo',
+      soda: 'http://localhost:8081/soda',
+      prepare_data: 'http://localhost:8081/preparedata',
+    },
+    DEVR: {
+      canfar: 'http://localhost:8080/science-portal/',
+      gatekeeper: 'http://localhost:8081/echo',
+      soda: 'http://localhost:8081/soda',
+      prepare_data: 'http://localhost:8081/preparedata',
+    },
   };
 
   const flagList = [
@@ -124,6 +136,8 @@ function App() {
     { key: 'Switzerland', img: SwitzerlandFlag, label: 'Switzerland' },
     { key: 'UK', img: UKFlag, label: 'UK' },
     { key: 'SKAO', img: SKAOFlag, label: 'SKAO' },
+    { key: 'DEV', img: null, label: 'DEV' },
+    { key: 'DEVR', img: null, label: 'DEVR' },
   ];
 
   const [selectedFlag, setSelectedFlag] = useState('SKAO');
@@ -135,6 +149,9 @@ function App() {
   const [selectedIngestSite, setSelectedIngestSite] = useState('');
   const [selectedIngestService, setSelectedIngestService] = useState('');
   const [loadingIngestSites, setLoadingIngestSites] = useState(false);
+  const [uploadMetadata, setUploadMetadata] = useState({
+    lifetime: 3600
+  });
   
   // Data Management state
   const [namespaces, setNamespaces] = useState([]);
@@ -185,11 +202,15 @@ function App() {
   // Auto-update URLs from site capabilities when available
   useEffect(() => {
     const updateUrlsFromSiteCapabilities = async () => {
-      // Check if site-capabilities is online and we have a token for it
-      const siteCapabilitiesToken = tokens.find(t => t.service_name === 'site-capabilities-api');
-      const hasSiteCapabilitiesToken = siteCapabilitiesToken && activeTokens['site-capabilities-api'] === siteCapabilitiesToken.file_name;
+      // For DEV/DEVR flags, don't update URLs from site capabilities
+      // Use the configuration from the config files instead
+      if (selectedFlag === 'DEV' || selectedFlag === 'DEVR') {
+        console.log(`Skipping site capabilities URL update for ${selectedFlag} flag - using config file URLs`);
+        return;
+      }
       
-      if (apiStatus['site-capabilities'].status === 'online' && hasSiteCapabilitiesToken) {
+      // Check if site-capabilities is online and we have a token for it
+      if (apiStatus['site-capabilities'].status === 'online' && hasSiteCapabilitiesToken()) {
         try {
           setStatus({ type: 'info', message: 'Fetching latest URLs from site capabilities...' });
           
@@ -269,7 +290,152 @@ function App() {
     
     // Run this effect when site-capabilities status changes or when we get new tokens
     updateUrlsFromSiteCapabilities();
-  }, [apiStatus['site-capabilities'].status, tokens, activeTokens, selectedFlag, operConfig]);
+  }, [apiStatus['site-capabilities'].status, tokens, selectedFlag, operConfig]); // Remove activeTokens from dependency to prevent loops
+
+  // Auto-detect DEV/DEVR environment and switch to appropriate flag
+  useEffect(() => {
+    console.log('Checking for DEV/DEVR environment in API status:', apiStatus);
+    console.log('Current selected flag:', selectedFlag);
+    
+    // Log all service errors for debugging
+    Object.entries(apiStatus).forEach(([serviceName, service]) => {
+      if (service.error && typeof service.error === 'string') {
+        console.log(`Service ${serviceName} error:`, service.error);
+      }
+    });
+    
+    // Check if any service status contains DEVR specifically
+    const hasDevrEnvironment = Object.values(apiStatus).some(service => {
+      if (service.error && typeof service.error === 'string') {
+        const hasDevr = service.error.toLowerCase().includes('devr');
+        if (hasDevr) {
+          console.log('Found DEVR indicator in service error:', service.error);
+        }
+        return hasDevr;
+      }
+      return false;
+    });
+    
+    // Check if any service status contains DEV specifically (but not DEVR)
+    const hasDevSpecific = Object.values(apiStatus).some(service => {
+      if (service.error && typeof service.error === 'string') {
+        const errorLower = service.error.toLowerCase();
+        const hasDev = errorLower.includes('dev') && !errorLower.includes('devr');
+        if (hasDev) {
+          console.log('Found DEV indicator in service error:', service.error);
+        }
+        return hasDev;
+      }
+      return false;
+    });
+    
+    // Check if any service URLs contain localhost (development indicator)
+    const hasLocalhostUrls = Object.values(apiStatus).some(service => {
+      if (service.error && typeof service.error === 'string') {
+        const hasLocalhost = service.error.includes('localhost:');
+        if (hasLocalhost) {
+          console.log('Found localhost in service error:', service.error);
+        }
+        return hasLocalhost;
+      }
+      return false;
+    });
+    
+    console.log('DEV/DEVR environment check results:', { 
+      hasDevrEnvironment, 
+      hasDevSpecific,
+      hasLocalhostUrls,
+      currentFlag: selectedFlag 
+    });
+    
+    // Priority: DEVR > DEV > localhost
+    if (hasDevrEnvironment && selectedFlag !== 'DEVR') {
+      console.log('DEVR environment detected, switching to DEVR flag');
+      setSelectedFlag('DEVR');
+      setStatus({ type: 'info', message: 'DEVR environment detected, switched to DEVR configuration' });
+    } else if (hasDevSpecific && selectedFlag !== 'DEV') {
+      console.log('DEV environment detected, switching to DEV flag');
+      setSelectedFlag('DEV');
+      setStatus({ type: 'info', message: 'DEV environment detected, switched to DEV configuration' });
+    } else if (hasLocalhostUrls && selectedFlag !== 'DEV' && !hasDevrEnvironment) {
+      console.log('Localhost environment detected, switching to DEV flag');
+      setSelectedFlag('DEV');
+      setStatus({ type: 'info', message: 'Localhost environment detected, switched to DEV configuration' });
+    }
+  }, [apiStatus, selectedFlag]);
+
+  // Auto-load site capabilities data when available
+  useEffect(() => {
+    const siteCapabilitiesTokens = tokens.filter(t => t.service_name === 'site-capabilities-api');
+    
+    if (activeTab === 'site-capabilities' && siteCapabilitiesTokens.length > 0 && !serviceData?.sites) {
+      console.log('Auto-loading site capabilities data:', { activeTab, hasToken: siteCapabilitiesTokens.length > 0, sitesExists: !!serviceData?.sites });
+      // Inline the loadServiceData logic to avoid initialization order issues
+      const loadSiteCapabilitiesData = async () => {
+        try {
+          setLoadingServiceData(true);
+          setStatus({ type: 'info', message: 'Loading site capabilities data...' });
+          setSelectedService('site-capabilities-api');
+          setFilters({ site: '', serviceType: '', status: '' }); // Reset filters
+          
+          // Get the first available site capabilities token
+          const siteCapabilitiesTokens = tokens.filter(t => t.service_name === 'site-capabilities-api');
+          
+          if (siteCapabilitiesTokens.length === 0) {
+            throw new Error('No site capabilities tokens found');
+          }
+          
+          // Use the first available token
+          const tokenToUse = siteCapabilitiesTokens[0].file_name;
+          console.log('Using site capabilities token:', tokenToUse);
+          
+          // Load site capabilities functions with active token
+          const servicesResponse = await axios.get(`${API_BASE}/auth/site/services?token_file=${encodeURIComponent(tokenToUse)}`);
+          const sitesResponse = await axios.get(`${API_BASE}/auth/site/sites?token_file=${encodeURIComponent(tokenToUse)}`);
+          const computeResponse = await axios.get(`${API_BASE}/auth/site/compute?token_file=${encodeURIComponent(tokenToUse)}`);
+          
+          const data = {
+            services: servicesResponse.data.data || [],
+            sites: sitesResponse.data.data || [],
+            compute: computeResponse.data.data || []
+          };
+          
+          console.log('Site capabilities data loaded:', {
+            servicesCount: data.services.length,
+            sitesCount: data.sites.length,
+            computeCount: data.compute.length,
+            sitesData: data.sites
+          });
+          
+          setServiceData(data);
+          // Also populate sitesList for the site selection dropdown
+          setSitesList(sitesResponse.data.data || []);
+          setStatus({ type: 'success', message: 'Site capabilities data loaded successfully' });
+        } catch (error) {
+          console.error('Failed to load site capabilities data:', error);
+          
+          // Handle specific error cases
+          if (error.response?.status === 503) {
+            setStatus({ 
+              type: 'error', 
+              message: 'Authentication server is currently unavailable. Please try again later.' 
+            });
+          } else if (error.response?.status === 401) {
+            setStatus({ 
+              type: 'warning', 
+              message: 'Authentication required. Please request a token to access this data.' 
+            });
+          } else {
+            setStatus({ type: 'error', message: `Failed to load site capabilities data: ${error.message}` });
+          }
+        } finally {
+          setLoadingServiceData(false);
+        }
+      };
+      
+      loadSiteCapabilitiesData();
+    }
+  }, [activeTab, tokens]);
 
   const handleFlagSelect = async (flagKey) => {
     setSelectedFlag(flagKey);
@@ -277,56 +443,129 @@ function App() {
     if (!preset) return;
     
     try {
-      // Call backend to switch to production configuration
-      await axios.post(`${API_BASE}/auth/config/switch`, {
-        config_file: 'oper.yml'
-      });
-      setStatus({ 
-        type: 'success', 
-        message: 'Switched to production environment configuration' 
-      });
+      if (flagKey === 'DEV' || flagKey === 'DEVR') {
+        // For DEV/DEVR flags, switch to the appropriate configuration file
+        const configFile = flagKey === 'DEV' ? 'oper-dev' : 'oper-dev-rem';
+        
+        try {
+          // Call backend to switch to the appropriate development configuration
+          await axios.post(`${API_BASE}/auth/config/switch`, {
+            config_file: configFile
+          });
+          
+          setStatus({ 
+            type: 'success', 
+            message: `Switched to ${flagKey.toLowerCase()} environment configuration (${configFile})` 
+          });
+          
+          // Reload configuration after switching
+          try {
+            // Wait a moment for the backend to process the config switch
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            const response = await axios.get('/api/v1/auth/config/oper');
+            setOperConfig(response.data);
+            setConfigEdit({});
+            setStatus({ 
+              type: 'success', 
+              message: `Configuration reloaded from ${configFile}` 
+            });
+          } catch (error) {
+            console.error('Failed to reload configuration:', error);
+            setStatus({ 
+              type: 'warning', 
+              message: `Switched to ${flagKey.toLowerCase()} but failed to reload configuration: ${error.message}` 
+            });
+          }
+        } catch (error) {
+          console.error(`Failed to switch to ${configFile}:`, error);
+          setStatus({ 
+            type: 'error', 
+            message: `Failed to switch to ${flagKey.toLowerCase()} environment: ${error.message}` 
+          });
+          return;
+        }
+      } else {
+        // Call backend to switch to production configuration
+        await axios.post(`${API_BASE}/auth/config/switch`, {
+          config_file: 'oper.yml'
+        });
+        setStatus({ 
+          type: 'success', 
+          message: 'Switched to production environment configuration' 
+        });
+        
+        // Update config fields and save to backend (only for production flags)
+        const skaoDefaults = {
+          'apis.authn-api.url': 'https://authn.srcnet.skao.int/api/v1',
+          'apis.data-management-api.url': 'https://data-management.srcnet.skao.int/api/v1',
+          'apis.permissions-api.url': 'https://permissions.srcnet.skao.int/api/v1',
+          'apis.site-capabilities-api.url': 'https://site-capabilities.srcnet.skao.int/api/v1',
+          'core.iam.url': 'https://ska-iam.stfc.ac.uk/login#!/home',
+        };
+        
+        // First, revert all API URLs to SKAO defaults
+        for (const [path, url] of Object.entries(skaoDefaults)) {
+          await saveConfigValue(path, url);
+        }
+      }
       
       // Refresh API status after configuration switch
       setTimeout(() => {
         checkApiStatus();
       }, 1000);
       
-      // Update config fields and save to backend (only for production flags)
-      const skaoDefaults = {
-        'apis.authn-api.url': 'https://authn.srcnet.skao.int/api/v1',
-        'apis.data-management-api.url': 'https://data-management.srcnet.skao.int/api/v1',
-        'apis.permissions-api.url': 'https://permissions.srcnet.skao.int/api/v1',
-        'apis.site-capabilities-api.url': 'https://site-capabilities.srcnet.skao.int/api/v1',
-        'core.iam.url': 'https://ska-iam.stfc.ac.uk/login#!/home',
-      };
-      
-      // First, revert all API URLs to SKAO defaults
-      for (const [path, url] of Object.entries(skaoDefaults)) {
-        await saveConfigValue(path, url);
-      }
-      
-      // Then update the preset-specific URLs (canfar, gatekeeper, soda, prepare_data)
-      for (const [service, url] of Object.entries(preset)) {
-        if (['canfar', 'gatekeeper', 'soda', 'prepare_data'].includes(service)) {
-          const path = `core.${service}.url`;
-          await saveConfigValue(path, url);
-        }
-      }
-      
-      // Update the configEdit state to reflect production values
-      setConfigEdit((prev) => {
-        const updated = { ...prev };
-        
-        // First, revert all API URLs to SKAO defaults
-        for (const [path, url] of Object.entries(skaoDefaults)) {
-          updated[path] = url;
-        }
-        
-        // Then update the preset-specific URLs (canfar, gatekeeper, soda, prepare_data)
+      // Update preset-specific URLs only for production flags (not DEV/DEVR)
+      // For DEV/DEVR flags, use the URLs from the config files instead
+      if (flagKey !== 'DEV' && flagKey !== 'DEVR') {
         for (const [service, url] of Object.entries(preset)) {
           if (['canfar', 'gatekeeper', 'soda', 'prepare_data'].includes(service)) {
             const path = `core.${service}.url`;
+            await saveConfigValue(path, url);
+          }
+        }
+      } else {
+        // For DEV/DEVR flags, don't update any URLs - let the config file values take precedence
+        console.log(`Using configuration from ${flagKey === 'DEV' ? 'oper-dev' : 'oper-dev-rem'} file for ${flagKey} flag`);
+      }
+      
+      // Update the configEdit state to reflect the selected environment values
+      setConfigEdit((prev) => {
+        const updated = { ...prev };
+        
+        if (flagKey === 'DEV' || flagKey === 'DEVR') {
+          // For DEV/DEVR flags, we don't update configEdit here
+          // The configuration will be reloaded from the backend after the switch
+          // Just clear any existing edits and let the config file values take precedence
+          Object.keys(updated).forEach(key => {
+            if (key.startsWith('apis.') || key.startsWith('core.')) {
+              delete updated[key];
+            }
+          });
+          console.log(`Cleared configEdit for ${flagKey} flag - using config file values`);
+        } else {
+          // For production flags, use SKAO defaults
+          const skaoDefaults = {
+            'apis.authn-api.url': 'https://authn.srcnet.skao.int/api/v1',
+            'apis.data-management-api.url': 'https://data-management.srcnet.skao.int/api/v1',
+            'apis.permissions-api.url': 'https://permissions.srcnet.skao.int/api/v1',
+            'apis.site-capabilities-api.url': 'https://site-capabilities.srcnet.skao.int/api/v1',
+            'core.iam.url': 'https://ska-iam.stfc.ac.uk/login#!/home',
+          };
+          
+          // First, revert all API URLs to SKAO defaults
+          for (const [path, url] of Object.entries(skaoDefaults)) {
             updated[path] = url;
+          }
+        }
+        
+        // Then update the preset-specific URLs (canfar, gatekeeper, soda, prepare_data) only for production flags
+        if (flagKey !== 'DEV' && flagKey !== 'DEVR') {
+          for (const [service, url] of Object.entries(preset)) {
+            if (['canfar', 'gatekeeper', 'soda', 'prepare_data'].includes(service)) {
+              const path = `core.${service}.url`;
+              updated[path] = url;
+            }
           }
         }
         
@@ -508,21 +747,8 @@ function App() {
       const newTokens = response.data.tokens || [];
       setTokens(newTokens);
       
-      // Set only one token as active (the most recent one)
       if (newTokens.length > 0) {
-        // Find the most recent token (latest expiration time)
-        const mostRecentToken = newTokens.reduce((latest, current) => {
-          const latestDate = new Date(latest.expires_utc);
-          const currentDate = new Date(current.expires_utc);
-          return currentDate > latestDate ? current : latest;
-        });
-        
-        // Set only this token as active, clear all others
-        setActiveTokens({
-          [mostRecentToken.service_name]: mostRecentToken.file_name
-        });
-        
-        setStatus({ type: 'success', message: `Loaded ${newTokens.length} tokens. ${mostRecentToken.service_name} token set as active.` });
+        setStatus({ type: 'success', message: `Loaded ${newTokens.length} tokens.` });
       } else {
         setStatus({ type: 'info', message: 'No tokens found. Please request a new token to get started.' });
       }
@@ -609,42 +835,10 @@ function App() {
     }
   };
 
-  // Set active token for a service (only one token can be active at a time)
-  const setActiveToken = (serviceName, fileName) => {
-    setActiveTokens({
-      [serviceName]: fileName
-    });
-  };
-
-  // Function to automatically set the first available token for a service as active
-  const autoSetFirstTokenForService = useCallback((serviceName) => {
-    const serviceTokens = tokens.filter(t => t.service_name === serviceName);
-    if (serviceTokens.length > 0 && !activeTokens[serviceName]) {
-      // Set the first token as active (only this token, clear others)
-      const firstToken = serviceTokens[0];
-      setActiveTokens({
-        [serviceName]: firstToken.file_name
-      });
-      setStatus({ 
-        type: 'success', 
-        message: `Automatically set ${serviceName} token as active` 
-      });
-      return true;
-    }
-    return false;
-  }, [tokens, activeTokens]);
-
-  // Function to handle tab switching with automatic token activation
+  // Function to handle tab switching (no token activation needed)
   const handleTabSwitch = useCallback((newTab) => {
     setActiveTab(newTab);
-    
-    // Auto-set first token for the selected service if available
-    if (newTab === 'site-capabilities') {
-      autoSetFirstTokenForService('site-capabilities-api');
-    } else if (newTab === 'data-management') {
-      autoSetFirstTokenForService('data-management-api');
-    }
-  }, [autoSetFirstTokenForService]);
+  }, []);
 
   // Check if core systems are online (required for any token exchange)
   const areCoreSystemsOnline = useCallback(() => {
@@ -659,11 +853,11 @@ function App() {
            apiStatus['site-capabilities'].status === 'online';
   }, [apiStatus]);
 
-  // Check if we have an active site capabilities token
+  // Check if we have a site capabilities token available
   const hasSiteCapabilitiesToken = useCallback(() => {
     const siteCapabilitiesToken = tokens.find(t => t.service_name === 'site-capabilities-api');
-    return siteCapabilitiesToken && activeTokens['site-capabilities-api'] === siteCapabilitiesToken.file_name;
-  }, [tokens, activeTokens]);
+    return !!siteCapabilitiesToken;
+  }, [tokens]);
 
   // Check if data management exchange is available
   const isDataManagementExchangeAvailable = useCallback(() => {
@@ -672,17 +866,13 @@ function App() {
            apiStatus['data-management'].status === 'online';
   }, [apiStatus]);
 
-  // Check if we have an active data management token
+  // Check if we have a data management token available
   const hasDataManagementToken = useCallback(() => {
     const dataManagementToken = tokens.find(t => t.service_name === 'data-management-api');
-    return dataManagementToken && activeTokens['data-management-api'] === dataManagementToken.file_name;
-  }, [tokens, activeTokens]);
-
-  // Check if we have a site capabilities token available (presence only, not active status)
-  const hasSiteCapabilitiesTokenAvailable = useCallback(() => {
-    const siteCapabilitiesToken = tokens.find(t => t.service_name === 'site-capabilities-api');
-    return !!siteCapabilitiesToken; // Just check if token exists, not if it's active
+    return !!dataManagementToken;
   }, [tokens]);
+
+  // hasSiteCapabilitiesTokenAvailable is now redundant with hasSiteCapabilitiesToken
 
   // Check if all systems are green (for display purposes)
   const areAllSystemsGreen = useCallback(() => {
@@ -734,17 +924,25 @@ function App() {
       return;
     }
     
-    // Check if we have any active token that can be exchanged
+    // Check if we have any token that can be exchanged
     // We need any valid token to exchange for other services
-    const availableTokens = Object.keys(activeTokens);
-    if (availableTokens.length === 0) {
-      setStatus({ type: 'error', message: `No active tokens available. You need at least one token to exchange for ${serviceName}.` });
+    if (tokens.length === 0) {
+      setStatus({ type: 'error', message: `No tokens available. You need at least one token to exchange for ${serviceName}.` });
       return;
     }
     
-    // Use the first available token for exchange
-    const sourceServiceName = availableTokens[0];
-    const fileName = activeTokens[sourceServiceName];
+    // Use the specified token for exchange, or the first available token if none specified
+    let sourceToken;
+    if (tokenFileName) {
+      sourceToken = tokens.find(t => t.file_name === tokenFileName);
+      if (!sourceToken) {
+        setStatus({ type: 'error', message: `Token file ${tokenFileName} not found.` });
+        return;
+      }
+    } else {
+      sourceToken = tokens[0];
+    }
+    const fileName = sourceToken.file_name;
 
     try {
       setStatus({ type: 'info', message: `Exchanging token for ${serviceName}...` });
@@ -761,18 +959,6 @@ function App() {
         });
         // Refresh tokens after successful exchange
         await loadTokens();
-        // The loadTokens function now automatically sets the most recent token as active
-        // But we want to ensure the exchanged token is set as active instead
-        // Get the updated tokens and find the exchanged one
-        const updatedTokensResponse = await axios.get(`${API_BASE}/auth/tokens`);
-        const updatedTokens = updatedTokensResponse.data.tokens || [];
-        const newToken = updatedTokens.find(t => t.service_name === serviceName);
-        if (newToken) {
-          // Set only this token as active, clear all others
-          setActiveTokens({
-            [serviceName]: newToken.file_name
-          });
-        }
       } else {
         setStatus({ 
           type: 'warning', 
@@ -939,10 +1125,28 @@ function App() {
       let data = {};
       
       if (serviceName === 'data-management-api') {
+        // Check if we have an active data management token
+        if (!hasDataManagementToken()) {
+          setStatus({ 
+            type: 'error', 
+            message: 'Data Management token required. Please exchange a token for data-management-api first.' 
+          });
+          return;
+        }
+        
         // Load data management functions
         const namespacesResponse = await axios.get(`${API_BASE}/auth/data/namespaces`);
         data.namespaces = namespacesResponse.data.data || [];
       } else if (serviceName === 'site-capabilities-api') {
+        // Check if we have an active site capabilities token
+        if (!hasSiteCapabilitiesToken()) {
+          setStatus({ 
+            type: 'error', 
+            message: 'Site Capabilities token required. Please exchange a token for site-capabilities-api first.' 
+          });
+          return;
+        }
+        
         // Load site capabilities functions
         const servicesResponse = await axios.get(`${API_BASE}/auth/site/services`);
         const sitesResponse = await axios.get(`${API_BASE}/auth/site/sites`);
@@ -1111,7 +1315,9 @@ function App() {
       return;
     }
 
-    if (!hasSiteCapabilitiesTokenAvailable()) {
+    // Get the site capabilities token (doesn't need to be active)
+    const siteCapabilitiesToken = tokens.find(t => t.service_name === 'site-capabilities-api');
+    if (!siteCapabilitiesToken) {
       setStatus({ 
         type: 'error', 
         message: 'Site Capabilities token required. Please exchange a token for site-capabilities-api first.' 
@@ -1122,8 +1328,8 @@ function App() {
     setLoadingIngestSites(true);
     
     try {
-      // Get all sites first
-      const sitesResponse = await axios.get(`${API_BASE}/auth/site/sites`);
+      // Get all sites first using the site capabilities token
+      const sitesResponse = await axios.get(`${API_BASE}/auth/site/sites?token_file=${encodeURIComponent(siteCapabilitiesToken.file_name)}`);
       const allSites = sitesResponse.data.data || [];
       
       // Filter sites that have ingest services
@@ -1131,8 +1337,8 @@ function App() {
       
       for (const site of allSites) {
         try {
-          // Get services for this site
-          const servicesResponse = await axios.get(`${API_BASE}/auth/site/services?node_name=${encodeURIComponent(site.name)}`);
+          // Get services for this site using the site capabilities token
+          const servicesResponse = await axios.get(`${API_BASE}/auth/site/services?node_name=${encodeURIComponent(site.name)}&token_file=${encodeURIComponent(siteCapabilitiesToken.file_name)}`);
           const services = servicesResponse.data.data || [];
           
           // Check if any service is an ingest service
@@ -1277,14 +1483,14 @@ function App() {
       }
     };
 
-    // Check if we have a Site Capabilities token available (not necessarily active)
-    if (hasSiteCapabilitiesTokenAvailable()) {
+    // Check if we have a Site Capabilities token available
+    if (hasSiteCapabilitiesToken()) {
       fetchSites();
     } else {
       // Clear sites list when no token is available
       setSitesList([]);
     }
-  }, [tokens, activeTokens]);
+  }, [tokens]); // Remove activeTokens from dependency to prevent loops
 
   // Auto-refresh API status every 30 seconds
   useEffect(() => {
@@ -1295,26 +1501,7 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    // If there is only one token, set it as active for its service
-    if (tokens.length === 1) {
-      const token = tokens[0];
-      setActiveTokens(prev => ({
-        ...prev,
-        [token.service_name]: token.file_name
-      }));
-    }
-    
-    // If we have site capabilities tokens and none are active, set the first one as active
-    const siteCapabilitiesTokens = tokens.filter(t => t.service_name === 'site-capabilities-api');
-    if (siteCapabilitiesTokens.length > 0 && !activeTokens['site-capabilities-api']) {
-      const firstSiteCapabilitiesToken = siteCapabilitiesTokens[0];
-      setActiveTokens(prev => ({
-        ...prev,
-        'site-capabilities-api': firstSiteCapabilitiesToken.file_name
-      }));
-    }
-  }, [tokens, activeTokens]);
+  // Removed auto-set active tokens useEffect - no longer needed
 
   // Fetch config on mount
   useEffect(() => {
@@ -1435,10 +1622,7 @@ function App() {
   useEffect(() => {
     if (filters.site) {
       // Check if we have a site capabilities token
-      const siteCapabilitiesToken = tokens.find(t => t.service_name === 'site-capabilities-api');
-      const hasSiteCapabilitiesToken = siteCapabilitiesToken && activeTokens['site-capabilities-api'] === siteCapabilitiesToken.file_name;
-      
-      if (!hasSiteCapabilitiesToken) {
+      if (!hasSiteCapabilitiesToken()) {
         setStatus({ 
           type: 'error', 
           message: 'Site Capabilities token required. Please exchange a token for site-capabilities-api first.' 
@@ -1476,7 +1660,7 @@ function App() {
       setSelectedService(null);
       setStorageData(null);
     }
-  }, [filters.site, tokens, activeTokens, loadStorageData]);
+  }, [filters.site, tokens, loadStorageData]); // Remove activeTokens from dependency to prevent loops
 
   // Mapping from aud to friendly service name
   const serviceNameMap = {
@@ -1495,6 +1679,15 @@ function App() {
       });
       
       if (response.data.success) {
+        // Update selectedFlag based on config file
+        if (configFile === 'oper-dev.yml') {
+          setSelectedFlag('DEV');
+        } else if (configFile === 'oper-dev-rem.yml') {
+          setSelectedFlag('DEVR');
+        } else if (configFile === 'oper.yml') {
+          setSelectedFlag('SKAO'); // Default to SKAO for production
+        }
+        
         setStatus({ type: 'success', message: response.data.message });
         // Refresh API status after configuration switch
         setTimeout(() => {
@@ -1563,8 +1756,16 @@ function App() {
       const formData = new FormData();
       formData.append('file', selectedUploadFile);
       formData.append('namespace', selectedNamespace);
-      
       formData.append('ingest_service_id', selectedIngestService);
+      
+      // Create metadata object
+      const metadata = {
+        namespace: selectedNamespace,
+        name: selectedUploadFile.name,
+        lifetime: uploadMetadata.lifetime
+      };
+      
+      formData.append('metadata', JSON.stringify(metadata));
       
       const response = await axios.post(`${API_BASE}/data/upload`, formData, {
         headers: {
@@ -1639,16 +1840,18 @@ function App() {
                     ) : (
                       <div
                         key={flag.key}
-                        title={`Load ${flag.label} preset URLs`}
-                        onClick={() => handleFlagSelect(flag.key)}
+                        title={flag.key === 'DEV' || flag.key === 'DEVR' ? 
+                          `${flag.label} - Use System Status buttons to switch` : 
+                          `Load ${flag.label} preset URLs`}
+                        onClick={flag.key === 'DEV' || flag.key === 'DEVR' ? undefined : () => handleFlagSelect(flag.key)}
                         style={{
                           width: '32px',
                           height: '22px',
                           borderRadius: '3px',
                           border: selectedFlag === flag.key ? '2px solid #007bff' : '1px solid #ccc',
                           boxShadow: selectedFlag === flag.key ? '0 0 4px #007bff' : 'none',
-                          cursor: 'pointer',
-                          opacity: selectedFlag === flag.key ? 1 : 0.8,
+                          cursor: flag.key === 'DEV' || flag.key === 'DEVR' ? 'not-allowed' : 'pointer',
+                          opacity: selectedFlag === flag.key ? 1 : (flag.key === 'DEV' || flag.key === 'DEVR' ? 0.5 : 0.8),
                           transition: 'all 0.2s',
                           background: '#fff',
                           display: 'flex',
@@ -1656,7 +1859,7 @@ function App() {
                           justifyContent: 'center',
                           fontSize: '0.7rem',
                           fontWeight: 'bold',
-                          color: selectedFlag === flag.key ? '#007bff' : '#6c757d',
+                          color: selectedFlag === flag.key ? '#007bff' : (flag.key === 'DEV' || flag.key === 'DEVR' ? '#999' : '#6c757d'),
                         }}
                       >
                         {flag.label}
@@ -2168,9 +2371,12 @@ function App() {
                       <div>
                         <h4 style={{ margin: 0 }}>{serviceNameMap[token.service_name] || token.service_name || 'Unknown Service'}</h4>
                         <div style={{ fontSize: '0.8rem', color: '#888' }}>File: {token.file_name}</div>
-                        {activeTokens[token.service_name] === token.file_name && (
-                          <span style={{ color: '#28a745', fontWeight: 'bold', fontSize: '0.85rem' }}>★ Active Token</span>
-                        )}
+                                                 {token.service_name === 'site-capabilities-api' && (
+                           <span style={{ color: '#28a745', fontWeight: 'bold', fontSize: '0.85rem' }}>★ Site Capabilities</span>
+                         )}
+                         {token.service_name === 'data-management-api' && (
+                           <span style={{ color: '#007bff', fontWeight: 'bold', fontSize: '0.85rem' }}>★ Data Management</span>
+                         )}
                       </div>
                     </div>
                     <p><strong>Access Token:</strong> {token.access_token || 'Not available'}</p>
@@ -2218,12 +2424,10 @@ function App() {
                     <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
                       <button 
                         className="button secondary small"
-                        onClick={() => setActiveToken(token.service_name, token.file_name)}
-                        disabled={activeTokens[token.service_name] === token.file_name}
                         style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-                        title={activeTokens[token.service_name] === token.file_name ? 'This is already the active token' : 'Set this as the only active token'}
+                        title="Token is available for use"
                       >
-                        {activeTokens[token.service_name] === token.file_name ? 'Active' : 'Set Active'}
+                        Available
                       </button>
                       <button 
                         className="button small"
@@ -2356,8 +2560,10 @@ function App() {
                 
                 {hasSiteCapabilitiesToken() && (
                   <>
-                    {loadingServiceData ? (
-                      <div className="status info">Loading services for selected site...</div>
+                    {loadingServiceData && !filters.site ? (
+                      <div className="status info">Loading site capabilities data...</div>
+                    ) : loadingServiceData && filters.site ? (
+                      <div className="status info">Loading services for {filters.site}...</div>
                     ) : selectedService && serviceData?.services ? (
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
@@ -2674,20 +2880,20 @@ function App() {
                       <button
                         onClick={() => setDataManagementSubTab('upload')}
                         className={`tab-button ${dataManagementSubTab === 'upload' ? 'active' : ''}`}
-                        disabled={!hasDataManagementToken() || !hasSiteCapabilitiesTokenAvailable()}
+                        disabled={!hasDataManagementToken() || !hasSiteCapabilitiesToken()}
                         style={{
                           padding: '0.75rem 1.5rem',
                           border: 'none',
                           background: dataManagementSubTab === 'upload' ? '#E70068' : '#f8f9fa',
-                          color: dataManagementSubTab === 'upload' ? 'white' : (!hasDataManagementToken() || !hasSiteCapabilitiesTokenAvailable()) ? '#adb5bd' : '#495057',
+                          color: dataManagementSubTab === 'upload' ? 'white' : (!hasDataManagementToken() || !hasSiteCapabilitiesToken()) ? '#adb5bd' : '#495057',
                           fontWeight: dataManagementSubTab === 'upload' ? 'bold' : 'normal',
-                          cursor: (!hasDataManagementToken() || !hasSiteCapabilitiesTokenAvailable()) ? 'not-allowed' : 'pointer',
+                          cursor: (!hasDataManagementToken() || !hasSiteCapabilitiesToken()) ? 'not-allowed' : 'pointer',
                           borderRadius: '6px 6px 0 0',
                           borderBottom: dataManagementSubTab === 'upload' ? '3px solid #E70068' : '3px solid transparent',
                           transition: 'all 0.2s ease',
-                          opacity: (!hasDataManagementToken() || !hasSiteCapabilitiesTokenAvailable()) ? 0.6 : 1
+                          opacity: (!hasDataManagementToken() || !hasSiteCapabilitiesToken()) ? 0.6 : 1
                         }}
-                        title={(!hasDataManagementToken() || !hasSiteCapabilitiesTokenAvailable()) ? 
+                                                  title={(!hasDataManagementToken() || !hasSiteCapabilitiesToken()) ?  
                           'Data Upload requires both Site Capabilities and Data Management tokens' : 
                           'Switch to Data Upload tab'
                         }
@@ -2697,7 +2903,7 @@ function App() {
                     </div>
                     
                     {/* Show info message when Data Upload is disabled */}
-                    {(!hasDataManagementToken() || !hasSiteCapabilitiesTokenAvailable()) && (
+                                            {(!hasDataManagementToken() || !hasSiteCapabilitiesToken()) && (
                       <div style={{ 
                         marginTop: '0.5rem', 
                         padding: '0.5rem', 
@@ -3023,6 +3229,74 @@ function App() {
                         </div>
                       )}
 
+                      {/* Metadata Form */}
+                      {selectedUploadFile && (
+                        <div style={{ marginBottom: '1rem' }}>
+                          <h5 style={{ margin: '0 0 0.5rem 0', color: '#495057' }}>Upload Metadata</h5>
+                          <div style={{ 
+                            padding: '0.75rem', 
+                            backgroundColor: '#f8f9fa', 
+                            border: '1px solid #e0e0e0', 
+                            borderRadius: '4px'
+                          }}>
+                            <div style={{ marginBottom: '0.75rem' }}>
+                              <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: '500', fontSize: '0.9rem' }}>
+                                Namespace:
+                              </label>
+                              <input
+                                type="text"
+                                value={selectedNamespace}
+                                disabled
+                                style={{ 
+                                  width: '100%', 
+                                  padding: '0.5rem',
+                                  border: '1px solid #ccc',
+                                  borderRadius: '4px',
+                                  backgroundColor: '#e9ecef',
+                                  color: '#6c757d'
+                                }}
+                              />
+                            </div>
+                            <div style={{ marginBottom: '0.75rem' }}>
+                              <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: '500', fontSize: '0.9rem' }}>
+                                File Name:
+                              </label>
+                              <input
+                                type="text"
+                                value={selectedUploadFile.name}
+                                disabled
+                                style={{ 
+                                  width: '100%', 
+                                  padding: '0.5rem',
+                                  border: '1px solid #ccc',
+                                  borderRadius: '4px',
+                                  backgroundColor: '#e9ecef',
+                                  color: '#6c757d'
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: '500', fontSize: '0.9rem' }}>
+                                Lifetime (seconds):
+                              </label>
+                              <input
+                                type="number"
+                                value={uploadMetadata.lifetime}
+                                onChange={(e) => setUploadMetadata(prev => ({ ...prev, lifetime: parseInt(e.target.value) || 3600 }))}
+                                min="1"
+                                style={{ 
+                                  width: '100%', 
+                                  padding: '0.5rem',
+                                  border: '1px solid #ccc',
+                                  borderRadius: '4px',
+                                  backgroundColor: 'white'
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Upload Button */}
                       <button
                         className="button primary"
@@ -3048,6 +3322,7 @@ function App() {
                           <li>Choose a specific ingest service</li>
                           <li>Choose a target namespace</li>
                           <li>Select a file from your local filesystem</li>
+                          <li>Configure upload metadata (lifetime)</li>
                         </ul>
                       </div>
                     </div>

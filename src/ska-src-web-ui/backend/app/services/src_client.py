@@ -133,7 +133,7 @@ class SRCClientService:
             if "500" in error_str or "internal server error" in error_str or "server error" in error_str:
                 # Before treating as fatal, check if we actually got a token
                 try:
-                    tokens = self.session.list_access_tokens()
+                    tokens = self.list_tokens()
                     if tokens:
                         logging.info(f"Token completion check: Found {len(tokens)} tokens despite server error")
                         response = {
@@ -257,13 +257,23 @@ class SRCClientService:
                     with open(token_path, 'r') as f:
                         token_data = json.load(f)
                     
+                    # Clear existing tokens and add only the specified token
+                    self.session.access_tokens.clear()
+                    self.session.refresh_tokens.clear()
+                    
                     # Add the token to the session's internal cache
                     self.session._add_tokens_to_internal_cache(token_data, path_on_disk=token_path)
+                    logging.info(f"Loaded token from {file_name} for exchange")
                 else:
                     logging.error(f"Token file {file_name} not found")
                     raise FileNotFoundError(f"Token file {file_name} not found")
+            else:
+                logging.warning("No file_name provided, using existing tokens")
             
             result = self.session.exchange_token(service_name, version=version)
+            
+            # After exchange, reload all tokens from disk so other operations can access them
+            self.session.load_tokens_from_disk()
             return result
         except Exception as e:
             logging.error(f"Error exchanging token for {service_name}: {e}")
@@ -322,7 +332,7 @@ class SRCClientService:
     def has_valid_tokens(self) -> bool:
         """Check if there are any valid tokens available."""
         try:
-            tokens = self.session.list_access_tokens()
+            tokens = self.list_tokens()
             return len(tokens) > 0
         except Exception as e:
             logging.debug(f"Error checking tokens: {e}")
@@ -349,6 +359,16 @@ class SRCClientService:
     def download_data(self, namespace: str, name: str, sort: str = "nearest_by_ip", 
                      ip_address: str = "", no_verify: bool = False, output: Optional[str] = None) -> Dict[str, Any]:
         """Download data by namespace and name."""
+        # Check if we have a data-management-api token before making the API call
+        try:
+            tokens = self.list_tokens()
+            has_data_management_token = any(token.get('service_name') == 'data-management-api' for token in tokens)
+            if not has_data_management_token:
+                raise NoAccessTokenFoundForService("data-management-api")
+        except Exception as e:
+            logging.debug(f"Error checking data-management-api tokens: {e}")
+            raise NoAccessTokenFoundForService("data-management-api")
+        
         try:
             result = self.data_api.download(namespace, name, sort, ip_address, not no_verify, output)
             return result
@@ -359,6 +379,16 @@ class SRCClientService:
     def locate_data(self, namespace: str, name: str, sort: str = "nearest_by_ip", 
                    ip_address: str = "") -> Dict[str, Any]:
         """Locate data by namespace and name."""
+        # Check if we have a data-management-api token before making the API call
+        try:
+            tokens = self.list_tokens()
+            has_data_management_token = any(token.get('service_name') == 'data-management-api' for token in tokens)
+            if not has_data_management_token:
+                raise NoAccessTokenFoundForService("data-management-api")
+        except Exception as e:
+            logging.debug(f"Error checking data-management-api tokens: {e}")
+            raise NoAccessTokenFoundForService("data-management-api")
+        
         try:
             result = self.data_api.locate(namespace, name, sort, ip_address)
             return result
@@ -369,6 +399,16 @@ class SRCClientService:
     def list_files(self, namespace: str, name: str, detail: bool = False, 
                   filters: Optional[str] = None, limit: int = 100) -> Dict[str, Any]:
         """List files in a namespace."""
+        # Check if we have a data-management-api token before making the API call
+        try:
+            tokens = self.list_tokens()
+            has_data_management_token = any(token.get('service_name') == 'data-management-api' for token in tokens)
+            if not has_data_management_token:
+                raise NoAccessTokenFoundForService("data-management-api")
+        except Exception as e:
+            logging.debug(f"Error checking data-management-api tokens: {e}")
+            raise NoAccessTokenFoundForService("data-management-api")
+        
         try:
             result = self.data_api.list_files_in_namespace(namespace, name, detail, filters, limit)
             return result
@@ -380,6 +420,16 @@ class SRCClientService:
                          metadata_suffix: str = ".meta", extra_metadata: str = "{}", 
                          debug: bool = False) -> Dict[str, Any]:
         """Upload data for ingest."""
+        # Check if we have a data-management-api token before making the API call
+        try:
+            tokens = self.list_tokens()
+            has_data_management_token = any(token.get('service_name') == 'data-management-api' for token in tokens)
+            if not has_data_management_token:
+                raise NoAccessTokenFoundForService("data-management-api")
+        except Exception as e:
+            logging.debug(f"Error checking data-management-api tokens: {e}")
+            raise NoAccessTokenFoundForService("data-management-api")
+        
         try:
             result = self.data_api.upload_for_ingest(
                 path, ingest_service_id, namespace, metadata_suffix, extra_metadata, debug
@@ -392,6 +442,16 @@ class SRCClientService:
     def move_request(self, to_storage_area_id: str, dids: List[str], lifetime: str, 
                     parent_namespace: Optional[str] = None) -> Dict[str, Any]:
         """Make a data movement request."""
+        # Check if we have a data-management-api token before making the API call
+        try:
+            tokens = self.list_tokens()
+            has_data_management_token = any(token.get('service_name') == 'data-management-api' for token in tokens)
+            if not has_data_management_token:
+                raise NoAccessTokenFoundForService("data-management-api")
+        except Exception as e:
+            logging.debug(f"Error checking data-management-api tokens: {e}")
+            raise NoAccessTokenFoundForService("data-management-api")
+        
         try:
             result = self.data_api.move_request(to_storage_area_id, dids, lifetime, parent_namespace)
             return result
@@ -401,6 +461,16 @@ class SRCClientService:
     
     def move_status(self, job_id: str) -> Dict[str, Any]:
         """Get the status of a data movement request."""
+        # Check if we have a data-management-api token before making the API call
+        try:
+            tokens = self.list_tokens()
+            has_data_management_token = any(token.get('service_name') == 'data-management-api' for token in tokens)
+            if not has_data_management_token:
+                raise NoAccessTokenFoundForService("data-management-api")
+        except Exception as e:
+            logging.debug(f"Error checking data-management-api tokens: {e}")
+            raise NoAccessTokenFoundForService("data-management-api")
+        
         try:
             result = self.data_api.move_status(job_id)
             return result
@@ -411,6 +481,16 @@ class SRCClientService:
     def stage_request(self, to_storage_area_id: str, dids: List[str], lifetime: str, 
                      parent_namespace: Optional[str] = None) -> Dict[str, Any]:
         """Make a data staging request."""
+        # Check if we have a data-management-api token before making the API call
+        try:
+            tokens = self.list_tokens()
+            has_data_management_token = any(token.get('service_name') == 'data-management-api' for token in tokens)
+            if not has_data_management_token:
+                raise NoAccessTokenFoundForService("data-management-api")
+        except Exception as e:
+            logging.debug(f"Error checking data-management-api tokens: {e}")
+            raise NoAccessTokenFoundForService("data-management-api")
+        
         try:
             result = self.data_api.stage_request(to_storage_area_id, dids, lifetime, parent_namespace)
             return result
@@ -420,6 +500,16 @@ class SRCClientService:
     
     def stage_status(self, job_id: str) -> Dict[str, Any]:
         """Get the status of a data staging request."""
+        # Check if we have a data-management-api token before making the API call
+        try:
+            tokens = self.list_tokens()
+            has_data_management_token = any(token.get('service_name') == 'data-management-api' for token in tokens)
+            if not has_data_management_token:
+                raise NoAccessTokenFoundForService("data-management-api")
+        except Exception as e:
+            logging.debug(f"Error checking data-management-api tokens: {e}")
+            raise NoAccessTokenFoundForService("data-management-api")
+        
         try:
             result = self.data_api.stage_status(job_id)
             return result
@@ -429,8 +519,14 @@ class SRCClientService:
     
     def list_namespaces(self) -> List[Dict[str, Any]]:
         """List available namespaces."""
-        # Check if we have valid tokens before making the API call
-        if not self.has_valid_tokens():
+        # Check if we have a data-management-api token before making the API call
+        try:
+            tokens = self.list_tokens()
+            has_data_management_token = any(token.get('service_name') == 'data-management-api' for token in tokens)
+            if not has_data_management_token:
+                raise NoAccessTokenFoundForService("data-management-api")
+        except Exception as e:
+            logging.debug(f"Error checking data-management-api tokens: {e}")
             raise NoAccessTokenFoundForService("data-management-api")
         
         try:
@@ -451,8 +547,14 @@ class SRCClientService:
     
     def list_sites(self, node_name: Optional[str] = None) -> List[Dict[str, Any]]:
         """List sites."""
-        # Check if we have valid tokens before making the API call
-        if not self.has_valid_tokens():
+        # Check if we have a site-capabilities-api token before making the API call
+        try:
+            tokens = self.list_tokens()
+            has_site_capabilities_token = any(token.get('service_name') == 'site-capabilities-api' for token in tokens)
+            if not has_site_capabilities_token:
+                raise NoAccessTokenFoundForService("site-capabilities-api")
+        except Exception as e:
+            logging.debug(f"Error checking site-capabilities-api tokens: {e}")
             raise NoAccessTokenFoundForService("site-capabilities-api")
         
         try:
@@ -460,7 +562,6 @@ class SRCClientService:
             result = self.site_api.list_sites(node_name=node_name)
             return result
         except Exception as e:
-            import logging
             logging.error(f"Error listing sites: {e}")
             raise
     
@@ -494,8 +595,14 @@ class SRCClientService:
     def list_services(self, service_type: Optional[str] = None, node_name: Optional[str] = None,
                      site_name: Optional[str] = None, scope: str = "all") -> List[Dict[str, Any]]:
         """List services."""
-        # Check if we have valid tokens before making the API call
-        if not self.has_valid_tokens():
+        # Check if we have a site-capabilities-api token before making the API call
+        try:
+            tokens = self.list_tokens()
+            has_site_capabilities_token = any(token.get('service_name') == 'site-capabilities-api' for token in tokens)
+            if not has_site_capabilities_token:
+                raise NoAccessTokenFoundForService("site-capabilities-api")
+        except Exception as e:
+            logging.debug(f"Error checking site-capabilities-api tokens: {e}")
             raise NoAccessTokenFoundForService("site-capabilities-api")
         
         try:
@@ -530,8 +637,14 @@ class SRCClientService:
         List services, enriched with site/node info and extra details (host, port, path, etc).
         Only enriches the first 20 services for development. Fetches details in parallel.
         """
-        # Check if we have valid tokens before making the API call
-        if not self.has_valid_tokens():
+        # Check if we have a site-capabilities-api token before making the API call
+        try:
+            tokens = self.list_tokens()
+            has_site_capabilities_token = any(token.get('service_name') == 'site-capabilities-api' for token in tokens)
+            if not has_site_capabilities_token:
+                raise NoAccessTokenFoundForService("site-capabilities-api")
+        except Exception as e:
+            logging.debug(f"Error checking site-capabilities-api tokens: {e}")
             raise NoAccessTokenFoundForService("site-capabilities-api")
         
         try:

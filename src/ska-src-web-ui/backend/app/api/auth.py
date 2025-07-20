@@ -703,23 +703,29 @@ async def list_compute(
 # --- OPER.YML CONFIG ENDPOINTS ---
 OPER_YML_PATH = '/etc/cfg/oper.yml'
 
+def get_current_config_path() -> str:
+    """Get the path to the currently active configuration file."""
+    return getattr(settings, 'srcnet_config_path', OPER_YML_PATH)
+
 def read_oper_config() -> dict:
     yaml = YAML()
+    config_path = get_current_config_path()
     try:
-        with open(OPER_YML_PATH, 'r') as f:
+        with open(config_path, 'r') as f:
             return yaml.load(f)
     except Exception as e:
-        logging.error(f"Failed to read oper.yml: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to read oper.yml: {e}")
+        logging.error(f"Failed to read config from {config_path}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to read config from {config_path}: {e}")
 
 def write_oper_config(config: dict):
     yaml = YAML()
+    config_path = get_current_config_path()
     try:
-        with open(OPER_YML_PATH, 'w') as f:
+        with open(config_path, 'w') as f:
             yaml.dump(config, f)
     except Exception as e:
-        logging.error(f"Failed to write oper.yml: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to write oper.yml: {e}")
+        logging.error(f"Failed to write config to {config_path}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to write config to {config_path}: {e}")
 
 @router.get("/config/oper")
 def get_oper_config():
@@ -762,7 +768,8 @@ def switch_config(
         if not os.path.exists(config_path):
             raise HTTPException(status_code=404, detail=f"Configuration file {config_file} not found")
         
-        logging.info(f"Switching configuration from {getattr(settings, 'srcnet_config_path', 'None')} to {config_path}")
+        old_config_path = getattr(settings, 'srcnet_config_path', 'None')
+        logging.info(f"Switching configuration from {old_config_path} to {config_path}")
         
         # Update the settings to use the new config file
         settings.srcnet_config_path = config_path
@@ -771,6 +778,7 @@ def switch_config(
         reset_src_service()
         
         logging.info(f"Configuration switched successfully. New config path: {settings.srcnet_config_path}")
+        logging.info(f"Future config reads/writes will use: {get_current_config_path()}")
         
         return {
             "success": True, 
