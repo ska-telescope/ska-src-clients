@@ -2418,19 +2418,7 @@ function App() {
             {tokens.length === 0 ? (
               <p>No tokens found. Request a new token to get started.</p>
             ) : (
-              <div className="token-scroll-container" style={{ 
-                display: 'flex',
-                overflowX: 'auto',
-                gap: '1rem',
-                padding: '0.5rem',
-                backgroundColor: '#f8f9fa',
-                borderRadius: '4px',
-                border: '1px solid #e0e0e0',
-                minHeight: '400px',
-                alignItems: 'flex-start',
-                width: '100%',
-                maxWidth: '100%'
-              }}
+              <div className="token-scroll-container"
               >
                 {tokens.map((token, index) => (
                   <div key={token.file_name} className="token-card" style={{ 

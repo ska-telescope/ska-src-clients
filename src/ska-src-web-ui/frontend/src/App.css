@@ -955,21 +955,32 @@ input[type="text"]:focus, input[type="email"]:focus, input[type="password"]:focu
 }
 
 .token-scroll-container::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--bg-secondary);
   border-radius: 4px;
 }
 
 .token-scroll-container::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--border-color);
   border-radius: 4px;
 }
 
 .token-scroll-container::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--text-secondary);
 }
 
 /* Firefox scrollbar */
 .token-scroll-container {
   scrollbar-width: thin;
-  scrollbar-color: #c1c1c1 #f1f1f1;
+  scrollbar-color: var(--border-color) var(--bg-secondary);
+  display: flex;
+  overflow-x: auto;
+  gap: 1rem;
+  padding: 0.5rem;
+  background-color: var(--bg-secondary);
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  min-height: 400px;
+  align-items: flex-start;
+  width: 100%;
+  max-width: 100%;
 } 
