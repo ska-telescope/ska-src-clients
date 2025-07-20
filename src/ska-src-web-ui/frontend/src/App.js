@@ -294,11 +294,46 @@ function App() {
             type: 'success', 
             message: 'Switched to DEV environment configuration' 
           });
+          
+          // Refresh API status after configuration switch
+          setTimeout(() => {
+            checkApiStatus();
+          }, 1000);
+          
+          // Update the configEdit state to reflect DEV values (but don't save to oper.yml)
+          setConfigEdit((prev) => {
+            const updated = { ...prev };
+            
+            // For DEV environment, update all the localhost URLs
+            for (const [service, url] of Object.entries(preset)) {
+              let path;
+              
+              if (service === 'authn_api') {
+                path = 'apis.authn-api.url';
+              } else if (service === 'data_management_api') {
+                path = 'apis.data-management-api.url';
+              } else if (service === 'permissions_api') {
+                path = 'apis.permissions-api.url';
+              } else if (service === 'site_capabilities_api') {
+                path = 'apis.site-capabilities-api.url';
+              } else if (service === 'iam') {
+                path = 'core.iam.url';
+              } else {
+                // Default to core paths for other services
+                path = `core.${service}.url`;
+              }
+              
+              updated[path] = url;
+            }
+            
+            return updated;
+          });
+          
         } catch (configError) {
           console.error('Failed to switch to DEV configuration:', configError);
           setStatus({ 
             type: 'warning', 
-            message: 'Switched to DEV preset URLs, but failed to switch backend configuration. Some features may not work correctly.' 
+            message: 'Failed to switch to DEV configuration. Please try again.' 
           });
         }
       } else {
@@ -311,64 +346,59 @@ function App() {
             type: 'success', 
             message: 'Switched to production environment configuration' 
           });
+          
+          // Refresh API status after configuration switch
+          setTimeout(() => {
+            checkApiStatus();
+          }, 1000);
+          
+          // Update config fields and save to backend (only for production flags)
+          const skaoDefaults = {
+            'apis.authn-api.url': 'https://authn.srcnet.skao.int/api/v1',
+            'apis.data-management-api.url': 'https://data-management.srcnet.skao.int/api/v1',
+            'apis.permissions-api.url': 'https://permissions.srcnet.skao.int/api/v1',
+            'apis.site-capabilities-api.url': 'https://site-capabilities.srcnet.skao.int/api/v1',
+            'core.iam.url': 'https://ska-iam.stfc.ac.uk/login#!/home',
+          };
+          
+          // First, revert all API URLs to SKAO defaults
+          for (const [path, url] of Object.entries(skaoDefaults)) {
+            await saveConfigValue(path, url);
+          }
+          
+          // Then update the preset-specific URLs (canfar, gatekeeper, soda, prepare_data)
+          for (const [service, url] of Object.entries(preset)) {
+            if (['canfar', 'gatekeeper', 'soda', 'prepare_data'].includes(service)) {
+              const path = `core.${service}.url`;
+              await saveConfigValue(path, url);
+            }
+          }
+          
+          // Update the configEdit state to reflect production values
+          setConfigEdit((prev) => {
+            const updated = { ...prev };
+            
+            // First, revert all API URLs to SKAO defaults
+            for (const [path, url] of Object.entries(skaoDefaults)) {
+              updated[path] = url;
+            }
+            
+            // Then update the preset-specific URLs (canfar, gatekeeper, soda, prepare_data)
+            for (const [service, url] of Object.entries(preset)) {
+              if (['canfar', 'gatekeeper', 'soda', 'prepare_data'].includes(service)) {
+                const path = `core.${service}.url`;
+                updated[path] = url;
+              }
+            }
+            
+            return updated;
+          });
         } catch (configError) {
           console.error('Failed to switch to production configuration:', configError);
           setStatus({ 
             type: 'warning', 
-            message: 'Switched to production preset URLs, but failed to switch backend configuration. Some features may not work correctly.' 
+            message: 'Failed to switch to production configuration. Please try again.' 
           });
-        }
-      }
-      
-      // Refresh API status after configuration switch
-      setTimeout(() => {
-        checkApiStatus();
-      }, 1000);
-      
-      // Update config fields and save to backend
-      if (flagKey === 'DEV') {
-        // For DEV environment, update all the localhost URLs
-        for (const [service, url] of Object.entries(preset)) {
-          let path;
-          
-          if (service === 'authn_api') {
-            path = 'apis.authn-api.url';
-          } else if (service === 'data_management_api') {
-            path = 'apis.data-management-api.url';
-          } else if (service === 'permissions_api') {
-            path = 'apis.permissions-api.url';
-          } else if (service === 'site_capabilities_api') {
-            path = 'apis.site-capabilities-api.url';
-          } else if (service === 'iam') {
-            path = 'core.iam.url';
-          } else {
-            // Default to core paths for other services
-            path = `core.${service}.url`;
-          }
-          
-          await saveConfigValue(path, url);
-        }
-      } else {
-        // For production flags, revert API URLs to SKAO defaults and update preset URLs
-        const skaoDefaults = {
-          'apis.authn-api.url': 'https://authn.srcnet.skao.int/api/v1',
-          'apis.data-management-api.url': 'https://data-management.srcnet.skao.int/api/v1',
-          'apis.permissions-api.url': 'https://permissions.srcnet.skao.int/api/v1',
-          'apis.site-capabilities-api.url': 'https://site-capabilities.srcnet.skao.int/api/v1',
-          'core.iam.url': 'https://ska-iam.stfc.ac.uk/login#!/home',
-        };
-        
-        // First, revert all API URLs to SKAO defaults
-        for (const [path, url] of Object.entries(skaoDefaults)) {
-          await saveConfigValue(path, url);
-        }
-        
-        // Then update the preset-specific URLs (canfar, gatekeeper, soda, prepare_data)
-        for (const [service, url] of Object.entries(preset)) {
-          if (['canfar', 'gatekeeper', 'soda', 'prepare_data'].includes(service)) {
-            const path = `core.${service}.url`;
-            await saveConfigValue(path, url);
-          }
         }
       }
       
@@ -397,28 +427,6 @@ function App() {
             }
             
             updated[path] = url;
-          }
-        } else {
-          // For production flags, revert API URLs to SKAO defaults and update preset URLs
-          const skaoDefaults = {
-            'apis.authn-api.url': 'https://authn.srcnet.skao.int/api/v1',
-            'apis.data-management-api.url': 'https://data-management.srcnet.skao.int/api/v1',
-            'apis.permissions-api.url': 'https://permissions.srcnet.skao.int/api/v1',
-            'apis.site-capabilities-api.url': 'https://site-capabilities.srcnet.skao.int/api/v1',
-            'core.iam.url': 'https://ska-iam.stfc.ac.uk/login#!/home',
-          };
-          
-          // First, revert all API URLs to SKAO defaults
-          for (const [path, url] of Object.entries(skaoDefaults)) {
-            updated[path] = url;
-          }
-          
-          // Then update the preset-specific URLs (canfar, gatekeeper, soda, prepare_data)
-          for (const [service, url] of Object.entries(preset)) {
-            if (['canfar', 'gatekeeper', 'soda', 'prepare_data'].includes(service)) {
-              const path = `core.${service}.url`;
-              updated[path] = url;
-            }
           }
         }
         

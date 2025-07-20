@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: src/ska-src-web-ui/backend/Dockerfile
     ports:
-      - "8000:8000"
+      - "8422:8000"
     volumes:
       - ./src/ska-src-web-ui/backend:/app
       - ./etc/cfg:/etc/cfg:rw
@@ -31,7 +31,7 @@ services:
       - ./src/ska-src-web-ui/frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_URL=http://localhost:8000/api/v1
+      - VITE_API_URL=http://localhost:8422/api/v1
     working_dir: /app
     command: npm start
     networks:

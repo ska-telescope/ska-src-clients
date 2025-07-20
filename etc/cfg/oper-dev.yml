@@ -26,9 +26,9 @@ core:
   iam:
     url: http://host.docker.internal:8080/login#!/home
   fts:
-    url: https://fts3-ska.scd.rl.ac.uk:8449/fts3/ftsmon/#/
+    url: https://host.docker.internal:8449/fts3/ftsmon/#/
   rucio:
-    url: https://rucio.srcnet.skao.int
+    url: https://host.docker.internal:8445
   gateway:
     url: https://gateway-test.srcdev.skao.int/
   gatekeeper:
@@ -38,4 +38,4 @@ core:
   soda:
     url: https://gatekeeper.srcnet.skao.int/soda/ska/dataset/soda
   prepare_data:
-    url: https://gatekeeper.srcnet.skao.int/preparedata 
+    url: http://host.docker.internal:8000
