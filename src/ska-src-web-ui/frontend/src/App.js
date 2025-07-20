@@ -112,36 +112,6 @@ function App() {
       soda: 'https://gatekeeper.srcnet.skao.int/soda/ska/dataset/soda',
       prepare_data: 'https://gatekeeper.srcnet.skao.int/preparedata',
     },
-    DEV: {
-      canfar: 'http://host.docker.internal:8080/science-portal/',
-      gatekeeper: 'http://host.docker.internal:8084/echo',
-      soda: 'http://host.docker.internal:8084/soda',
-      prepare_data: 'http://host.docker.internal:8084/preparedata',
-      fts: 'http://host.docker.internal:8449/fts3/ftsmon/#/',
-      rucio: 'http://host.docker.internal:8085',
-      gateway: 'http://host.docker.internal:8086/',
-      // Additional DEV environment URLs for configuration panel
-      authn_api: 'http://host.docker.internal:8082/api/v1',
-      data_management_api: 'http://host.docker.internal:8084/api/v1',
-      permissions_api: 'http://host.docker.internal:8083/api/v1',
-      site_capabilities_api: 'http://host.docker.internal:8081/api/v1',
-      iam: 'http://host.docker.internal:8080/login#!/home',
-    },
-    DEVR: {
-      canfar: 'https://canfar.srcnet.skao.int/science-portal/',
-      gatekeeper: 'https://dmapi.itsrc.oact.inaf.it/echo',
-      soda: 'https://gateway.srcnet.skao.int/soda/ska/dataset/soda',
-      prepare_data: 'http://host.docker.internal:18000',
-      fts: 'http://host.docker.internal:18449/fts3/ftsmon/#/',
-      rucio: 'http://host.docker.internal:18085',
-      gateway: 'https://gateway-test.srcdev.skao.int/',
-      // Additional DEVR environment URLs for configuration panel
-      authn_api: 'http://host.docker.internal:18082/api/v1',
-      data_management_api: 'http://host.docker.internal:18084/api/v1',
-      permissions_api: 'http://host.docker.internal:18083/api/v1',
-      site_capabilities_api: 'http://host.docker.internal:18081/api/v1',
-      iam: 'http://host.docker.internal:18080/login#!/home',
-    },
   };
 
   const flagList = [
@@ -154,13 +124,16 @@ function App() {
     { key: 'Switzerland', img: SwitzerlandFlag, label: 'Switzerland' },
     { key: 'UK', img: UKFlag, label: 'UK' },
     { key: 'SKAO', img: SKAOFlag, label: 'SKAO' },
-    { key: 'DEV', img: null, label: 'DEV' },
-    { key: 'DEVR', img: null, label: 'DEVR' },
   ];
 
   const [selectedFlag, setSelectedFlag] = useState('SKAO');
   const [skaoPresetLoaded, setSkaoPresetLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState('site-capabilities'); // 'site-capabilities' or 'data-management'
+  const [dataManagementSubTab, setDataManagementSubTab] = useState('explore'); // 'explore' or 'upload'
+  const [selectedUploadFile, setSelectedUploadFile] = useState(null);
+  const [sitesWithIngest, setSitesWithIngest] = useState([]);
+  const [selectedIngestSite, setSelectedIngestSite] = useState('');
+  const [loadingIngestSites, setLoadingIngestSites] = useState(false);
   
   // Data Management state
   const [namespaces, setNamespaces] = useState([]);
@@ -303,176 +276,61 @@ function App() {
     if (!preset) return;
     
     try {
-      // Special handling for DEV and DEVR flags - switch backend configuration
-      if (flagKey === 'DEV') {
-        try {
-          // Call backend to switch to DEV configuration
-          await axios.post(`${API_BASE}/auth/config/switch`, {
-            config_file: 'oper-dev.yml'
-          });
-          setStatus({ 
-            type: 'success', 
-            message: 'Switched to DEV environment configuration' 
-          });
-          
-          // Refresh API status after configuration switch
-          setTimeout(() => {
-            checkApiStatus();
-          }, 1000);
-          
-          // Update the configEdit state to reflect DEV values
-          setConfigEdit((prev) => {
-            const updated = { ...prev };
-            
-            // For DEV environment, update all the URLs
-            for (const [service, url] of Object.entries(preset)) {
-              let path;
-              
-              if (service === 'authn_api') {
-                path = 'apis.authn-api.url';
-              } else if (service === 'data_management_api') {
-                path = 'apis.data-management-api.url';
-              } else if (service === 'permissions_api') {
-                path = 'apis.permissions-api.url';
-              } else if (service === 'site_capabilities_api') {
-                path = 'apis.site-capabilities-api.url';
-              } else if (service === 'iam') {
-                path = 'core.iam.url';
-              } else {
-                // Default to core paths for other services
-                path = `core.${service}.url`;
-              }
-              
-              updated[path] = url;
-            }
-            
-            return updated;
-          });
-          
-        } catch (configError) {
-          console.error('Failed to switch to DEV configuration:', configError);
-          setStatus({ 
-            type: 'warning', 
-            message: 'Failed to switch to DEV configuration. Please try again.' 
-          });
-        }
-      } else if (flagKey === 'DEVR') {
-        try {
-          // Call backend to switch to DEVR configuration
-          await axios.post(`${API_BASE}/auth/config/switch`, {
-            config_file: 'oper-dev-rem.yml'
-          });
-          setStatus({ 
-            type: 'success', 
-            message: 'Switched to DEVR environment configuration' 
-          });
-          
-          // Refresh API status after configuration switch
-          setTimeout(() => {
-            checkApiStatus();
-          }, 1000);
-          
-          // Update the configEdit state to reflect DEVR values
-          setConfigEdit((prev) => {
-            const updated = { ...prev };
-            
-            // For DEVR environment, update all the URLs
-            for (const [service, url] of Object.entries(preset)) {
-              let path;
-              
-              if (service === 'authn_api') {
-                path = 'apis.authn-api.url';
-              } else if (service === 'data_management_api') {
-                path = 'apis.data-management-api.url';
-              } else if (service === 'permissions_api') {
-                path = 'apis.permissions-api.url';
-              } else if (service === 'site_capabilities_api') {
-                path = 'apis.site-capabilities-api.url';
-              } else if (service === 'iam') {
-                path = 'core.iam.url';
-              } else {
-                // Default to core paths for other services
-                path = `core.${service}.url`;
-              }
-              
-              updated[path] = url;
-            }
-            
-            return updated;
-          });
-          
-        } catch (configError) {
-          console.error('Failed to switch to DEVR configuration:', configError);
-          setStatus({ 
-            type: 'warning', 
-            message: 'Failed to switch to DEVR configuration. Please try again.' 
-          });
-        }
-      } else {
-        try {
-          // Call backend to switch back to production configuration
-          await axios.post(`${API_BASE}/auth/config/switch`, {
-            config_file: 'oper.yml'
-          });
-          setStatus({ 
-            type: 'success', 
-            message: 'Switched to production environment configuration' 
-          });
-          
-          // Refresh API status after configuration switch
-          setTimeout(() => {
-            checkApiStatus();
-          }, 1000);
-          
-          // Update config fields and save to backend (only for production flags)
-          const skaoDefaults = {
-            'apis.authn-api.url': 'https://authn.srcnet.skao.int/api/v1',
-            'apis.data-management-api.url': 'https://data-management.srcnet.skao.int/api/v1',
-            'apis.permissions-api.url': 'https://permissions.srcnet.skao.int/api/v1',
-            'apis.site-capabilities-api.url': 'https://site-capabilities.srcnet.skao.int/api/v1',
-            'core.iam.url': 'https://ska-iam.stfc.ac.uk/login#!/home',
-          };
-          
-          // First, revert all API URLs to SKAO defaults
-          for (const [path, url] of Object.entries(skaoDefaults)) {
-            await saveConfigValue(path, url);
-          }
-          
-          // Then update the preset-specific URLs (canfar, gatekeeper, soda, prepare_data)
-          for (const [service, url] of Object.entries(preset)) {
-            if (['canfar', 'gatekeeper', 'soda', 'prepare_data'].includes(service)) {
-              const path = `core.${service}.url`;
-              await saveConfigValue(path, url);
-            }
-          }
-          
-          // Update the configEdit state to reflect production values
-          setConfigEdit((prev) => {
-            const updated = { ...prev };
-            
-            // First, revert all API URLs to SKAO defaults
-            for (const [path, url] of Object.entries(skaoDefaults)) {
-              updated[path] = url;
-            }
-            
-            // Then update the preset-specific URLs (canfar, gatekeeper, soda, prepare_data)
-            for (const [service, url] of Object.entries(preset)) {
-              if (['canfar', 'gatekeeper', 'soda', 'prepare_data'].includes(service)) {
-                const path = `core.${service}.url`;
-                updated[path] = url;
-              }
-            }
-            
-            return updated;
-          });
-        } catch (configError) {
-          console.error('Failed to switch to production configuration:', configError);
-          setStatus({ 
-            type: 'warning', 
-            message: 'Failed to switch to production configuration. Please try again.' 
-          });
+      // Call backend to switch to production configuration
+      await axios.post(`${API_BASE}/auth/config/switch`, {
+        config_file: 'oper.yml'
+      });
+      setStatus({ 
+        type: 'success', 
+        message: 'Switched to production environment configuration' 
+      });
+      
+      // Refresh API status after configuration switch
+      setTimeout(() => {
+        checkApiStatus();
+      }, 1000);
+      
+      // Update config fields and save to backend (only for production flags)
+      const skaoDefaults = {
+        'apis.authn-api.url': 'https://authn.srcnet.skao.int/api/v1',
+        'apis.data-management-api.url': 'https://data-management.srcnet.skao.int/api/v1',
+        'apis.permissions-api.url': 'https://permissions.srcnet.skao.int/api/v1',
+        'apis.site-capabilities-api.url': 'https://site-capabilities.srcnet.skao.int/api/v1',
+        'core.iam.url': 'https://ska-iam.stfc.ac.uk/login#!/home',
+      };
+      
+      // First, revert all API URLs to SKAO defaults
+      for (const [path, url] of Object.entries(skaoDefaults)) {
+        await saveConfigValue(path, url);
+      }
+      
+      // Then update the preset-specific URLs (canfar, gatekeeper, soda, prepare_data)
+      for (const [service, url] of Object.entries(preset)) {
+        if (['canfar', 'gatekeeper', 'soda', 'prepare_data'].includes(service)) {
+          const path = `core.${service}.url`;
+          await saveConfigValue(path, url);
         }
       }
+      
+      // Update the configEdit state to reflect production values
+      setConfigEdit((prev) => {
+        const updated = { ...prev };
+        
+        // First, revert all API URLs to SKAO defaults
+        for (const [path, url] of Object.entries(skaoDefaults)) {
+          updated[path] = url;
+        }
+        
+        // Then update the preset-specific URLs (canfar, gatekeeper, soda, prepare_data)
+        for (const [service, url] of Object.entries(preset)) {
+          if (['canfar', 'gatekeeper', 'soda', 'prepare_data'].includes(service)) {
+            const path = `core.${service}.url`;
+            updated[path] = url;
+          }
+        }
+        
+        return updated;
+      });
       
       // Show success message with preset name
       setStatus({ 
@@ -1515,6 +1373,31 @@ function App() {
     // Add more mappings as needed
   };
 
+  // Switch configuration
+  const switchConfig = async (configFile) => {
+    try {
+      setStatus({ type: 'info', message: `Switching to ${configFile} configuration...` });
+      const response = await axios.post(`${API_BASE}/auth/config/switch`, {
+        config_file: configFile
+      });
+      
+      if (response.data.success) {
+        setStatus({ type: 'success', message: response.data.message });
+        // Refresh API status after configuration switch
+        setTimeout(() => {
+          checkApiStatus();
+        }, 1000);
+      } else {
+        setStatus({ type: 'error', message: 'Failed to switch configuration' });
+      }
+    } catch (error) {
+      setStatus({ 
+        type: 'error', 
+        message: `Failed to switch configuration: ${error.response?.data?.detail || error.message}` 
+      });
+    }
+  };
+
   return (
     <>
       <div className="header" style={{ justifyContent: 'center' }}>
@@ -1698,74 +1581,45 @@ function App() {
                         Token Exchange Disabled - Core Systems Offline
                       </span>
                     )}
-                    {areCoreSystemsOnline() && !isSiteCapabilitiesExchangeAvailable() && (
-                      <span style={{ 
-                        fontSize: '0.8rem', 
-                        color: '#ffc107', 
-                        fontWeight: 'bold',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.25rem'
-                      }}>
-                        <span style={{ 
-                          width: '8px', 
-                          height: '8px', 
-                          backgroundColor: '#ffc107', 
-                          borderRadius: '50%',
-                          display: 'inline-block'
-                        }}></span>
-                        Site Capabilities Exchange Disabled
-                      </span>
-                    )}
-                    {areCoreSystemsOnline() && isSiteCapabilitiesExchangeAvailable() && !isDataManagementExchangeAvailable() && (
-                      <span style={{ 
-                        fontSize: '0.8rem', 
-                        color: '#ffc107', 
-                        fontWeight: 'bold',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.25rem'
-                      }}>
-                        <span style={{ 
-                          width: '8px', 
-                          height: '8px', 
-                          backgroundColor: '#ffc107', 
-                          borderRadius: '50%',
-                          display: 'inline-block'
-                        }}></span>
-                        Data Management Exchange Disabled
-                      </span>
-                    )}
-                    {areCoreSystemsOnline() && isSiteCapabilitiesExchangeAvailable() && isDataManagementExchangeAvailable() && !areAllSystemsGreen() && (
-                      <span style={{ 
-                        fontSize: '0.8rem', 
-                        color: '#6c757d', 
-                        fontWeight: 'bold',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.25rem'
-                      }}>
-                        <span style={{ 
-                          width: '8px', 
-                          height: '8px', 
-                          backgroundColor: '#6c757d', 
-                          borderRadius: '50%',
-                          display: 'inline-block'
-                        }}></span>
-                        Other Systems Offline
-                      </span>
-                    )}
                   </div>
                 )}
               </div>
             </div>
-            <button 
-              className="button secondary small"
-              onClick={checkApiStatus}
-              disabled={checkingApiStatus}
-            >
-              {checkingApiStatus ? 'Checking...' : 'Refresh Status'}
-            </button>
+            
+            {/* Configuration Switch Buttons */}
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                className="button secondary small"
+                onClick={() => switchConfig('oper.yml')}
+                style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}
+                title="Switch to Production Configuration"
+              >
+                PROD
+              </button>
+              <button
+                className="button secondary small"
+                onClick={() => switchConfig('oper-dev.yml')}
+                style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}
+                title="Switch to Development Configuration"
+              >
+                DEV
+              </button>
+              <button
+                className="button secondary small"
+                onClick={() => switchConfig('oper-dev-rem.yml')}
+                style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}
+                title="Switch to Remote Development Configuration"
+              >
+                DEVR
+              </button>
+              <button
+                className="button secondary small"
+                onClick={checkApiStatus}
+                disabled={checkingApiStatus}
+              >
+                {checkingApiStatus ? 'Checking...' : 'Refresh Status'}
+              </button>
+            </div>
           </div>
           
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>

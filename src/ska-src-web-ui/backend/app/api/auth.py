@@ -384,9 +384,38 @@ async def check_api_status(
     def check_rucio_service():
         """Check Rucio service status with timeout."""
         try:
-            response = requests.get("https://rucio.srcnet.skao.int/health", timeout=2)
-            return response.status_code == 200
-        except Exception:
+            # Get the current rucio URL from configuration
+            rucio_url = src_service.get_config_value('core.rucio.url')
+            if not rucio_url:
+                rucio_url = "https://rucio.srcnet.skao.int"  # fallback
+            
+            logging.info(f"Checking Rucio service at: {rucio_url}")
+            
+            # Try multiple possible health endpoints
+            health_endpoints = ['/health', '/ping', '/']
+            for endpoint in health_endpoints:
+                try:
+                    url = f"{rucio_url}{endpoint}"
+                    logging.debug(f"Trying Rucio endpoint: {url}")
+                    response = requests.get(url, timeout=2)
+                    if response.status_code == 200:
+                        logging.info(f"Rucio service is online at: {url}")
+                        return True
+                except Exception as e:
+                    logging.debug(f"Rucio endpoint {url} failed: {e}")
+                    continue
+            
+            # If no health endpoint works, try just the base URL
+            logging.debug(f"Trying Rucio base URL: {rucio_url}")
+            response = requests.get(rucio_url, timeout=2)
+            if response.status_code == 200:
+                logging.info(f"Rucio service is online at base URL: {rucio_url}")
+                return True
+            
+            logging.warning(f"Rucio service appears offline at: {rucio_url}")
+            return False
+        except Exception as e:
+            logging.error(f"Error checking Rucio service: {e}")
             return False
     
     def check_gateway_service():
@@ -436,13 +465,38 @@ async def check_api_status(
     def check_prepare_data_service():
         """Check Prepare Data service status with timeout."""
         try:
-            # Get the current gatekeeper URL from configuration for prepare data
-            gatekeeper_url = src_service.get_config_value('core.gatekeeper.url')
-            if not gatekeeper_url:
-                gatekeeper_url = "https://gatekeeper.srcnet.skao.int"  # fallback
-            response = requests.get(f"{gatekeeper_url}/preparedata", timeout=2)
-            return response.status_code == 200
-        except Exception:
+            # Get the current prepare_data URL from configuration
+            prepare_data_url = src_service.get_config_value('core.prepare_data.url')
+            if not prepare_data_url:
+                prepare_data_url = "https://gatekeeper.srcnet.skao.int/preparedata"  # fallback
+            
+            logging.info(f"Checking Prepare Data service at: {prepare_data_url}")
+            
+            # Try multiple possible health endpoints
+            health_endpoints = ['', '/health', '/ping', '/status']
+            for endpoint in health_endpoints:
+                try:
+                    url = f"{prepare_data_url}{endpoint}"
+                    logging.debug(f"Trying Prepare Data endpoint: {url}")
+                    response = requests.get(url, timeout=2)
+                    if response.status_code == 200:
+                        logging.info(f"Prepare Data service is online at: {url}")
+                        return True
+                except Exception as e:
+                    logging.debug(f"Prepare Data endpoint {url} failed: {e}")
+                    continue
+            
+            # If no specific endpoint works, try just the base URL
+            logging.debug(f"Trying Prepare Data base URL: {prepare_data_url}")
+            response = requests.get(prepare_data_url, timeout=2)
+            if response.status_code == 200:
+                logging.info(f"Prepare Data service is online at base URL: {prepare_data_url}")
+                return True
+            
+            logging.warning(f"Prepare Data service appears offline at: {prepare_data_url}")
+            return False
+        except Exception as e:
+            logging.error(f"Error checking Prepare Data service: {e}")
             return False
     
     async def check_service_async(service_name, check_func):
