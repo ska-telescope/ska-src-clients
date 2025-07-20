@@ -133,6 +133,7 @@ function App() {
   const [selectedUploadFile, setSelectedUploadFile] = useState(null);
   const [sitesWithIngest, setSitesWithIngest] = useState([]);
   const [selectedIngestSite, setSelectedIngestSite] = useState('');
+  const [selectedIngestService, setSelectedIngestService] = useState('');
   const [loadingIngestSites, setLoadingIngestSites] = useState(false);
   
   // Data Management state
@@ -1153,6 +1154,11 @@ function App() {
       }
       
       setSitesWithIngest(sitesWithIngestServices);
+      
+      // Reset site and service selection when sites are refreshed
+      setSelectedIngestSite('');
+      setSelectedIngestService('');
+      
       if (sitesWithIngestServices.length > 0) {
         setStatus({ type: 'success', message: `Found ${sitesWithIngestServices.length} sites with ingest services` });
       } else {
@@ -1298,7 +1304,17 @@ function App() {
         [token.service_name]: token.file_name
       }));
     }
-  }, [tokens]);
+    
+    // If we have site capabilities tokens and none are active, set the first one as active
+    const siteCapabilitiesTokens = tokens.filter(t => t.service_name === 'site-capabilities-api');
+    if (siteCapabilitiesTokens.length > 0 && !activeTokens['site-capabilities-api']) {
+      const firstSiteCapabilitiesToken = siteCapabilitiesTokens[0];
+      setActiveTokens(prev => ({
+        ...prev,
+        'site-capabilities-api': firstSiteCapabilitiesToken.file_name
+      }));
+    }
+  }, [tokens, activeTokens]);
 
   // Fetch config on mount
   useEffect(() => {
@@ -1495,6 +1511,21 @@ function App() {
     }
   };
 
+  // Handle ingest service selection
+  const handleIngestServiceSelect = (siteName, serviceId) => {
+    // If clicking the same service, de-select it
+    if (selectedIngestSite === siteName && selectedIngestService === serviceId) {
+      setSelectedIngestSite('');
+      setSelectedIngestService('');
+      setStatus({ type: 'info', message: 'Deselected ingest service' });
+    } else {
+      // Select the new service
+      setSelectedIngestSite(siteName);
+      setSelectedIngestService(serviceId);
+      setStatus({ type: 'success', message: `Selected ingest service: ${serviceId} for site ${siteName}` });
+    }
+  };
+
   // Handle file selection for upload
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
@@ -1516,6 +1547,11 @@ function App() {
       return;
     }
     
+    if (!selectedIngestService) {
+      setStatus({ type: 'error', message: 'Please select a specific ingest service' });
+      return;
+    }
+    
     if (!selectedNamespace) {
       setStatus({ type: 'error', message: 'Please select a namespace' });
       return;
@@ -1528,16 +1564,7 @@ function App() {
       formData.append('file', selectedUploadFile);
       formData.append('namespace', selectedNamespace);
       
-      // Get the first ingest service from the selected site
-      const selectedSite = sitesWithIngest.find(site => site.name === selectedIngestSite);
-      const ingestService = selectedSite?.ingestServices?.[0];
-      
-      if (!ingestService) {
-        setStatus({ type: 'error', message: 'No ingest service found for selected site' });
-        return;
-      }
-      
-      formData.append('ingest_service_id', ingestService.id);
+      formData.append('ingest_service_id', selectedIngestService);
       
       const response = await axios.post(`${API_BASE}/data/upload`, formData, {
         headers: {
@@ -2877,22 +2904,41 @@ function App() {
                             <div key={index} style={{ 
                               padding: '0.75rem',
                               borderBottom: index < sitesWithIngest.length - 1 ? '1px solid #dee2e6' : 'none',
-                              cursor: 'pointer',
-                              backgroundColor: selectedIngestSite === site.name ? '#e3f2fd' : 'transparent',
                               borderRadius: '4px',
-                              marginBottom: '0.25rem'
-                            }}
-                            onClick={() => setSelectedIngestSite(site.name)}
-                            >
+                              marginBottom: '0.25rem',
+                              backgroundColor: 'transparent'
+                            }}>
                               <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>
                                 {site.name}
                               </div>
-                              <div style={{ fontSize: '0.8rem', color: '#6c757d' }}>
+                              <div style={{ fontSize: '0.8rem', color: '#6c757d', marginBottom: '0.5rem' }}>
                                 {site.ingestServices?.length || 0} ingest service(s)
                               </div>
                               {site.ingestServices?.map((service, serviceIndex) => (
-                                <div key={serviceIndex} style={{ fontSize: '0.8rem', color: '#495057', marginTop: '0.25rem' }}>
-                                  • {service.name || service.id} ({service.type})
+                                <div key={serviceIndex} style={{ 
+                                  fontSize: '0.8rem', 
+                                  color: (selectedIngestSite === site.name && selectedIngestService === service.id) ? 'white' : '#495057', 
+                                  marginTop: '0.25rem',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  cursor: 'pointer',
+                                  padding: '0.25rem',
+                                  borderRadius: '3px',
+                                  backgroundColor: (selectedIngestSite === site.name && selectedIngestService === service.id) ? '#E70068' : 'transparent',
+                                  transition: 'background-color 0.2s ease'
+                                }}
+                                onClick={() => handleIngestServiceSelect(site.name, service.id)}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="ingestService"
+                                    checked={selectedIngestSite === site.name && selectedIngestService === service.id}
+                                    onChange={() => handleIngestServiceSelect(site.name, service.id)}
+                                    style={{ marginRight: '0.5rem' }}
+                                  />
+                                  <span>
+                                    {service.name || service.id} ({service.type})
+                                  </span>
                                 </div>
                               ))}
                             </div>
@@ -2964,11 +3010,24 @@ function App() {
                         )}
                       </div>
 
+                      {/* Selected Ingest Service Display */}
+                      {selectedIngestService && (
+                        <div style={{ 
+                          marginBottom: '1rem', 
+                          padding: '0.5rem', 
+                          backgroundColor: '#e3f2fd', 
+                          borderRadius: '4px',
+                          fontSize: '0.9rem'
+                        }}>
+                          <strong>Selected Ingest Service:</strong> {selectedIngestService} (Site: {selectedIngestSite})
+                        </div>
+                      )}
+
                       {/* Upload Button */}
                       <button
                         className="button primary"
                         onClick={handleFileUpload}
-                        disabled={!selectedUploadFile || !selectedIngestSite || !selectedNamespace}
+                        disabled={!selectedUploadFile || !selectedIngestSite || !selectedIngestService || !selectedNamespace}
                         style={{ width: '100%', marginTop: '1rem' }}
                       >
                         Upload File
@@ -2986,6 +3045,7 @@ function App() {
                         <strong>Upload Requirements:</strong>
                         <ul style={{ margin: '0.5rem 0 0 1rem', padding: 0 }}>
                           <li>Select a site with ingest services</li>
+                          <li>Choose a specific ingest service</li>
                           <li>Choose a target namespace</li>
                           <li>Select a file from your local filesystem</li>
                         </ul>
