@@ -39,6 +39,7 @@ class TokenExchangeRequest(BaseModel):
     """Request to exchange token for a service."""
     service_name: str
     version: str = "latest"
+    file_name: Optional[str] = None
 
 
 class TokenExchangeResponse(BaseModel):

@@ -245,9 +245,24 @@ class SRCClientService:
                 "message": f"Failed to complete token request: {str(e)}"
             }
     
-    def exchange_token(self, service_name: str, version: str = "latest") -> bool:
+    def exchange_token(self, service_name: str, version: str = "latest", file_name: Optional[str] = None) -> bool:
         """Exchange token for a specific service."""
         try:
+            # If file_name is provided, we need to ensure that token is loaded and active
+            if file_name:
+                # Load the specific token file and make it active for exchange
+                token_path = os.path.join(self.session.stored_token_directory, file_name)
+                if os.path.exists(token_path):
+                    # Load the token from disk and add it to the session's internal cache
+                    with open(token_path, 'r') as f:
+                        token_data = json.load(f)
+                    
+                    # Add the token to the session's internal cache
+                    self.session._add_tokens_to_internal_cache(token_data, path_on_disk=token_path)
+                else:
+                    logging.error(f"Token file {file_name} not found")
+                    raise FileNotFoundError(f"Token file {file_name} not found")
+            
             result = self.session.exchange_token(service_name, version=version)
             return result
         except Exception as e:

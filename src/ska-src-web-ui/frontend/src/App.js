@@ -117,12 +117,30 @@ function App() {
       gatekeeper: 'http://host.docker.internal:8084/echo',
       soda: 'http://host.docker.internal:8084/soda',
       prepare_data: 'http://host.docker.internal:8084/preparedata',
+      fts: 'http://host.docker.internal:8449/fts3/ftsmon/#/',
+      rucio: 'http://host.docker.internal:8085',
+      gateway: 'http://host.docker.internal:8086/',
       // Additional DEV environment URLs for configuration panel
       authn_api: 'http://host.docker.internal:8082/api/v1',
       data_management_api: 'http://host.docker.internal:8084/api/v1',
       permissions_api: 'http://host.docker.internal:8083/api/v1',
       site_capabilities_api: 'http://host.docker.internal:8081/api/v1',
       iam: 'http://host.docker.internal:8080/login#!/home',
+    },
+    DEVR: {
+      canfar: 'https://canfar.srcnet.skao.int/science-portal/',
+      gatekeeper: 'https://dmapi.itsrc.oact.inaf.it/echo',
+      soda: 'https://gateway.srcnet.skao.int/soda/ska/dataset/soda',
+      prepare_data: 'http://host.docker.internal:18000',
+      fts: 'http://host.docker.internal:18449/fts3/ftsmon/#/',
+      rucio: 'http://host.docker.internal:18085',
+      gateway: 'https://gateway-test.srcdev.skao.int/',
+      // Additional DEVR environment URLs for configuration panel
+      authn_api: 'http://host.docker.internal:18082/api/v1',
+      data_management_api: 'http://host.docker.internal:18084/api/v1',
+      permissions_api: 'http://host.docker.internal:18083/api/v1',
+      site_capabilities_api: 'http://host.docker.internal:18081/api/v1',
+      iam: 'http://host.docker.internal:18080/login#!/home',
     },
   };
 
@@ -137,6 +155,7 @@ function App() {
     { key: 'UK', img: UKFlag, label: 'UK' },
     { key: 'SKAO', img: SKAOFlag, label: 'SKAO' },
     { key: 'DEV', img: null, label: 'DEV' },
+    { key: 'DEVR', img: null, label: 'DEVR' },
   ];
 
   const [selectedFlag, setSelectedFlag] = useState('SKAO');
@@ -283,7 +302,7 @@ function App() {
     if (!preset) return;
     
     try {
-      // Special handling for DEV flag - switch backend configuration
+      // Special handling for DEV and DEVR flags - switch backend configuration
       if (flagKey === 'DEV') {
         try {
           // Call backend to switch to DEV configuration
@@ -300,11 +319,11 @@ function App() {
             checkApiStatus();
           }, 1000);
           
-          // Update the configEdit state to reflect DEV values (but don't save to oper.yml)
+          // Update the configEdit state to reflect DEV values
           setConfigEdit((prev) => {
             const updated = { ...prev };
             
-            // For DEV environment, update all the localhost URLs
+            // For DEV environment, update all the URLs
             for (const [service, url] of Object.entries(preset)) {
               let path;
               
@@ -334,6 +353,58 @@ function App() {
           setStatus({ 
             type: 'warning', 
             message: 'Failed to switch to DEV configuration. Please try again.' 
+          });
+        }
+      } else if (flagKey === 'DEVR') {
+        try {
+          // Call backend to switch to DEVR configuration
+          await axios.post(`${API_BASE}/auth/config/switch`, {
+            config_file: 'oper-dev-rem.yml'
+          });
+          setStatus({ 
+            type: 'success', 
+            message: 'Switched to DEVR environment configuration' 
+          });
+          
+          // Refresh API status after configuration switch
+          setTimeout(() => {
+            checkApiStatus();
+          }, 1000);
+          
+          // Update the configEdit state to reflect DEVR values
+          setConfigEdit((prev) => {
+            const updated = { ...prev };
+            
+            // For DEVR environment, update all the URLs
+            for (const [service, url] of Object.entries(preset)) {
+              let path;
+              
+              if (service === 'authn_api') {
+                path = 'apis.authn-api.url';
+              } else if (service === 'data_management_api') {
+                path = 'apis.data-management-api.url';
+              } else if (service === 'permissions_api') {
+                path = 'apis.permissions-api.url';
+              } else if (service === 'site_capabilities_api') {
+                path = 'apis.site-capabilities-api.url';
+              } else if (service === 'iam') {
+                path = 'core.iam.url';
+              } else {
+                // Default to core paths for other services
+                path = `core.${service}.url`;
+              }
+              
+              updated[path] = url;
+            }
+            
+            return updated;
+          });
+          
+        } catch (configError) {
+          console.error('Failed to switch to DEVR configuration:', configError);
+          setStatus({ 
+            type: 'warning', 
+            message: 'Failed to switch to DEVR configuration. Please try again.' 
           });
         }
       } else {
@@ -401,37 +472,6 @@ function App() {
           });
         }
       }
-      
-      // Update the configEdit state to reflect new values
-      setConfigEdit((prev) => {
-        const updated = { ...prev };
-        
-        if (flagKey === 'DEV') {
-          // For DEV environment, update all the localhost URLs
-          for (const [service, url] of Object.entries(preset)) {
-            let path;
-            
-            if (service === 'authn_api') {
-              path = 'apis.authn-api.url';
-            } else if (service === 'data_management_api') {
-              path = 'apis.data-management-api.url';
-            } else if (service === 'permissions_api') {
-              path = 'apis.permissions-api.url';
-            } else if (service === 'site_capabilities_api') {
-              path = 'apis.site-capabilities-api.url';
-            } else if (service === 'iam') {
-              path = 'core.iam.url';
-            } else {
-              // Default to core paths for other services
-              path = `core.${service}.url`;
-            }
-            
-            updated[path] = url;
-          }
-        }
-        
-        return updated;
-      });
       
       // Show success message with preset name
       setStatus({ 
@@ -798,11 +838,17 @@ function App() {
       return;
     }
     
-    const fileName = activeTokens[serviceName];
-    if (!fileName) {
-      setStatus({ type: 'error', message: `No active token set for ${serviceName}` });
+    // Check if we have any active token that can be exchanged
+    // We need any valid token to exchange for other services
+    const availableTokens = Object.keys(activeTokens);
+    if (availableTokens.length === 0) {
+      setStatus({ type: 'error', message: `No active tokens available. You need at least one token to exchange for ${serviceName}.` });
       return;
     }
+    
+    // Use the first available token for exchange
+    const sourceServiceName = availableTokens[0];
+    const fileName = activeTokens[sourceServiceName];
 
     try {
       setStatus({ type: 'info', message: `Exchanging token for ${serviceName}...` });
@@ -1039,25 +1085,25 @@ function App() {
   const loadStorageData = async (siteName = null) => {
     try {
       setLoadingStorageData(true);
-      setStatus({ type: 'info', message: 'Loading storage data...' });
+      setStatus({ type: 'info', message: 'Loading storage areas...' });
       
-      let url = `${API_BASE}/storage`;
+      let url = `${API_BASE}/storage/areas`;
       if (siteName) {
         url += `?parent_node_name=${encodeURIComponent(siteName)}`;
       }
       
       const response = await axios.get(url);
       setStorageData(response.data.data || []);
-      setStatus({ type: 'success', message: `Loaded ${response.data.data?.length || 0} storage resources${siteName ? ` for ${siteName}` : ''}` });
+      setStatus({ type: 'success', message: `Loaded ${response.data.data?.length || 0} storage areas${siteName ? ` for ${siteName}` : ''}` });
     } catch (error) {
-      console.error('Failed to load storage data:', error);
+      console.error('Failed to load storage areas:', error);
       if (error.response?.status === 503) {
         setStatus({ 
           type: 'error', 
           message: 'Authentication server is currently unavailable. Please try again later.' 
         });
       } else {
-      setStatus({ type: 'error', message: `Failed to load storage data: ${error.message}` });
+      setStatus({ type: 'error', message: `Failed to load storage areas: ${error.message}` });
       }
     } finally {
       setLoadingStorageData(false);
@@ -1196,10 +1242,21 @@ function App() {
 
   // Load initial data
   useEffect(() => {
+    loadTokens();
+    checkApiStatus(); // Check API status on initial load
+  }, []);
+
+  // Load sites when Site Capabilities token becomes active
+  useEffect(() => {
     const fetchSites = async () => {
       try {
         const response = await axios.get(`${API_BASE}/auth/site/sites`);
         setSitesList(response.data.data || []);
+        if (response.data.data && response.data.data.length > 0) {
+          setStatus({ type: 'success', message: `Loaded ${response.data.data.length} sites` });
+        } else {
+          setStatus({ type: 'info', message: 'No sites available. The site capabilities service is running but no sites are configured in the development environment. This is normal for development setups. In production, sites would be configured here.' });
+        }
       } catch (error) {
         console.error('Failed to load sites:', error);
         if (error.response?.status === 503) {
@@ -1210,14 +1267,23 @@ function App() {
         } else if (error.response?.status === 401) {
           // Authentication required - this is expected when no tokens are available
           setStatus({ type: 'info', message: 'Authentication required. Please request a token to access site data.' });
+        } else {
+          setStatus({ type: 'error', message: `Failed to load sites: ${error.message}` });
         }
       }
     };
 
-    loadTokens();
-    fetchSites();
-    checkApiStatus(); // Check API status on initial load
-  }, []);
+    // Check if we have an active Site Capabilities token
+    const siteCapabilitiesToken = tokens.find(t => t.service_name === 'site-capabilities-api');
+    const hasActiveSiteCapabilitiesToken = siteCapabilitiesToken && activeTokens['site-capabilities-api'] === siteCapabilitiesToken.file_name;
+    
+    if (hasActiveSiteCapabilitiesToken) {
+      fetchSites();
+    } else {
+      // Clear sites list when no active token
+      setSitesList([]);
+    }
+  }, [tokens, activeTokens]);
 
   // Auto-refresh API status every 30 seconds
   useEffect(() => {
@@ -1344,7 +1410,10 @@ function App() {
   useEffect(() => {
     if (filters.site) {
       // Check if we have a site capabilities token
-      if (!hasSiteCapabilitiesToken()) {
+      const siteCapabilitiesToken = tokens.find(t => t.service_name === 'site-capabilities-api');
+      const hasSiteCapabilitiesToken = siteCapabilitiesToken && activeTokens['site-capabilities-api'] === siteCapabilitiesToken.file_name;
+      
+      if (!hasSiteCapabilitiesToken) {
         setStatus({ 
           type: 'error', 
           message: 'Site Capabilities token required. Please exchange a token for site-capabilities-api first.' 
@@ -1382,7 +1451,7 @@ function App() {
       setSelectedService(null);
       setStorageData(null);
     }
-  }, [filters.site, hasSiteCapabilitiesToken]);
+  }, [filters.site, tokens, activeTokens]);
 
   // Mapping from aud to friendly service name
   const serviceNameMap = {
@@ -2349,103 +2418,67 @@ function App() {
                   </div>
                 )}
                 
-                {/* Storage Resources */}
+                {/* Storage Areas */}
                 {filters.site && (
                   <div style={{ marginTop: '2rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                      <h3>Storage Resources for {filters.site}</h3>
+                      <h3>Storage Areas for {filters.site}</h3>
               <button 
                         className="button secondary small"
                         onClick={() => loadStorageData(filters.site)}
                         disabled={loadingStorageData}
               >
-                        {loadingStorageData ? 'Loading...' : 'Refresh Storage'}
+                        {loadingStorageData ? 'Loading...' : 'Refresh Storage Areas'}
               </button>
                     </div>
                     
                     {loadingStorageData ? (
-                      <div className="status info">Loading storage resources for {filters.site}...</div>
+                      <div className="status info">Loading storage areas for {filters.site}...</div>
                     ) : storageData ? (
                       <div>
                         <div className="section-header"
                           onClick={() => setCollapsedSections({...collapsedSections, storage: !collapsedSections.storage})}
               >
-                          <h4>Storage Resources ({storageData.length})</h4>
+                          <h4>Storage Areas ({storageData.length})</h4>
                           <span className="collapse-icon">{collapsedSections.storage ? '▼' : '▲'}</span>
             </div>
                         {!collapsedSections.storage && (
                           <div>
-                            {Object.entries(getStorageBySite(storageData)).map(([siteName, storages]) => (
+                            {Object.entries(getStorageBySite(storageData)).map(([siteName, storageAreas]) => (
                               <div key={siteName} className="site-storage-group">
-                                <h5 style={{ marginBottom: '0.5rem', color: '#E70068' }}>{siteName} ({storages.length})</h5>
+                                <h5 style={{ marginBottom: '0.5rem', color: '#E70068' }}>{siteName} ({storageAreas.length})</h5>
                                 <div className="data-list">
-                                  {storages.map((storage, index) => (
+                                  {storageAreas.map((area, index) => (
                                     <div key={index} className="data-item">
-                                      <strong>{storage.name || storage.id || 'Unknown Storage'}</strong>
+                                      <strong>{area.name || area.id || 'Unknown Storage Area'}</strong>
                                       <table className="service-details-table">
                                         <tbody>
-                                          {storage.host && (
-                                            <tr><td>Host</td><td>{storage.host}</td></tr>
+                                          {area.type && (
+                                            <tr><td>Type</td><td>{area.type}</td></tr>
                                           )}
-                                          {storage.base_path && (
-                                            <tr><td>Base Path</td><td>{storage.base_path}</td></tr>
+                                          {area.relative_path && (
+                                            <tr><td>Relative Path</td><td>{area.relative_path}</td></tr>
                                           )}
-                                          {storage.srm && (
-                                            <tr><td>SRM</td><td>{storage.srm}</td></tr>
+                                          {area.tier !== undefined && (
+                                            <tr><td>Tier</td><td>{area.tier}</td></tr>
                                           )}
-                                          {storage.device_type && (
-                                            <tr><td>Device Type</td><td>{storage.device_type}</td></tr>
+                                          {area.parent_storage_id && (
+                                            <tr><td>Parent Storage ID</td><td>{area.parent_storage_id}</td></tr>
                                           )}
-                                          {storage.size_in_terabytes && (
-                                            <tr><td>Size</td><td>{storage.size_in_terabytes} TB</td></tr>
+                                          {area.parent_node_name && (
+                                            <tr><td>Parent Node</td><td>{area.parent_node_name}</td></tr>
                                           )}
-                                          {storage.supported_protocols && storage.supported_protocols.length > 0 && (
-                                            <tr>
-                                              <td>Protocols</td>
-                                              <td>
-                                                {storage.supported_protocols.map((protocol, pIndex) => (
-                                                  <span key={pIndex}>
-                                                    {protocol.prefix}://{storage.host}:{protocol.port}
-                                                    {pIndex < storage.supported_protocols.length - 1 ? ', ' : ''}
-                                                  </span>
-                                                ))}
-                                              </td>
-                                            </tr>
+                                          {area.parent_site_name && (
+                                            <tr><td>Parent Site</td><td>{area.parent_site_name}</td></tr>
                                           )}
-                                          {storage.areas && storage.areas.length > 0 && (
-                                            <tr>
-                                              <td>Areas</td>
-                                              <td>
-                                                {storage.areas.map((area, aIndex) => (
-                                                  <div key={aIndex} style={{ marginBottom: '0.5rem' }}>
-                                                    <strong>{area.name}</strong> ({area.type})
-                                                    {area.tier !== undefined && <span> - Tier {area.tier}</span>}
-                                                    {area.relative_path && <div style={{ fontSize: '0.9em', color: '#666' }}>Path: {area.relative_path}</div>}
-          </div>
-                                                ))}
-                                              </td>
-                                            </tr>
-                                          )}
-                                          {storage.downtime && storage.downtime.length > 0 && (
-                                            <tr>
-                                              <td>Downtime</td>
-                                              <td style={{ color: '#dc3545' }}>
-                                                {storage.downtime.map((dt, dtIndex) => (
-                                                  <div key={dtIndex}>
-                                                    {dt.date_range} - {dt.type}: {dt.reason}
-                                                  </div>
-                                                ))}
-                                              </td>
-                                            </tr>
-                                          )}
-                                          {storage.is_force_disabled && (
+                                          {area.is_force_disabled && (
                                             <tr>
                                               <td>Status</td>
                                               <td style={{ color: '#dc3545' }}>Force Disabled</td>
                                             </tr>
                                           )}
-                                          {storage.id && (
-                                            <tr><td>ID</td><td>{storage.id}</td></tr>
+                                          {area.id && (
+                                            <tr><td>ID</td><td>{area.id}</td></tr>
                                           )}
                                         </tbody>
                                       </table>

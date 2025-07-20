@@ -15,6 +15,7 @@ COPY . /app/
 RUN mkdir -p /app/etc/cfg
 COPY ./etc/cfg/oper.yml /app/etc/cfg/oper.yml
 COPY ./etc/cfg/oper-dev.yml /app/etc/cfg/oper-dev.yml
+COPY ./etc/cfg/oper-dev-rem.yml /app/etc/cfg/oper-dev-rem.yml
 
 # Install poetry
 RUN pip install poetry

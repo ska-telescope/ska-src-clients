@@ -115,7 +115,7 @@ async def exchange_token(
 ):
     """Exchange token for a specific service."""
     try:
-        success = src_service.exchange_token(request.service_name, request.version)
+        success = src_service.exchange_token(request.service_name, request.version, request.file_name)
         return TokenExchangeResponse(
             success=success,
             message="Token exchanged successfully" if success else "Token exchange failed",

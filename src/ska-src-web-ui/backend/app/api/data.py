@@ -15,16 +15,29 @@ router = APIRouter(prefix="/data", tags=["data"])
 
 # Global service instance - in production, use dependency injection
 _src_service: SRCClientService = None
+_current_config_path: str = None
 
 def get_src_service() -> SRCClientService:
     """Get the SRC client service instance."""
-    global _src_service
-    if _src_service is None:
+    global _src_service, _current_config_path
+    
+    # Use the configured config path or default
+    config_path = getattr(settings, 'srcnet_config_path', None)
+    
+    logging.debug(f"get_src_service: current_config_path={_current_config_path}, new_config_path={config_path}")
+    
+    # If service doesn't exist or config path changed, create new service
+    if _src_service is None or _current_config_path != config_path:
+        logging.info(f"Creating new SRC service with config_path={config_path}")
         try:
-            _src_service = SRCClientService(config_path=settings.srcnet_config_path)
+            _src_service = SRCClientService(config_path=config_path)
+            _current_config_path = config_path
+            logging.info(f"SRC service created successfully with config_path={config_path}")
         except Exception as e:
             logging.error(f"Failed to initialize SRC service: {e}")
             raise HTTPException(status_code=500, detail="Failed to initialize SRC service")
+    else:
+        logging.debug(f"Using existing SRC service with config_path={_current_config_path}")
     return _src_service
 
 
