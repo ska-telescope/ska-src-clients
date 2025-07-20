@@ -1066,13 +1066,92 @@ function App() {
       setNamespaceFiles(Array.isArray(filesData) ? filesData : []);
     } catch (error) {
       console.error('Failed to load namespace files:', error);
-      setFilesError(`Failed to load files for namespace ${namespace}: ${error.response?.data?.detail || error.message}`);
-      setStatus({ 
-        type: 'error', 
-        message: `Failed to load files for namespace ${namespace}: ${error.response?.data?.detail || error.message}` 
-      });
+      console.log('Error response status:', error.response?.status);
+      console.log('Error response data:', error.response?.data);
+      
+      // Handle 404 errors specifically (namespace doesn't exist or is empty)
+      if (error.response?.status === 404 || 
+          (error.response?.data?.detail && error.response.data.detail.includes('could not be found'))) {
+        const errorMessage = `Namespace '${namespace}' is empty or doesn't exist yet. This is normal for new namespaces.`;
+        console.log('Setting info status for 404 error:', errorMessage);
+        setFilesError(errorMessage);
+        setStatus({ 
+          type: 'info', 
+          message: errorMessage 
+        });
+        setNamespaceFiles([]); // Set empty array for non-existent namespaces
+        return; // Exit early to prevent further error processing
+      } else {
+        console.log('Setting error status for non-404 error');
+        setFilesError(`Failed to load files for namespace ${namespace}: ${error.response?.data?.detail || error.message}`);
+        setStatus({ 
+          type: 'error', 
+          message: `Failed to load files for namespace ${namespace}: ${error.response?.data?.detail || error.message}` 
+        });
+      }
     } finally {
       setLoadingFiles(false);
+    }
+  }, [hasDataManagementToken]);
+
+  // Load sites with ingest services for Data Upload
+  const loadSitesWithIngest = useCallback(async () => {
+    if (!hasDataManagementToken()) {
+      setStatus({ 
+        type: 'error', 
+        message: 'Data Management token required. Please exchange a token for data-management-api first.' 
+      });
+      return;
+    }
+
+    setLoadingIngestSites(true);
+    
+    try {
+      // Get all sites first
+      const sitesResponse = await axios.get(`${API_BASE}/auth/site/sites`);
+      const allSites = sitesResponse.data.data || [];
+      
+      // Filter sites that have ingest services
+      const sitesWithIngestServices = [];
+      
+      for (const site of allSites) {
+        try {
+          // Get services for this site
+          const servicesResponse = await axios.get(`${API_BASE}/auth/site/services?node_name=${encodeURIComponent(site.name)}`);
+          const services = servicesResponse.data.data || [];
+          
+          // Check if any service is an ingest service
+          const hasIngestService = services.some(service => 
+            service.type && service.type.toLowerCase().includes('ingest')
+          );
+          
+          if (hasIngestService) {
+            sitesWithIngestServices.push({
+              ...site,
+              ingestServices: services.filter(service => 
+                service.type && service.type.toLowerCase().includes('ingest')
+              )
+            });
+          }
+        } catch (error) {
+          console.warn(`Failed to get services for site ${site.name}:`, error);
+        }
+      }
+      
+      setSitesWithIngest(sitesWithIngestServices);
+      if (sitesWithIngestServices.length > 0) {
+        setStatus({ type: 'success', message: `Found ${sitesWithIngestServices.length} sites with ingest services` });
+      } else {
+        setStatus({ type: 'info', message: 'No sites with ingest services found' });
+      }
+    } catch (error) {
+      console.error('Failed to load sites with ingest services:', error);
+      setStatus({ 
+        type: 'error', 
+        message: `Failed to load sites with ingest services: ${error.response?.data?.detail || error.message}` 
+      });
+    } finally {
+      setLoadingIngestSites(false);
     }
   }, [hasDataManagementToken]);
 
@@ -1249,6 +1328,13 @@ function App() {
     }
   }, [selectedNamespace, activeTab, loadNamespaceFiles]);
 
+  // Load sites with ingest services when upload subtab is selected
+  useEffect(() => {
+    if (activeTab === 'data-management' && dataManagementSubTab === 'upload' && sitesWithIngest.length === 0 && !loadingIngestSites && hasDataManagementToken()) {
+      loadSitesWithIngest();
+    }
+  }, [activeTab, dataManagementSubTab, hasDataManagementToken, loadSitesWithIngest]);
+
   // Helper to get all URL fields as { path, value, label }
   const getUrlFields = (config) => {
     const urls = [];
@@ -1394,6 +1480,74 @@ function App() {
       setStatus({ 
         type: 'error', 
         message: `Failed to switch configuration: ${error.response?.data?.detail || error.message}` 
+      });
+    }
+  };
+
+  // Handle file selection for upload
+  const handleFileSelect = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setSelectedUploadFile(file);
+      setStatus({ type: 'success', message: `Selected file: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)` });
+    }
+  };
+
+  // Handle file upload
+  const handleFileUpload = async () => {
+    if (!selectedUploadFile) {
+      setStatus({ type: 'error', message: 'Please select a file to upload' });
+      return;
+    }
+    
+    if (!selectedIngestSite) {
+      setStatus({ type: 'error', message: 'Please select a site with ingest service' });
+      return;
+    }
+    
+    if (!selectedNamespace) {
+      setStatus({ type: 'error', message: 'Please select a namespace' });
+      return;
+    }
+    
+    try {
+      setStatus({ type: 'info', message: 'Uploading file...' });
+      
+      const formData = new FormData();
+      formData.append('file', selectedUploadFile);
+      formData.append('namespace', selectedNamespace);
+      
+      // Get the first ingest service from the selected site
+      const selectedSite = sitesWithIngest.find(site => site.name === selectedIngestSite);
+      const ingestService = selectedSite?.ingestServices?.[0];
+      
+      if (!ingestService) {
+        setStatus({ type: 'error', message: 'No ingest service found for selected site' });
+        return;
+      }
+      
+      formData.append('ingest_service_id', ingestService.id);
+      
+      const response = await axios.post(`${API_BASE}/data/upload`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      if (response.data.success) {
+        setStatus({ type: 'success', message: 'File uploaded successfully!' });
+        setSelectedUploadFile(null);
+        // Reset file input
+        const fileInput = document.getElementById('file-upload-input');
+        if (fileInput) fileInput.value = '';
+      } else {
+        setStatus({ type: 'error', message: 'Upload failed: ' + response.data.message });
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      setStatus({ 
+        type: 'error', 
+        message: `Upload failed: ${error.response?.data?.detail || error.message}` 
       });
     }
   };
@@ -1826,9 +1980,9 @@ function App() {
             margin: '1.5rem 0 1.5rem 0',
             padding: '1rem',
             borderRadius: '6px',
-            background: status.type === 'error' ? '#ffeaea' : status.type === 'success' ? '#eaffea' : '#f8f9fa',
-            color: status.type === 'error' ? '#dc3545' : status.type === 'success' ? '#28a745' : '#333',
-            border: status.type === 'error' ? '1px solid #dc3545' : status.type === 'success' ? '1px solid #28a745' : '1px solid #e0e0e0',
+            background: status.type === 'error' ? '#ffeaea' : status.type === 'success' ? '#eaffea' : status.type === 'info' ? '#fff3cd' : '#f8f9fa',
+            color: status.type === 'error' ? '#dc3545' : status.type === 'success' ? '#28a745' : status.type === 'info' ? '#856404' : '#333',
+            border: status.type === 'error' ? '1px solid #dc3545' : status.type === 'success' ? '1px solid #28a745' : status.type === 'info' ? '1px solid #ffeaa7' : '1px solid #e0e0e0',
             fontWeight: 500,
             fontSize: '1rem',
             textAlign: 'center',
@@ -2458,63 +2612,121 @@ function App() {
                   </div>
                 )}
                 
-                {/* Namespace Selection */}
+                {/* Data Management Subtabs */}
                 {hasDataManagementToken() && (
-                  <div className="filters" style={{ marginBottom: '1.5rem' }}>
-                    <h4>Select Namespace</h4>
-                    <div className="filter-row">
-                <select 
-                  value={selectedNamespace} 
-                  onChange={(e) => setSelectedNamespace(e.target.value)}
-                        className="filter-select"
-                        disabled={loadingNamespaces}
-                >
-                        <option value="">Select a namespace to view files...</option>
-                        {namespaces.map((namespace, index) => (
-                          <option key={index} value={namespace}>{namespace}</option>
-                  ))}
-                </select>
-                <button 
-                  className="button secondary small"
-                  onClick={() => loadNamespaces(true)}
-                  disabled={loadingNamespaces}
-                  style={{ marginLeft: '0.5rem' }}
-                >
-                        {loadingNamespaces ? 'Loading...' : 'Refresh Namespaces'}
-                </button>
-              </div>
-                    {namespaceError && (
-                      <div style={{ color: '#dc3545', fontSize: '0.9rem', marginTop: '0.5rem' }}>
-                        {namespaceError}
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        onClick={() => setDataManagementSubTab('explore')}
+                        className={`tab-button ${dataManagementSubTab === 'explore' ? 'active' : ''}`}
+                        style={{
+                          padding: '0.75rem 1.5rem',
+                          border: 'none',
+                          background: dataManagementSubTab === 'explore' ? '#E70068' : '#f8f9fa',
+                          color: dataManagementSubTab === 'explore' ? 'white' : '#495057',
+                          fontWeight: dataManagementSubTab === 'explore' ? 'bold' : 'normal',
+                          cursor: 'pointer',
+                          borderRadius: '6px 6px 0 0',
+                          borderBottom: dataManagementSubTab === 'explore' ? '3px solid #E70068' : '3px solid transparent',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        Data Explore
+                      </button>
+                      <button
+                        onClick={() => setDataManagementSubTab('upload')}
+                        className={`tab-button ${dataManagementSubTab === 'upload' ? 'active' : ''}`}
+                        style={{
+                          padding: '0.75rem 1.5rem',
+                          border: 'none',
+                          background: dataManagementSubTab === 'upload' ? '#E70068' : '#f8f9fa',
+                          color: dataManagementSubTab === 'upload' ? 'white' : '#495057',
+                          fontWeight: dataManagementSubTab === 'upload' ? 'bold' : 'normal',
+                          cursor: 'pointer',
+                          borderRadius: '6px 6px 0 0',
+                          borderBottom: dataManagementSubTab === 'upload' ? '3px solid #E70068' : '3px solid transparent',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        Data Upload
+                      </button>
                     </div>
-                  )}
-                </div>
-              )}
+                  </div>
+                )}
 
-                {/* Two Column Layout for Files and Functions */}
-                {hasDataManagementToken() && selectedNamespace && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-                    
-                    {/* Left Column - Files List */}
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                        <h4>Files in namespace: {selectedNamespace}</h4>
+                {/* Data Explore Subtab Content */}
+                {hasDataManagementToken() && dataManagementSubTab === 'explore' && (
+                  <>
+                    {/* Namespace Selection */}
+                    <div className="filters" style={{ marginBottom: '1.5rem' }}>
+                      <h4>Select Namespace</h4>
+                      <div className="filter-row">
+                        <select 
+                          value={selectedNamespace} 
+                          onChange={(e) => setSelectedNamespace(e.target.value)}
+                          className="filter-select"
+                          disabled={loadingNamespaces}
+                        >
+                          <option value="">Select a namespace to view files...</option>
+                          {namespaces.map((namespace, index) => (
+                            <option key={index} value={namespace}>{namespace}</option>
+                          ))}
+                        </select>
                         <button 
                           className="button secondary small"
-                          onClick={() => loadNamespaceFiles(selectedNamespace)}
-                          disabled={loadingFiles}
+                          onClick={() => loadNamespaces(true)}
+                          disabled={loadingNamespaces}
+                          style={{ marginLeft: '0.5rem' }}
                         >
-                          {loadingFiles ? 'Loading...' : 'Refresh Files'}
+                          {loadingNamespaces ? 'Loading...' : 'Refresh Namespaces'}
                         </button>
                       </div>
-
-                      {loadingFiles ? (
-                        <div className="status info">Loading files for namespace {selectedNamespace}...</div>
-                      ) : filesError ? (
-                        <div style={{ color: '#dc3545', fontSize: '0.9rem' }}>
-                          {filesError}
+                      {namespaceError && (
+                        <div style={{ 
+                          fontSize: '0.9rem', 
+                          marginTop: '0.5rem',
+                          padding: '0.75rem',
+                          borderRadius: '4px',
+                          backgroundColor: namespaceError.includes('does not exist') ? '#fff3cd' : '#ffeaea',
+                          color: namespaceError.includes('does not exist') ? '#856404' : '#dc3545',
+                          border: namespaceError.includes('does not exist') ? '1px solid #ffeaa7' : '1px solid #dc3545'
+                        }}>
+                          {namespaceError}
                         </div>
-                      ) : namespaceFiles.length > 0 ? (
+                      )}
+                    </div>
+
+                    {/* Two Column Layout for Files and Functions */}
+                    {selectedNamespace && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                        
+                        {/* Left Column - Files List */}
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <h4>Files in namespace: {selectedNamespace}</h4>
+                            <button 
+                              className="button secondary small"
+                              onClick={() => loadNamespaceFiles(selectedNamespace)}
+                              disabled={loadingFiles}
+                            >
+                              {loadingFiles ? 'Loading...' : 'Refresh Files'}
+                            </button>
+                          </div>
+
+                          {loadingFiles ? (
+                            <div className="status info">Loading files for namespace {selectedNamespace}...</div>
+                          ) : filesError ? (
+                            <div style={{ 
+                              fontSize: '0.9rem',
+                              padding: '0.75rem',
+                              borderRadius: '4px',
+                              backgroundColor: filesError.includes('does not exist') ? '#fff3cd' : '#ffeaea',
+                              color: filesError.includes('does not exist') ? '#856404' : '#dc3545',
+                              border: filesError.includes('does not exist') ? '1px solid #ffeaa7' : '1px solid #dc3545'
+                            }}>
+                              {filesError}
+                            </div>
+                                                ) : namespaceFiles.length > 0 ? (
                         <div style={{ 
                           maxHeight: '600px', 
                           overflowY: 'auto', 
@@ -2555,28 +2767,196 @@ function App() {
                           ))}
                         </div>
                       ) : (
-                        <p>No files found in namespace {selectedNamespace}.</p>
+                        <div style={{ 
+                          padding: '1rem', 
+                          textAlign: 'center', 
+                          color: '#6c757d',
+                          backgroundColor: '#f8f9fa',
+                          border: '1px solid #e0e0e0',
+                          borderRadius: '6px'
+                        }}>
+                          <p style={{ margin: '0 0 0.5rem 0' }}>
+                            {filesError && filesError.includes('does not exist') 
+                              ? `Namespace '${selectedNamespace}' is empty or doesn't exist yet.`
+                              : `No files found in namespace '${selectedNamespace}'.`
+                            }
+                          </p>
+                          <p style={{ margin: 0, fontSize: '0.9rem' }}>
+                            Use the Data Upload tab to add files to this namespace.
+                          </p>
+                        </div>
+                      )}
+                        </div>
+
+                        {/* Right Column - Future Data Management Functions */}
+                        <div>
+                          <h4>Data Management Functions</h4>
+                          <div style={{ 
+                            padding: '1rem', 
+                            backgroundColor: '#f8f9fa', 
+                            border: '1px solid #e0e0e0', 
+                            borderRadius: '6px',
+                            minHeight: '200px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#6c757d'
+                          }}>
+                            <p style={{ textAlign: 'center', margin: 0 }}>
+                              Data management functions will be available here.<br/>
+                              (Download, Upload, Move, Stage, etc.)
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Data Upload Subtab Content */}
+                {hasDataManagementToken() && dataManagementSubTab === 'upload' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                    
+                    {/* Left Column - Sites with Ingest Services */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h4>Sites with Ingest Services</h4>
+                        <button 
+                          className="button secondary small"
+                          onClick={loadSitesWithIngest}
+                          disabled={loadingIngestSites}
+                        >
+                          {loadingIngestSites ? 'Loading...' : 'Refresh Sites'}
+                        </button>
+                      </div>
+
+                      {loadingIngestSites ? (
+                        <div className="status info">Loading sites with ingest services...</div>
+                      ) : sitesWithIngest.length > 0 ? (
+                        <div style={{ 
+                          maxHeight: '400px', 
+                          overflowY: 'auto', 
+                          border: '1px solid #e0e0e0', 
+                          borderRadius: '6px',
+                          padding: '0.5rem',
+                          backgroundColor: '#f8f9fa'
+                        }}>
+                          {sitesWithIngest.map((site, index) => (
+                            <div key={index} style={{ 
+                              padding: '0.75rem',
+                              borderBottom: index < sitesWithIngest.length - 1 ? '1px solid #dee2e6' : 'none',
+                              cursor: 'pointer',
+                              backgroundColor: selectedIngestSite === site.name ? '#e3f2fd' : 'transparent',
+                              borderRadius: '4px',
+                              marginBottom: '0.25rem'
+                            }}
+                            onClick={() => setSelectedIngestSite(site.name)}
+                            >
+                              <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>
+                                {site.name}
+                              </div>
+                              <div style={{ fontSize: '0.8rem', color: '#6c757d' }}>
+                                {site.ingestServices?.length || 0} ingest service(s)
+                              </div>
+                              {site.ingestServices?.map((service, serviceIndex) => (
+                                <div key={serviceIndex} style={{ fontSize: '0.8rem', color: '#495057', marginTop: '0.25rem' }}>
+                                  • {service.name || service.id} ({service.type})
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p>No sites with ingest services found.</p>
                       )}
                     </div>
 
-                    {/* Right Column - Future Data Management Functions */}
+                    {/* Right Column - File Upload */}
                     <div>
-                      <h4>Data Management Functions</h4>
+                      <h4>File Upload</h4>
+                      
+                      {/* Namespace Selection for Upload */}
+                      <div style={{ marginBottom: '1rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                          Target Namespace:
+                        </label>
+                        <select 
+                          value={selectedNamespace} 
+                          onChange={(e) => setSelectedNamespace(e.target.value)}
+                          className="filter-select"
+                          disabled={loadingNamespaces}
+                          style={{ width: '100%' }}
+                        >
+                          <option value="">Select a namespace for upload...</option>
+                          {namespaces.map((namespace, index) => (
+                            <option key={index} value={namespace}>{namespace}</option>
+                          ))}
+                        </select>
+                        <button 
+                          className="button secondary small"
+                          onClick={() => loadNamespaces(true)}
+                          disabled={loadingNamespaces}
+                          style={{ marginTop: '0.5rem' }}
+                        >
+                          {loadingNamespaces ? 'Loading...' : 'Refresh Namespaces'}
+                        </button>
+                      </div>
+
+                      {/* File Selection */}
+                      <div style={{ marginBottom: '1rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                          Select File:
+                        </label>
+                        <input
+                          type="file"
+                          id="file-upload-input"
+                          onChange={handleFileSelect}
+                          style={{ 
+                            width: '100%', 
+                            padding: '0.5rem',
+                            border: '1px solid #ccc',
+                            borderRadius: '4px',
+                            backgroundColor: 'white'
+                          }}
+                        />
+                        {selectedUploadFile && (
+                          <div style={{ 
+                            marginTop: '0.5rem', 
+                            padding: '0.5rem', 
+                            backgroundColor: '#e8f5e8', 
+                            borderRadius: '4px',
+                            fontSize: '0.9rem'
+                          }}>
+                            <strong>Selected:</strong> {selectedUploadFile.name} ({(selectedUploadFile.size / 1024 / 1024).toFixed(2)} MB)
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Upload Button */}
+                      <button
+                        className="button primary"
+                        onClick={handleFileUpload}
+                        disabled={!selectedUploadFile || !selectedIngestSite || !selectedNamespace}
+                        style={{ width: '100%', marginTop: '1rem' }}
+                      >
+                        Upload File
+                      </button>
+
+                      {/* Upload Requirements */}
                       <div style={{ 
-                        padding: '1rem', 
+                        marginTop: '1rem', 
+                        padding: '0.75rem', 
                         backgroundColor: '#f8f9fa', 
                         border: '1px solid #e0e0e0', 
-                        borderRadius: '6px',
-                        minHeight: '200px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#6c757d'
+                        borderRadius: '4px',
+                        fontSize: '0.9rem'
                       }}>
-                        <p style={{ textAlign: 'center', margin: 0 }}>
-                          Data management functions will be available here.<br/>
-                          (Download, Upload, Move, Stage, etc.)
-                        </p>
+                        <strong>Upload Requirements:</strong>
+                        <ul style={{ margin: '0.5rem 0 0 1rem', padding: 0 }}>
+                          <li>Select a site with ingest services</li>
+                          <li>Choose a target namespace</li>
+                          <li>Select a file from your local filesystem</li>
+                        </ul>
                       </div>
                     </div>
                   </div>
