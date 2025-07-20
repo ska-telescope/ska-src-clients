@@ -37,6 +37,7 @@ function App() {
   const [configError, setConfigError] = useState(null);
   const [configEdit, setConfigEdit] = useState({});
   const [configSaving, setConfigSaving] = useState({});
+  const [currentConfig, setCurrentConfig] = useState('oper.yml'); // Default to PROD
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : false;
@@ -1724,6 +1725,9 @@ function App() {
       });
       
       if (response.data.success) {
+        // Update currentConfig state
+        setCurrentConfig(configFile);
+        
         // Update selectedFlag based on config file
         if (configFile === 'oper-dev.yml') {
           setSelectedFlag('DEV');
@@ -2050,25 +2054,40 @@ function App() {
             {/* Configuration Switch Buttons */}
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button
-                className="button secondary small"
+                className={`button ${currentConfig === 'oper.yml' ? '' : 'secondary'} small`}
                 onClick={() => switchConfig('oper.yml')}
-                style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}
+                style={{ 
+                  fontSize: '0.8rem', 
+                  padding: '0.3rem 0.6rem',
+                  background: currentConfig === 'oper.yml' ? 'var(--ska-magenta)' : undefined,
+                  color: currentConfig === 'oper.yml' ? 'white' : undefined
+                }}
                 title="Switch to Production Configuration"
               >
                 PROD
               </button>
               <button
-                className="button secondary small"
+                className={`button ${currentConfig === 'oper-dev.yml' ? '' : 'secondary'} small`}
                 onClick={() => switchConfig('oper-dev.yml')}
-                style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}
+                style={{ 
+                  fontSize: '0.8rem', 
+                  padding: '0.3rem 0.6rem',
+                  background: currentConfig === 'oper-dev.yml' ? 'var(--ska-magenta)' : undefined,
+                  color: currentConfig === 'oper-dev.yml' ? 'white' : undefined
+                }}
                 title="Switch to Development Configuration"
               >
                 DEV
               </button>
               <button
-                className="button secondary small"
+                className={`button ${currentConfig === 'oper-dev-rem.yml' ? '' : 'secondary'} small`}
                 onClick={() => switchConfig('oper-dev-rem.yml')}
-                style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}
+                style={{ 
+                  fontSize: '0.8rem', 
+                  padding: '0.3rem 0.6rem',
+                  background: currentConfig === 'oper-dev-rem.yml' ? 'var(--ska-magenta)' : undefined,
+                  color: currentConfig === 'oper-dev-rem.yml' ? 'white' : undefined
+                }}
                 title="Switch to Remote Development Configuration"
               >
                 DEVR
