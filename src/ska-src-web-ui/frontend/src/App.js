@@ -677,6 +677,12 @@ function App() {
     return dataManagementToken && activeTokens['data-management-api'] === dataManagementToken.file_name;
   }, [tokens, activeTokens]);
 
+  // Check if we have a site capabilities token available (presence only, not active status)
+  const hasSiteCapabilitiesTokenAvailable = useCallback(() => {
+    const siteCapabilitiesToken = tokens.find(t => t.service_name === 'site-capabilities-api');
+    return !!siteCapabilitiesToken; // Just check if token exists, not if it's active
+  }, [tokens]);
+
   // Check if all systems are green (for display purposes)
   const areAllSystemsGreen = useCallback(() => {
     return apiStatus.backend.status === 'online' &&
@@ -1104,6 +1110,14 @@ function App() {
       return;
     }
 
+    if (!hasSiteCapabilitiesTokenAvailable()) {
+      setStatus({ 
+        type: 'error', 
+        message: 'Site Capabilities token required. Please exchange a token for site-capabilities-api first.' 
+      });
+      return;
+    }
+
     setLoadingIngestSites(true);
     
     try {
@@ -1257,14 +1271,11 @@ function App() {
       }
     };
 
-    // Check if we have an active Site Capabilities token
-    const siteCapabilitiesToken = tokens.find(t => t.service_name === 'site-capabilities-api');
-    const hasActiveSiteCapabilitiesToken = siteCapabilitiesToken && activeTokens['site-capabilities-api'] === siteCapabilitiesToken.file_name;
-    
-    if (hasActiveSiteCapabilitiesToken) {
+    // Check if we have a Site Capabilities token available (not necessarily active)
+    if (hasSiteCapabilitiesTokenAvailable()) {
       fetchSites();
     } else {
-      // Clear sites list when no active token
+      // Clear sites list when no token is available
       setSitesList([]);
     }
   }, [tokens, activeTokens]);
@@ -2636,21 +2647,42 @@ function App() {
                       <button
                         onClick={() => setDataManagementSubTab('upload')}
                         className={`tab-button ${dataManagementSubTab === 'upload' ? 'active' : ''}`}
+                        disabled={!hasDataManagementToken() || !hasSiteCapabilitiesTokenAvailable()}
                         style={{
                           padding: '0.75rem 1.5rem',
                           border: 'none',
                           background: dataManagementSubTab === 'upload' ? '#E70068' : '#f8f9fa',
-                          color: dataManagementSubTab === 'upload' ? 'white' : '#495057',
+                          color: dataManagementSubTab === 'upload' ? 'white' : (!hasDataManagementToken() || !hasSiteCapabilitiesTokenAvailable()) ? '#adb5bd' : '#495057',
                           fontWeight: dataManagementSubTab === 'upload' ? 'bold' : 'normal',
-                          cursor: 'pointer',
+                          cursor: (!hasDataManagementToken() || !hasSiteCapabilitiesTokenAvailable()) ? 'not-allowed' : 'pointer',
                           borderRadius: '6px 6px 0 0',
                           borderBottom: dataManagementSubTab === 'upload' ? '3px solid #E70068' : '3px solid transparent',
-                          transition: 'all 0.2s ease'
+                          transition: 'all 0.2s ease',
+                          opacity: (!hasDataManagementToken() || !hasSiteCapabilitiesTokenAvailable()) ? 0.6 : 1
                         }}
+                        title={(!hasDataManagementToken() || !hasSiteCapabilitiesTokenAvailable()) ? 
+                          'Data Upload requires both Site Capabilities and Data Management tokens' : 
+                          'Switch to Data Upload tab'
+                        }
                       >
                         Data Upload
                       </button>
                     </div>
+                    
+                    {/* Show info message when Data Upload is disabled */}
+                    {(!hasDataManagementToken() || !hasSiteCapabilitiesTokenAvailable()) && (
+                      <div style={{ 
+                        marginTop: '0.5rem', 
+                        padding: '0.5rem', 
+                        backgroundColor: '#fff3cd', 
+                        border: '1px solid #ffeaa7', 
+                        borderRadius: '4px',
+                        fontSize: '0.85rem',
+                        color: '#856404'
+                      }}>
+                        <strong>Data Upload Requirements:</strong> Both Site Capabilities and Data Management tokens are required to access the Data Upload functionality.
+                      </div>
+                    )}
                   </div>
                 )}
 
