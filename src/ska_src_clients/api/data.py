@@ -229,7 +229,17 @@ class DataAPI(API):
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         data_ingest_service = client.get_service(service_id=ingest_service_id).json()
         associated_storage_area = client.get_storage_area(data_ingest_service.get('associated_storage_area_id')).json()
-        associated_storage = client.get_storage(associated_storage_area.get('associated_storage_id')).json()
+        
+        # Check if associated_storage_id is missing and use parent_storage_id as fallback
+        storage_id = associated_storage_area.get('associated_storage_id')
+        if storage_id is None:
+            storage_id = associated_storage_area.get('parent_storage_id')
+            logging.info(f"Using parent_storage_id '{storage_id}' as fallback for missing associated_storage_id")
+        
+        if storage_id is None:
+            raise Exception("Neither associated_storage_id nor parent_storage_id found in storage area configuration")
+        
+        associated_storage = client.get_storage(storage_id).json()
 
         base_path = associated_storage.get('base_path')
         relative_path = associated_storage_area.get('relative_path')

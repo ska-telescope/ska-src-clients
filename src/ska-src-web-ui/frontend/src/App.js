@@ -294,7 +294,7 @@ function App() {
       console.log(`Skipping updateUrlsFromSiteCapabilities for ${selectedFlag} flag - using config file values`);
     } else {
       console.log('Running updateUrlsFromSiteCapabilities for production flag');
-      updateUrlsFromSiteCapabilities();
+    updateUrlsFromSiteCapabilities();
     }
   }, [apiStatus['site-capabilities'].status, tokens, selectedFlag]); // Remove operConfig from dependency to prevent loops
 
@@ -535,11 +535,11 @@ function App() {
       // Update preset-specific URLs only for production flags (not DEV/DEVR)
       // For DEV/DEVR flags, use the URLs from the config files instead
       if (flagKey !== 'DEV' && flagKey !== 'DEVR') {
-        for (const [service, url] of Object.entries(preset)) {
+            for (const [service, url] of Object.entries(preset)) {
           if (['canfar', 'gatekeeper', 'soda', 'prepare_data'].includes(service)) {
-            const path = `core.${service}.url`;
-            await saveConfigValue(path, url);
-          }
+              const path = `core.${service}.url`;
+              await saveConfigValue(path, url);
+            }
         }
       } else {
         // For DEV/DEVR flags, don't update any URLs - let the config file values take precedence
@@ -578,11 +578,11 @@ function App() {
         
         // Then update the preset-specific URLs (canfar, gatekeeper, soda, prepare_data) only for production flags
         if (flagKey !== 'DEV' && flagKey !== 'DEVR') {
-          for (const [service, url] of Object.entries(preset)) {
+        for (const [service, url] of Object.entries(preset)) {
             if (['canfar', 'gatekeeper', 'soda', 'prepare_data'].includes(service)) {
-              const path = `core.${service}.url`;
-              updated[path] = url;
-            }
+          const path = `core.${service}.url`;
+          updated[path] = url;
+        }
           }
         }
         
@@ -1241,7 +1241,7 @@ function App() {
 
     setLoadingNamespaces(true);
     if (clearError) {
-      setNamespaceError(null);
+    setNamespaceError(null);
       setNamespaceLoadFailed(false);
     }
     
@@ -1311,11 +1311,11 @@ function App() {
         return; // Exit early to prevent further error processing
       } else {
         console.log('Setting error status for non-404 error');
-        setFilesError(`Failed to load files for namespace ${namespace}: ${error.response?.data?.detail || error.message}`);
-        setStatus({ 
-          type: 'error', 
-          message: `Failed to load files for namespace ${namespace}: ${error.response?.data?.detail || error.message}` 
-        });
+      setFilesError(`Failed to load files for namespace ${namespace}: ${error.response?.data?.detail || error.message}`);
+      setStatus({ 
+        type: 'error', 
+        message: `Failed to load files for namespace ${namespace}: ${error.response?.data?.detail || error.message}` 
+      });
       }
     } finally {
       setLoadingFiles(false);
@@ -1502,7 +1502,7 @@ function App() {
 
     // Check if we have a Site Capabilities token available
     if (hasSiteCapabilitiesToken()) {
-      fetchSites();
+    fetchSites();
     } else {
       // Clear sites list when no token is available
       setSitesList([]);
@@ -1848,25 +1848,25 @@ function App() {
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                   {flagList.map(flag => (
                     flag.img ? (
-                      <img
-                        key={flag.key}
-                        src={flag.img}
-                        alt={flag.label}
-                        title={`Load ${flag.label} preset URLs`}
-                        onClick={() => handleFlagSelect(flag.key)}
-                        style={{
-                          width: '32px',
-                          height: '22px',
-                          borderRadius: '3px',
-                          border: selectedFlag === flag.key ? '2px solid #007bff' : '1px solid #ccc',
-                          boxShadow: selectedFlag === flag.key ? '0 0 4px #007bff' : 'none',
-                          cursor: 'pointer',
-                          opacity: selectedFlag === flag.key ? 1 : 0.8,
-                          transition: 'all 0.2s',
-                          background: '#fff',
-                          objectFit: 'cover',
-                        }}
-                      />
+                    <img
+                      key={flag.key}
+                      src={flag.img}
+                      alt={flag.label}
+                      title={`Load ${flag.label} preset URLs`}
+                      onClick={() => handleFlagSelect(flag.key)}
+                      style={{
+                        width: '32px',
+                        height: '22px',
+                        borderRadius: '3px',
+                        border: selectedFlag === flag.key ? '2px solid #007bff' : '1px solid #ccc',
+                        boxShadow: selectedFlag === flag.key ? '0 0 4px #007bff' : 'none',
+                        cursor: 'pointer',
+                        opacity: selectedFlag === flag.key ? 1 : 0.8,
+                        transition: 'all 0.2s',
+                        background: '#fff',
+                        objectFit: 'cover',
+                      }}
+                    />
                     ) : (
                       <div
                         key={flag.key}
@@ -2037,13 +2037,13 @@ function App() {
               >
                 DEVR
               </button>
-              <button
-                className="button secondary small"
-                onClick={checkApiStatus}
-                disabled={checkingApiStatus}
-              >
-                {checkingApiStatus ? 'Checking...' : 'Refresh Status'}
-              </button>
+            <button 
+              className="button secondary small"
+              onClick={checkApiStatus}
+              disabled={checkingApiStatus}
+            >
+              {checkingApiStatus ? 'Checking...' : 'Refresh Status'}
+            </button>
             </div>
           </div>
           
@@ -2298,8 +2298,8 @@ function App() {
               <div className="device-flow-info">
                 <h3>Device Flow Authentication</h3>
                 <p>Please complete authentication using one of the following methods:</p>
-
-          <div>
+                
+                <div>
                   <strong>User Code:</strong>
                   <div className="code">{tokenRequest.user_code}</div>
                 </div>
@@ -2406,7 +2406,7 @@ function App() {
                          )}
                          {token.service_name === 'data-management-api' && (
                            <span style={{ color: '#007bff', fontWeight: 'bold', fontSize: '0.85rem' }}>★ Data Management</span>
-                         )}
+                        )}
                       </div>
                     </div>
                     <p><strong>Access Token:</strong> {token.access_token || 'Not available'}</p>
@@ -2499,7 +2499,7 @@ function App() {
               backgroundColor: '#f8f9fa',
               borderRadius: '6px 6px 0 0'
             }}>
-              <button 
+              <button
                 onClick={() => handleTabSwitch('site-capabilities')}
                 style={{
                   flex: 1,
@@ -2541,16 +2541,16 @@ function App() {
                 <h4>Select Site</h4>
                 <div className="filter-row">
                   {sitesList.length > 0 ? (
-                    <select 
-                      value={filters.site || ''} 
-                      onChange={(e) => setFilters({...filters, site: e.target.value})}
-                      className="filter-select"
-                    >
-                      <option value="">Select a site to view services...</option>
-                      {sitesList.map((site, index) => (
-                        <option key={index} value={site.node}>{site.name || site.node}</option>
-                      ))}
-                    </select>
+                  <select 
+                    value={filters.site || ''} 
+                    onChange={(e) => setFilters({...filters, site: e.target.value})}
+                    className="filter-select"
+                  >
+                    <option value="">Select a site to view services...</option>
+                    {sitesList.map((site, index) => (
+                      <option key={index} value={site.node}>{site.name || site.node}</option>
+                    ))}
+                  </select>
                   ) : (
                     <div style={{ 
                       padding: '1rem', 
@@ -2573,19 +2573,19 @@ function App() {
               <>
                 {/* Token Requirement Check */}
                 {!hasSiteCapabilitiesToken() && (
-            <div style={{ 
+                  <div style={{ 
                     marginBottom: '1.5rem', 
-              padding: '1rem',
+                    padding: '1rem', 
                     backgroundColor: '#fff3cd', 
                     border: '1px solid #ffeaa7', 
                     borderRadius: '4px' 
-            }}>
+                  }}>
                     <h4 style={{ color: '#856404', margin: '0 0 0.5rem 0' }}>🔐 Site Capabilities Token Required</h4>
                     <p style={{ color: '#856404', margin: '0', fontSize: '0.9rem' }}>
                       To access Site Capabilities functions, you need to exchange a token for the site-capabilities-api service. 
                       Please go to the token management section above and exchange a token for site-capabilities-api.
                     </p>
-              </div>
+                  </div>
                 )}
                 
                 {hasSiteCapabilitiesToken() && (
@@ -2598,7 +2598,7 @@ function App() {
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                   <h3>Services for {filters.site}</h3>
-              <button 
+                  <button 
                     className="button secondary small"
                     onClick={() => {
                       setLoadingServiceData(true);
@@ -2615,8 +2615,8 @@ function App() {
                     disabled={loadingServiceData}
                   >
                     {loadingServiceData ? 'Refreshing...' : 'Refresh Status'}
-              </button>
-            </div>
+                  </button>
+                </div>
                 
                 {/* Additional Filters */}
                 <div className="filters">
@@ -2647,8 +2647,8 @@ function App() {
                         <option key={index} value={status}>{status}</option>
                       ))}
                     </select>
-          </div>
-        </div>
+                  </div>
+                </div>
 
                 {/* Status Legend */}
                 <div className="status-legend" style={{ marginBottom: '1rem', padding: '0.5rem', backgroundColor: '#f8f9fa', borderRadius: '0.25rem', fontSize: '0.85rem' }}>
@@ -2757,15 +2757,15 @@ function App() {
                 {/* Storage Areas */}
                 {filters.site && (
                   <div style={{ marginTop: '2rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                       <h3>Storage Areas for {filters.site}</h3>
-              <button 
+                      <button 
                         className="button secondary small"
                         onClick={() => loadStorageData(filters.site)}
                         disabled={loadingStorageData}
-              >
+                      >
                         {loadingStorageData ? 'Loading...' : 'Refresh Storage Areas'}
-              </button>
+                      </button>
                     </div>
                     
                     {loadingStorageData ? (
@@ -2774,10 +2774,10 @@ function App() {
                       <div>
                         <div className="section-header"
                           onClick={() => setCollapsedSections({...collapsedSections, storage: !collapsedSections.storage})}
-              >
+                        >
                           <h4>Storage Areas ({storageData.length})</h4>
                           <span className="collapse-icon">{collapsedSections.storage ? '▼' : '▲'}</span>
-            </div>
+                        </div>
                         {!collapsedSections.storage && (
                           <div>
                             {Object.entries(getStorageBySite(storageData)).map(([siteName, storageAreas]) => (
@@ -2834,14 +2834,14 @@ function App() {
                 
                 {/* Compute Resources */}
                 {serviceData?.compute && (
-            <div>
+                  <div>
                     <div 
                       className="section-header"
                       onClick={() => setCollapsedSections({...collapsedSections, compute: !collapsedSections.compute})}
                     >
                       <h4>Compute Resources ({getFilteredData(serviceData.compute, 'compute').length})</h4>
                       <span className="collapse-icon">{collapsedSections.compute ? '▼' : '▲'}</span>
-                </div>
+                    </div>
                     {!collapsedSections.compute && (
                       <div className="data-list">
                         {getFilteredData(serviceData.compute, 'compute').map((comp, index) => (
@@ -2853,9 +2853,9 @@ function App() {
                           </div>
                         ))}
                       </div>
-              )}
-            </div>
-          )}
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <p>Select a site from the dropdown above to see available services.</p>
@@ -2866,8 +2866,8 @@ function App() {
             )}
 
             {/* Data Management Tab Content */}
-          {activeTab === 'data-management' && (
-            <div>
+            {activeTab === 'data-management' && (
+              <div>
                 
                 {/* Token Requirement Check */}
                 {!hasDataManagementToken() && (
@@ -2953,30 +2953,30 @@ function App() {
                 {hasDataManagementToken() && dataManagementSubTab === 'explore' && (
                   <>
                     {/* Namespace Selection */}
-                    <div className="filters" style={{ marginBottom: '1.5rem' }}>
-                      <h4>Select Namespace</h4>
-                      <div className="filter-row">
-                        <select 
-                          value={selectedNamespace} 
-                          onChange={(e) => setSelectedNamespace(e.target.value)}
-                          className="filter-select"
-                          disabled={loadingNamespaces}
-                        >
-                          <option value="">Select a namespace to view files...</option>
-                          {namespaces.map((namespace, index) => (
-                            <option key={index} value={namespace}>{namespace}</option>
-                          ))}
-                        </select>
-                        <button 
-                          className="button secondary small"
+                  <div className="filters" style={{ marginBottom: '1.5rem' }}>
+                    <h4>Select Namespace</h4>
+                    <div className="filter-row">
+                      <select 
+                        value={selectedNamespace} 
+                        onChange={(e) => setSelectedNamespace(e.target.value)}
+                        className="filter-select"
+                        disabled={loadingNamespaces}
+                      >
+                        <option value="">Select a namespace to view files...</option>
+                        {namespaces.map((namespace, index) => (
+                          <option key={index} value={namespace}>{namespace}</option>
+                        ))}
+                      </select>
+                      <button 
+                        className="button secondary small"
                           onClick={() => loadNamespaces(true)}
-                          disabled={loadingNamespaces}
-                          style={{ marginLeft: '0.5rem' }}
-                        >
-                          {loadingNamespaces ? 'Loading...' : 'Refresh Namespaces'}
-                        </button>
-                      </div>
-                      {namespaceError && (
+                        disabled={loadingNamespaces}
+                        style={{ marginLeft: '0.5rem' }}
+                      >
+                        {loadingNamespaces ? 'Loading...' : 'Refresh Namespaces'}
+                      </button>
+                    </div>
+                    {namespaceError && (
                         <div style={{ 
                           fontSize: '0.9rem', 
                           marginTop: '0.5rem',
@@ -2986,31 +2986,31 @@ function App() {
                           color: namespaceError.includes('does not exist') ? '#856404' : '#dc3545',
                           border: namespaceError.includes('does not exist') ? '1px solid #ffeaa7' : '1px solid #dc3545'
                         }}>
-                          {namespaceError}
-                        </div>
-                      )}
-                    </div>
+                        {namespaceError}
+                      </div>
+                    )}
+                  </div>
 
                     {/* Two Column Layout for Files and Functions */}
                     {selectedNamespace && (
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
                         
                         {/* Left Column - Files List */}
-                        <div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                            <h4>Files in namespace: {selectedNamespace}</h4>
-                            <button 
-                              className="button secondary small"
-                              onClick={() => loadNamespaceFiles(selectedNamespace)}
-                              disabled={loadingFiles}
-                            >
-                              {loadingFiles ? 'Loading...' : 'Refresh Files'}
-                            </button>
-                          </div>
-
-                          {loadingFiles ? (
-                            <div className="status info">Loading files for namespace {selectedNamespace}...</div>
-                          ) : filesError ? (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                      <h4>Files in namespace: {selectedNamespace}</h4>
+                      <button 
+                        className="button secondary small"
+                        onClick={() => loadNamespaceFiles(selectedNamespace)}
+                        disabled={loadingFiles}
+                      >
+                        {loadingFiles ? 'Loading...' : 'Refresh Files'}
+                      </button>
+                    </div>
+                    
+                    {loadingFiles ? (
+                      <div className="status info">Loading files for namespace {selectedNamespace}...</div>
+                    ) : filesError ? (
                             <div style={{ 
                               fontSize: '0.9rem',
                               padding: '0.75rem',
@@ -3019,18 +3019,18 @@ function App() {
                               color: filesError.includes('does not exist') ? '#856404' : '#dc3545',
                               border: filesError.includes('does not exist') ? '1px solid #ffeaa7' : '1px solid #dc3545'
                             }}>
-                              {filesError}
-                            </div>
-                                                ) : namespaceFiles.length > 0 ? (
-                        <div style={{ 
-                          maxHeight: '600px', 
-                          overflowY: 'auto', 
-                          border: '1px solid #e0e0e0', 
-                          borderRadius: '6px',
+                        {filesError}
+                      </div>
+                    ) : namespaceFiles.length > 0 ? (
+                      <div style={{ 
+                        maxHeight: '600px', 
+                        overflowY: 'auto', 
+                        border: '1px solid #e0e0e0', 
+                        borderRadius: '6px',
                           padding: '0.5rem',
-                          backgroundColor: '#f8f9fa'
-                        }}>
-                          {namespaceFiles.map((file, index) => (
+                        backgroundColor: '#f8f9fa'
+                      }}>
+                        {namespaceFiles.map((file, index) => (
                             <div key={index} style={{ 
                               padding: '0.5rem',
                               borderBottom: index < namespaceFiles.length - 1 ? '1px solid #dee2e6' : 'none',
@@ -3040,14 +3040,14 @@ function App() {
                               alignItems: 'center'
                             }}>
                               <div style={{ flex: 1 }}>
-                                <strong>{file.name || file.id || 'Unknown File'}</strong>
+                            <strong>{file.name || file.id || 'Unknown File'}</strong>
                                 {file.size !== undefined && (
                                   <span style={{ color: '#6c757d', marginLeft: '0.5rem' }}>
                                     ({file.size} bytes)
                                   </span>
                                 )}
                               </div>
-                              {file.type && (
+                                {file.type && (
                                 <span style={{ 
                                   fontSize: '0.8rem', 
                                   color: '#6c757d',
@@ -3177,10 +3177,10 @@ function App() {
                                   </span>
                                 </div>
                               ))}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
                         <p>No sites with ingest services found.</p>
                       )}
                     </div>
@@ -3242,8 +3242,8 @@ function App() {
                             fontSize: '0.9rem'
                           }}>
                             <strong>Selected:</strong> {selectedUploadFile.name} ({(selectedUploadFile.size / 1024 / 1024).toFixed(2)} MB)
-                          </div>
-                        )}
+                  </div>
+                )}
                       </div>
 
                       {/* Selected Ingest Service Display */}
@@ -3256,8 +3256,8 @@ function App() {
                           fontSize: '0.9rem'
                         }}>
                           <strong>Selected Ingest Service:</strong> {selectedIngestService} (Site: {selectedIngestSite})
-                        </div>
-                      )}
+              </div>
+            )}
 
                       {/* Metadata Form */}
                       {selectedUploadFile && (
@@ -3360,10 +3360,10 @@ function App() {
                 )}
               </div>
             )}
-      </div>
-    </div>
+          </div>
+        </div>
     </>
   );
 }
 
-export default App;
+export default App; 
