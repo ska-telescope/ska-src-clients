@@ -289,8 +289,14 @@ function App() {
     };
     
     // Run this effect when site-capabilities status changes or when we get new tokens
-    updateUrlsFromSiteCapabilities();
-  }, [apiStatus['site-capabilities'].status, tokens, selectedFlag, operConfig]); // Remove activeTokens from dependency to prevent loops
+    // But only if we're not in the middle of a config switch
+    if (selectedFlag && (selectedFlag === 'DEV' || selectedFlag === 'DEVR')) {
+      console.log(`Skipping updateUrlsFromSiteCapabilities for ${selectedFlag} flag - using config file values`);
+    } else {
+      console.log('Running updateUrlsFromSiteCapabilities for production flag');
+      updateUrlsFromSiteCapabilities();
+    }
+  }, [apiStatus['site-capabilities'].status, tokens, selectedFlag]); // Remove operConfig from dependency to prevent loops
 
   // Auto-detect DEV/DEVR environment and switch to appropriate flag
   useEffect(() => {
@@ -349,18 +355,23 @@ function App() {
     });
     
     // Priority: DEVR > DEV > localhost
-    if (hasDevrEnvironment && selectedFlag !== 'DEVR') {
-      console.log('DEVR environment detected, switching to DEVR flag');
-      setSelectedFlag('DEVR');
-      setStatus({ type: 'info', message: 'DEVR environment detected, switched to DEVR configuration' });
-    } else if (hasDevSpecific && selectedFlag !== 'DEV') {
-      console.log('DEV environment detected, switching to DEV flag');
-      setSelectedFlag('DEV');
-      setStatus({ type: 'info', message: 'DEV environment detected, switched to DEV configuration' });
-    } else if (hasLocalhostUrls && selectedFlag !== 'DEV' && !hasDevrEnvironment) {
-      console.log('Localhost environment detected, switching to DEV flag');
-      setSelectedFlag('DEV');
-      setStatus({ type: 'info', message: 'Localhost environment detected, switched to DEV configuration' });
+    // Only auto-switch if no flag is currently selected (to avoid overriding manual selection)
+    if (!selectedFlag) {
+      if (hasDevrEnvironment) {
+        console.log('DEVR environment detected, switching to DEVR flag');
+        setSelectedFlag('DEVR');
+        setStatus({ type: 'info', message: 'DEVR environment detected, switched to DEVR configuration' });
+      } else if (hasDevSpecific) {
+        console.log('DEV environment detected, switching to DEV flag');
+        setSelectedFlag('DEV');
+        setStatus({ type: 'info', message: 'DEV environment detected, switched to DEV configuration' });
+      } else if (hasLocalhostUrls) {
+        console.log('Localhost environment detected, switching to DEV flag');
+        setSelectedFlag('DEV');
+        setStatus({ type: 'info', message: 'Localhost environment detected, switched to DEV configuration' });
+      }
+    } else {
+      console.log(`Flag already selected (${selectedFlag}), skipping auto-detection to avoid override`);
     }
   }, [apiStatus, selectedFlag]);
 
@@ -458,25 +469,31 @@ function App() {
             message: `Switched to ${flagKey.toLowerCase()} environment configuration (${configFile})` 
           });
           
-          // Reload configuration after switching
-          try {
-            // Wait a moment for the backend to process the config switch
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            const response = await axios.get('/api/v1/auth/config/oper');
-            setOperConfig(response.data);
-            setConfigEdit({});
-            setStatus({ 
-              type: 'success', 
-              message: `Configuration reloaded from ${configFile}` 
-            });
-          } catch (error) {
-            console.error('Failed to reload configuration:', error);
-            setStatus({ 
-              type: 'warning', 
-              message: `Switched to ${flagKey.toLowerCase()} but failed to reload configuration: ${error.message}` 
-            });
-          }
+                      // Reload configuration after switching
+            try {
+              // Wait a moment for the backend to process the config switch
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              
+              console.log(`Reloading configuration from ${configFile}...`);
+              const response = await axios.get(`${API_BASE}/auth/config/oper`);
+              console.log('Config reload response:', response.data);
+              console.log('Auth API URL from response:', response.data?.apis?.['authn-api']?.url);
+              console.log('Site capabilities URL from response:', response.data?.apis?.['site-capabilities-api']?.url);
+              
+              setOperConfig(response.data);
+              setConfigEdit({});
+              console.log('Updated operConfig state with new config');
+              setStatus({ 
+                type: 'success', 
+                message: `Configuration reloaded from ${configFile}` 
+              });
+            } catch (error) {
+              console.error('Failed to reload configuration:', error);
+              setStatus({ 
+                type: 'warning', 
+                message: `Switched to ${flagKey.toLowerCase()} but failed to reload configuration: ${error.message}` 
+              });
+            }
         } catch (error) {
           console.error(`Failed to switch to ${configFile}:`, error);
           setStatus({ 
@@ -1509,7 +1526,7 @@ function App() {
       setConfigLoading(true);
       setConfigError(null);
       try {
-        const response = await axios.get('/api/v1/auth/config/oper');
+        const response = await axios.get(`${API_BASE}/auth/config/oper`);
         setOperConfig(response.data);
         setConfigEdit({});
       } catch (e) {
@@ -1590,13 +1607,23 @@ function App() {
   };
 
   const urlFields = getUrlFields(operConfig);
+  
+  // Debug logging for operConfig changes
+  useEffect(() => {
+    console.log('operConfig changed:', {
+      authnUrl: operConfig?.apis?.['authn-api']?.url,
+      siteCapabilitiesUrl: operConfig?.apis?.['site-capabilities-api']?.url,
+      dataManagementUrl: operConfig?.apis?.['data-management-api']?.url,
+      permissionsUrl: operConfig?.apis?.['permissions-api']?.url
+    });
+  }, [operConfig]);
 
   // Save a config value
   const saveConfigValue = async (path, value, suppressMessage = false) => {
     setConfigSaving((prev) => ({ ...prev, [path]: true }));
     setConfigError(null);
     try {
-      await axios.post('/api/v1/auth/config/oper', { path, value });
+      await axios.post(`${API_BASE}/auth/config/oper`, { path, value });
       setOperConfig((prev) => {
         // Update local config state
         const newConfig = JSON.parse(JSON.stringify(prev));

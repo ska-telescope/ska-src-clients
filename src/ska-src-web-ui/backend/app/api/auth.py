@@ -1,4 +1,5 @@
 import os
+import glob
 from fastapi import APIRouter, HTTPException, Depends, Body
 from typing import List, Optional, Any
 import logging
@@ -710,9 +711,12 @@ def get_current_config_path() -> str:
 def read_oper_config() -> dict:
     yaml = YAML()
     config_path = get_current_config_path()
+    logging.info(f"read_oper_config: Reading from config path: {config_path}")
     try:
         with open(config_path, 'r') as f:
-            return yaml.load(f)
+            config = yaml.load(f)
+            logging.info(f"read_oper_config: Successfully loaded config from {config_path}")
+            return config
     except Exception as e:
         logging.error(f"Failed to read config from {config_path}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to read config from {config_path}: {e}")
@@ -730,7 +734,9 @@ def write_oper_config(config: dict):
 @router.get("/config/oper")
 def get_oper_config():
     """Return the oper.yml config as JSON."""
-    return read_oper_config()
+    config = read_oper_config()
+    logging.info(f"Returning config with URLs: authn-api={config.get('apis', {}).get('authn-api', {}).get('url')}, site-capabilities-api={config.get('apis', {}).get('site-capabilities-api', {}).get('url')}")
+    return config
 
 @router.post("/config/oper")
 def update_oper_config(
@@ -771,6 +777,31 @@ def switch_config(
         old_config_path = getattr(settings, 'srcnet_config_path', 'None')
         logging.info(f"Switching configuration from {old_config_path} to {config_path}")
         
+        # Check if we're switching between different environments (DEV/DEVR vs production)
+        old_is_dev = 'dev' in old_config_path.lower() if old_config_path else False
+        new_is_dev = 'dev' in config_file.lower()
+        
+        # If switching between dev and production environments, clear tokens
+        if old_is_dev != new_is_dev:
+            logging.info(f"Switching between {'dev' if old_is_dev else 'production'} and {'dev' if new_is_dev else 'production'} environment - clearing tokens")
+            try:
+                # Clear tokens directly from file system to avoid service dependency issues
+                # Get the token directory from the current config
+                current_src_service = get_src_service()
+                token_dir = current_src_service.session.stored_token_directory
+                
+                # Delete all token files
+                token_files = glob.glob(os.path.join(token_dir, "*.token"))
+                for token_file in token_files:
+                    try:
+                        os.remove(token_file)
+                        logging.info(f"Deleted token file: {token_file}")
+                    except Exception as e:
+                        logging.warning(f"Failed to delete token file {token_file}: {e}")
+                        
+            except Exception as e:
+                logging.warning(f"Failed to clear tokens during environment switch: {e}")
+        
         # Update the settings to use the new config file
         settings.srcnet_config_path = config_path
         
@@ -783,7 +814,8 @@ def switch_config(
         return {
             "success": True, 
             "message": f"Switched to configuration file: {config_file}",
-            "note": "Configuration switched successfully. New API calls will use the updated configuration."
+            "note": "Configuration switched successfully. New API calls will use the updated configuration." + 
+                    (" Tokens cleared due to environment change." if old_is_dev != new_is_dev else "")
         }
     except HTTPException:
         raise
