@@ -144,10 +144,10 @@ class OIDCSession(Session):
         
         def login_with_timeout():
             # Get the auth API URL
-            auth_api_url = self.session.get_api_url_by_service_name("authn-api")
+            auth_api_url = self.get_api_url_by_service_name("authn-api")
             
             # Make direct HTTP request with timeout
-            login_url = f"{auth_api_url}/api/v1/login/device"
+            login_url = f"{auth_api_url}/login/device"
             headers = {"Content-Type": "application/json"}
             data = {
                 "redirect_uri": ""
@@ -227,7 +227,7 @@ class OIDCSession(Session):
             nonlocal token
             try:
                 # Get the auth API URL
-                auth_api_url = self.session.get_api_url_by_service_name("authn-api")
+                auth_api_url = self.get_api_url_by_service_name("authn-api")
                 
                 if by_refresh:
                     logging.debug(" - Attempting exchange using refresh grant")
@@ -243,7 +243,7 @@ class OIDCSession(Session):
                                     logging.debug(" - Found a valid matching access token, proceeding with exchange")
                                     
                                     # Make direct HTTP request with timeout
-                                    exchange_url = f"{auth_api_url}/api/v1/exchange"
+                                    exchange_url = f"{auth_api_url}/exchange"
                                     headers = {
                                         "Authorization": f"Bearer {access_token.get('token')}",
                                         "Content-Type": "application/json"
@@ -283,14 +283,13 @@ class OIDCSession(Session):
                             for refresh_token_idx, refresh_token in enumerate(self.refresh_tokens):
                                 try:
                                     # Make direct HTTP request with timeout for token refresh
-                                    refresh_url = f"{auth_api_url}/api/v1/token"
-                                    headers = {"Content-Type": "application/json"}
-                                    data = {
+                                    refresh_url = f"{auth_api_url}/token"
+                                    params = {
                                         "grant_type": "refresh_token",
                                         "refresh_token": refresh_token.get('token')
                                     }
                                     
-                                    response = requests.post(refresh_url, headers=headers, json=data, timeout=5)
+                                    response = requests.get(refresh_url, params=params, timeout=5)
                                     response.raise_for_status()
                                     refreshed_token = response.json()
 
@@ -302,7 +301,7 @@ class OIDCSession(Session):
 
                                     # Finally, exchange this refreshed token.
                                     logging.debug(" - Exchanging refresh token")
-                                    exchange_url = f"{auth_api_url}/api/v1/exchange"
+                                    exchange_url = f"{auth_api_url}/exchange"
                                     headers = {
                                         "Authorization": f"Bearer {refreshed_token.get('access_token')}",
                                         "Content-Type": "application/json"
@@ -331,7 +330,7 @@ class OIDCSession(Session):
                         access_token_to_exchange = random_access_token.get('token')
                         
                         # Make direct HTTP request with timeout
-                        exchange_url = f"{auth_api_url}/api/v1/exchange"
+                        exchange_url = f"{auth_api_url}/exchange"
                         headers = {
                             "Authorization": f"Bearer {access_token_to_exchange}",
                             "Content-Type": "application/json"
@@ -510,17 +509,16 @@ class OIDCSession(Session):
         
         def request_with_timeout():
             # Get the auth API URL
-            auth_api_url = self.session.get_api_url_by_service_name("authn-api")
+            auth_api_url = self.get_api_url_by_service_name("authn-api")
             
             # Make direct HTTP request with timeout
-            token_url = f"{auth_api_url}/api/v1/token"
-            headers = {"Content-Type": "application/json"}
-            data = {
+            token_url = f"{auth_api_url}/token"
+            params = {
                 "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
                 "device_code": device_code
             }
             
-            response = requests.post(token_url, headers=headers, json=data, timeout=5)
+            response = requests.get(token_url, params=params, timeout=5)
             response.raise_for_status()
             return response.json()
         

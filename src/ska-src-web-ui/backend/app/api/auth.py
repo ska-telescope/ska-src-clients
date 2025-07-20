@@ -16,17 +16,36 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 
 # Global service instance - in production, use dependency injection
 _src_service: SRCClientService = None
+_current_config_path: str = None
 
 def get_src_service() -> SRCClientService:
     """Get the SRC client service instance."""
-    global _src_service
-    if _src_service is None:
+    global _src_service, _current_config_path
+    
+    # Use the configured config path or default
+    config_path = getattr(settings, 'srcnet_config_path', None)
+    
+    logging.debug(f"get_src_service: current_config_path={_current_config_path}, new_config_path={config_path}")
+    
+    # If service doesn't exist or config path changed, create new service
+    if _src_service is None or _current_config_path != config_path:
+        logging.info(f"Creating new SRC service with config_path={config_path}")
         try:
-            _src_service = SRCClientService(config_path=settings.srcnet_config_path)
+            _src_service = SRCClientService(config_path=config_path)
+            _current_config_path = config_path
+            logging.info(f"SRC service created successfully with config_path={config_path}")
         except Exception as e:
             logging.error(f"Failed to initialize SRC service: {e}")
             raise HTTPException(status_code=500, detail="Failed to initialize SRC service")
+    else:
+        logging.debug(f"Using existing SRC service with config_path={_current_config_path}")
     return _src_service
+
+def reset_src_service():
+    """Reset the SRC service instance to force reinitialization."""
+    global _src_service, _current_config_path
+    _src_service = None
+    _current_config_path = None
 
 
 @router.post("/device-flow", response_model=DeviceFlowResponse)
@@ -247,40 +266,108 @@ async def check_api_status(
     def check_auth_service():
         """Check auth service status with timeout."""
         try:
-            response = requests.get("https://authn.srcnet.skao.int/api/v1/ping", timeout=2)
-            return response.status_code == 200
+            # Get the current auth URL from configuration
+            auth_url = src_service.get_config_value('apis.authn-api.url')
+            if not auth_url:
+                auth_url = "https://authn.srcnet.skao.int/api/v1"  # fallback
+            
+            # Try multiple endpoints for auth service
+            endpoints = ['/ping', '/health', '/api/v1/ping', '/api/v1/health', '/v1/health', '/v1/ping', '']
+            for endpoint in endpoints:
+                try:
+                    response = requests.get(f"{auth_url}{endpoint}", timeout=2)
+                    if response.status_code in [200, 404]:  # 404 means service is up but endpoint doesn't exist
+                        return True
+                except Exception:
+                    continue
+            return False
         except Exception:
             return False
     
     def check_permissions_service():
         """Check permissions service status with timeout."""
         try:
-            response = requests.get("https://permissions.srcnet.skao.int/api/v1/health", timeout=2)
-            return response.status_code == 200
+            # Get the current permissions URL from configuration
+            permissions_url = src_service.get_config_value('apis.permissions-api.url')
+            if not permissions_url:
+                permissions_url = "https://permissions.srcnet.skao.int/api/v1"  # fallback
+            
+            # Try multiple endpoints for permissions service
+            endpoints = ['/health', '/api/v1/health', '/v1/health', '/ping', '/api/v1/ping', '/v1/ping', '']
+            for endpoint in endpoints:
+                try:
+                    response = requests.get(f"{permissions_url}{endpoint}", timeout=2)
+                    if response.status_code in [200, 404]:  # 404 means service is up but endpoint doesn't exist
+                        return True
+                except Exception:
+                    continue
+            return False
         except Exception:
             return False
     
     def check_site_capabilities_service():
         """Check site capabilities service status with timeout."""
         try:
-            response = requests.get("https://site-capabilities.srcnet.skao.int/health", timeout=2)
-            return response.status_code == 200
+            # Get the current site capabilities URL from configuration
+            site_cap_url = src_service.get_config_value('apis.site-capabilities-api.url')
+            if not site_cap_url:
+                site_cap_url = "https://site-capabilities.srcnet.skao.int/api/v1"  # fallback
+            
+            # Try multiple endpoints for site capabilities service
+            endpoints = ['/health', '/api/v1/health', '/v1/health', '/ping', '/api/v1/ping', '/v1/ping', '']
+            for endpoint in endpoints:
+                try:
+                    response = requests.get(f"{site_cap_url}{endpoint}", timeout=2)
+                    if response.status_code in [200, 404]:  # 404 means service is up but endpoint doesn't exist
+                        return True
+                except Exception:
+                    continue
+            return False
         except Exception:
             return False
     
     def check_data_management_service():
         """Check data management service status with timeout."""
         try:
-            response = requests.get("https://data-management.srcnet.skao.int/health", timeout=2)
-            return response.status_code == 200
+            # Get the current data management URL from configuration
+            data_mgmt_url = src_service.get_config_value('apis.data-management-api.url')
+            if not data_mgmt_url:
+                data_mgmt_url = "https://data-management.srcnet.skao.int/api/v1"  # fallback
+            
+            # Try multiple endpoints for data management service
+            endpoints = ['/health', '/api/v1/health', '/v1/health', '/ping', '/api/v1/ping', '/v1/ping', '']
+            for endpoint in endpoints:
+                try:
+                    response = requests.get(f"{data_mgmt_url}{endpoint}", timeout=2)
+                    if response.status_code in [200, 404]:  # 404 means service is up but endpoint doesn't exist
+                        return True
+                except Exception:
+                    continue
+            return False
         except Exception:
             return False
     
     def check_iam_service():
         """Check IAM service status with timeout."""
         try:
-            response = requests.get("https://ska-iam.stfc.ac.uk/login#!/home", timeout=2)
-            return response.status_code == 200
+            # Get the current IAM URL from configuration
+            iam_url = src_service.get_config_value('core.iam.url')
+            if not iam_url:
+                iam_url = "https://ska-iam.stfc.ac.uk/login#!/home"  # fallback
+            
+            # For IAM, try the base URL without the fragment identifier
+            base_url = iam_url.split('#')[0] if '#' in iam_url else iam_url
+            
+            # Try multiple endpoints for IAM service
+            endpoints = ['', '/login', '/health', '/ping', '/api/v1/health', '/api/v1/ping', '/v1/health', '/v1/ping']
+            for endpoint in endpoints:
+                try:
+                    response = requests.get(f"{base_url}{endpoint}", timeout=2)
+                    if response.status_code in [200, 404]:  # 404 means service is up but endpoint doesn't exist
+                        return True
+                except Exception:
+                    continue
+            return False
         except Exception:
             return False
     
@@ -313,7 +400,11 @@ async def check_api_status(
     def check_gatekeeper_service():
         """Check Gatekeeper service status with timeout."""
         try:
-            response = requests.get("https://gatekeeper.srcnet.skao.int/echo", timeout=2)
+            # Get the current gatekeeper URL from configuration
+            gatekeeper_url = src_service.get_config_value('core.gatekeeper.url')
+            if not gatekeeper_url:
+                gatekeeper_url = "https://gatekeeper.srcnet.skao.int"  # fallback
+            response = requests.get(f"{gatekeeper_url}/echo", timeout=2)
             return response.status_code == 200
         except Exception:
             return False
@@ -321,7 +412,11 @@ async def check_api_status(
     def check_canfar_service():
         """Check CANFAR service status with timeout."""
         try:
-            response = requests.get("https://canfar.srcnet.skao.int/science-portal/", timeout=2)
+            # Get the current canfar URL from configuration
+            canfar_url = src_service.get_config_value('core.canfar.url')
+            if not canfar_url:
+                canfar_url = "https://canfar.srcnet.skao.int/science-portal/"  # fallback
+            response = requests.get(canfar_url, timeout=2)
             return response.status_code == 200
         except Exception:
             return False
@@ -329,7 +424,11 @@ async def check_api_status(
     def check_soda_service():
         """Check SODA service status with timeout."""
         try:
-            response = requests.get("https://gatekeeper.srcnet.skao.int/soda/ska/dataset/soda", timeout=2)
+            # Get the current gatekeeper URL from configuration for SODA
+            gatekeeper_url = src_service.get_config_value('core.gatekeeper.url')
+            if not gatekeeper_url:
+                gatekeeper_url = "https://gatekeeper.srcnet.skao.int"  # fallback
+            response = requests.get(f"{gatekeeper_url}/soda/ska/dataset/soda", timeout=2)
             return response.status_code == 200
         except Exception:
             return False
@@ -337,7 +436,11 @@ async def check_api_status(
     def check_prepare_data_service():
         """Check Prepare Data service status with timeout."""
         try:
-            response = requests.get("https://gatekeeper.srcnet.skao.int/preparedata", timeout=2)
+            # Get the current gatekeeper URL from configuration for prepare data
+            gatekeeper_url = src_service.get_config_value('core.gatekeeper.url')
+            if not gatekeeper_url:
+                gatekeeper_url = "https://gatekeeper.srcnet.skao.int"  # fallback
+            response = requests.get(f"{gatekeeper_url}/preparedata", timeout=2)
             return response.status_code == 200
         except Exception:
             return False
@@ -585,4 +688,43 @@ def update_oper_config(
         d = d[k]
     d[keys[-1]] = value
     write_oper_config(config)
-    return {"success": True, "message": f"Updated {path} in oper.yml"} 
+    return {"success": True, "message": f"Updated {path} in oper.yml"}
+
+@router.post("/config/switch")
+def switch_config(
+    request: dict = Body(..., description="Request body with config_file field")
+):
+    config_file = request.get("config_file")
+    if not config_file:
+        raise HTTPException(status_code=400, detail="config_file field is required")
+    """Switch to a different configuration file."""
+    try:
+        # Validate the config file name
+        if not config_file.endswith('.yml') and not config_file.endswith('.yaml'):
+            raise HTTPException(status_code=400, detail="Configuration file must have .yml or .yaml extension")
+        
+        # Check if the config file exists
+        config_path = f'/etc/cfg/{config_file}'
+        if not os.path.exists(config_path):
+            raise HTTPException(status_code=404, detail=f"Configuration file {config_file} not found")
+        
+        logging.info(f"Switching configuration from {getattr(settings, 'srcnet_config_path', 'None')} to {config_path}")
+        
+        # Update the settings to use the new config file
+        settings.srcnet_config_path = config_path
+        
+        # Reset the SRC service to force reinitialization with new config
+        reset_src_service()
+        
+        logging.info(f"Configuration switched successfully. New config path: {settings.srcnet_config_path}")
+        
+        return {
+            "success": True, 
+            "message": f"Switched to configuration file: {config_file}",
+            "note": "Configuration switched successfully. New API calls will use the updated configuration."
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error switching configuration: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to switch configuration: {str(e)}") 

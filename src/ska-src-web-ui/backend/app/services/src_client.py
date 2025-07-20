@@ -42,6 +42,17 @@ class SRCClientService:
         self.site_api = SiteAPI(session=self.session)
         self.metadata_api = MetadataAPI(session=self.session)
     
+    def get_config_value(self, path: str) -> Optional[str]:
+        """Get a configuration value by dot-separated path."""
+        try:
+            keys = path.split('.')
+            value = self.config
+            for key in keys:
+                value = value[key]
+            return value
+        except (KeyError, TypeError):
+            return None
+    
     def start_device_flow(self) -> Dict[str, Any]:
         """Start OIDC device flow authentication."""
         try:

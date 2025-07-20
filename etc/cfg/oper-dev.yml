@@ -1,0 +1,41 @@
+general:
+  stored_token_directory: /tmp/srcnet/user
+
+apis:
+  authn-api:
+    url: http://host.docker.internal:8082/v1
+  data-management-api:
+    url: http://host.docker.internal:8084/v1
+  permissions-api:
+    url: http://host.docker.internal:8083/v1
+  site-capabilities-api:
+    url: http://host.docker.internal:8081/v1
+
+storage:
+  clients:
+    https:
+      package_name: ska_src_clients.integrations
+      module_name: storage
+      class_name: WebDAVStorageClient
+    davs:
+      package_name: ska_src_clients.integrations
+      module_name: storage
+      class_name: WebDAVStorageClient
+
+core:
+  iam:
+    url: http://host.docker.internal:8080/login#!/home
+  fts:
+    url: https://fts3-ska.scd.rl.ac.uk:8449/fts3/ftsmon/#/
+  rucio:
+    url: https://rucio.srcnet.skao.int
+  gateway:
+    url: https://gateway-test.srcdev.skao.int/
+  gatekeeper:
+    url: https://dmapi.itsrc.oact.inaf.it/echo
+  canfar:
+    url: https://canfar.srcnet.skao.int/science-portal/
+  soda:
+    url: https://gatekeeper.srcnet.skao.int/soda/ska/dataset/soda
+  prepare_data:
+    url: https://gatekeeper.srcnet.skao.int/preparedata 

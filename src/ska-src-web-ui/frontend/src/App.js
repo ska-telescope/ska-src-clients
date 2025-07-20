@@ -112,6 +112,18 @@ function App() {
       soda: 'https://gatekeeper.srcnet.skao.int/soda/ska/dataset/soda',
       prepare_data: 'https://gatekeeper.srcnet.skao.int/preparedata',
     },
+    DEV: {
+      canfar: 'http://host.docker.internal:8080/science-portal/',
+      gatekeeper: 'http://host.docker.internal:8084/echo',
+      soda: 'http://host.docker.internal:8084/soda',
+      prepare_data: 'http://host.docker.internal:8084/preparedata',
+      // Additional DEV environment URLs for configuration panel
+      authn_api: 'http://host.docker.internal:8082/api/v1',
+      data_management_api: 'http://host.docker.internal:8084/api/v1',
+      permissions_api: 'http://host.docker.internal:8083/api/v1',
+      site_capabilities_api: 'http://host.docker.internal:8081/api/v1',
+      iam: 'http://host.docker.internal:8080/login#!/home',
+    },
   };
 
   const flagList = [
@@ -124,6 +136,7 @@ function App() {
     { key: 'Switzerland', img: SwitzerlandFlag, label: 'Switzerland' },
     { key: 'UK', img: UKFlag, label: 'UK' },
     { key: 'SKAO', img: SKAOFlag, label: 'SKAO' },
+    { key: 'DEV', img: null, label: 'DEV' },
   ];
 
   const [selectedFlag, setSelectedFlag] = useState('SKAO');
@@ -270,19 +283,145 @@ function App() {
     if (!preset) return;
     
     try {
-                  // Update config fields and save to backend (only canfar, gatekeeper, soda, prepare_data)
-            for (const [service, url] of Object.entries(preset)) {
-              // Only update canfar, gatekeeper, soda, and prepare_data - not gateway
-              const path = `core.${service}.url`;
-              await saveConfigValue(path, url);
-            }
+      // Special handling for DEV flag - switch backend configuration
+      if (flagKey === 'DEV') {
+        try {
+          // Call backend to switch to DEV configuration
+          await axios.post(`${API_BASE}/auth/config/switch`, {
+            config_file: 'oper-dev.yml'
+          });
+          setStatus({ 
+            type: 'success', 
+            message: 'Switched to DEV environment configuration' 
+          });
+        } catch (configError) {
+          console.error('Failed to switch to DEV configuration:', configError);
+          setStatus({ 
+            type: 'warning', 
+            message: 'Switched to DEV preset URLs, but failed to switch backend configuration. Some features may not work correctly.' 
+          });
+        }
+      } else {
+        try {
+          // Call backend to switch back to production configuration
+          await axios.post(`${API_BASE}/auth/config/switch`, {
+            config_file: 'oper.yml'
+          });
+          setStatus({ 
+            type: 'success', 
+            message: 'Switched to production environment configuration' 
+          });
+        } catch (configError) {
+          console.error('Failed to switch to production configuration:', configError);
+          setStatus({ 
+            type: 'warning', 
+            message: 'Switched to production preset URLs, but failed to switch backend configuration. Some features may not work correctly.' 
+          });
+        }
+      }
+      
+      // Refresh API status after configuration switch
+      setTimeout(() => {
+        checkApiStatus();
+      }, 1000);
+      
+      // Update config fields and save to backend
+      if (flagKey === 'DEV') {
+        // For DEV environment, update all the localhost URLs
+        for (const [service, url] of Object.entries(preset)) {
+          let path;
+          
+          if (service === 'authn_api') {
+            path = 'apis.authn-api.url';
+          } else if (service === 'data_management_api') {
+            path = 'apis.data-management-api.url';
+          } else if (service === 'permissions_api') {
+            path = 'apis.permissions-api.url';
+          } else if (service === 'site_capabilities_api') {
+            path = 'apis.site-capabilities-api.url';
+          } else if (service === 'iam') {
+            path = 'core.iam.url';
+          } else {
+            // Default to core paths for other services
+            path = `core.${service}.url`;
+          }
+          
+          await saveConfigValue(path, url);
+        }
+      } else {
+        // For production flags, revert API URLs to SKAO defaults and update preset URLs
+        const skaoDefaults = {
+          'apis.authn-api.url': 'https://authn.srcnet.skao.int/api/v1',
+          'apis.data-management-api.url': 'https://data-management.srcnet.skao.int/api/v1',
+          'apis.permissions-api.url': 'https://permissions.srcnet.skao.int/api/v1',
+          'apis.site-capabilities-api.url': 'https://site-capabilities.srcnet.skao.int/api/v1',
+          'core.iam.url': 'https://ska-iam.stfc.ac.uk/login#!/home',
+        };
+        
+        // First, revert all API URLs to SKAO defaults
+        for (const [path, url] of Object.entries(skaoDefaults)) {
+          await saveConfigValue(path, url);
+        }
+        
+        // Then update the preset-specific URLs (canfar, gatekeeper, soda, prepare_data)
+        for (const [service, url] of Object.entries(preset)) {
+          if (['canfar', 'gatekeeper', 'soda', 'prepare_data'].includes(service)) {
+            const path = `core.${service}.url`;
+            await saveConfigValue(path, url);
+          }
+        }
+      }
+      
       // Update the configEdit state to reflect new values
       setConfigEdit((prev) => {
         const updated = { ...prev };
-        for (const [service, url] of Object.entries(preset)) {
-          const path = `core.${service}.url`;
-          updated[path] = url;
+        
+        if (flagKey === 'DEV') {
+          // For DEV environment, update all the localhost URLs
+          for (const [service, url] of Object.entries(preset)) {
+            let path;
+            
+            if (service === 'authn_api') {
+              path = 'apis.authn-api.url';
+            } else if (service === 'data_management_api') {
+              path = 'apis.data-management-api.url';
+            } else if (service === 'permissions_api') {
+              path = 'apis.permissions-api.url';
+            } else if (service === 'site_capabilities_api') {
+              path = 'apis.site-capabilities-api.url';
+            } else if (service === 'iam') {
+              path = 'core.iam.url';
+            } else {
+              // Default to core paths for other services
+              path = `core.${service}.url`;
+            }
+            
+            updated[path] = url;
+          }
+        } else {
+          // For production flags, revert API URLs to SKAO defaults and update preset URLs
+          const skaoDefaults = {
+            'apis.authn-api.url': 'https://authn.srcnet.skao.int/api/v1',
+            'apis.data-management-api.url': 'https://data-management.srcnet.skao.int/api/v1',
+            'apis.permissions-api.url': 'https://permissions.srcnet.skao.int/api/v1',
+            'apis.site-capabilities-api.url': 'https://site-capabilities.srcnet.skao.int/api/v1',
+            'core.iam.url': 'https://ska-iam.stfc.ac.uk/login#!/home',
+          };
+          
+          // First, revert all API URLs to SKAO defaults
+          for (const [path, url] of Object.entries(skaoDefaults)) {
+            updated[path] = url;
+          }
+          
+          // Then update the preset-specific URLs (canfar, gatekeeper, soda, prepare_data)
+          for (const [service, url] of Object.entries(preset)) {
+            if (['canfar', 'gatekeeper', 'soda', 'prepare_data'].includes(service)) {
+              const path = `core.${service}.url`;
+              updated[path] = url;
+            }
+          }
         }
+        
         return updated;
       });
       
@@ -1254,25 +1393,52 @@ function App() {
                 <span style={{ fontSize: '0.9rem', color: '#6c757d', fontWeight: '500' }}>Site Presets:</span>
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                   {flagList.map(flag => (
-                    <img
-                      key={flag.key}
-                      src={flag.img}
-                      alt={flag.label}
-                      title={`Load ${flag.label} preset URLs`}
-                      onClick={() => handleFlagSelect(flag.key)}
-                      style={{
-                        width: '32px',
-                        height: '22px',
-                        borderRadius: '3px',
-                        border: selectedFlag === flag.key ? '2px solid #007bff' : '1px solid #ccc',
-                        boxShadow: selectedFlag === flag.key ? '0 0 4px #007bff' : 'none',
-                        cursor: 'pointer',
-                        opacity: selectedFlag === flag.key ? 1 : 0.8,
-                        transition: 'all 0.2s',
-                        background: '#fff',
-                        objectFit: 'cover',
-                      }}
-                    />
+                    flag.img ? (
+                      <img
+                        key={flag.key}
+                        src={flag.img}
+                        alt={flag.label}
+                        title={`Load ${flag.label} preset URLs`}
+                        onClick={() => handleFlagSelect(flag.key)}
+                        style={{
+                          width: '32px',
+                          height: '22px',
+                          borderRadius: '3px',
+                          border: selectedFlag === flag.key ? '2px solid #007bff' : '1px solid #ccc',
+                          boxShadow: selectedFlag === flag.key ? '0 0 4px #007bff' : 'none',
+                          cursor: 'pointer',
+                          opacity: selectedFlag === flag.key ? 1 : 0.8,
+                          transition: 'all 0.2s',
+                          background: '#fff',
+                          objectFit: 'cover',
+                        }}
+                      />
+                    ) : (
+                      <div
+                        key={flag.key}
+                        title={`Load ${flag.label} preset URLs`}
+                        onClick={() => handleFlagSelect(flag.key)}
+                        style={{
+                          width: '32px',
+                          height: '22px',
+                          borderRadius: '3px',
+                          border: selectedFlag === flag.key ? '2px solid #007bff' : '1px solid #ccc',
+                          boxShadow: selectedFlag === flag.key ? '0 0 4px #007bff' : 'none',
+                          cursor: 'pointer',
+                          opacity: selectedFlag === flag.key ? 1 : 0.8,
+                          transition: 'all 0.2s',
+                          background: '#fff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.7rem',
+                          fontWeight: 'bold',
+                          color: selectedFlag === flag.key ? '#007bff' : '#6c757d',
+                        }}
+                      >
+                        {flag.label}
+                      </div>
+                    )
                   ))}
                 </div>
                 {selectedFlag && (
@@ -1705,8 +1871,8 @@ function App() {
               <div className="device-flow-info">
                 <h3>Device Flow Authentication</h3>
                 <p>Please complete authentication using one of the following methods:</p>
-                
-                <div>
+
+          <div>
                   <strong>User Code:</strong>
                   <div className="code">{tokenRequest.user_code}</div>
                 </div>
@@ -1904,7 +2070,7 @@ function App() {
               backgroundColor: '#f8f9fa',
               borderRadius: '6px 6px 0 0'
             }}>
-              <button
+              <button 
                 onClick={() => setActiveTab('site-capabilities')}
                 style={{
                   flex: 1,
@@ -1964,19 +2130,19 @@ function App() {
               <>
                 {/* Token Requirement Check */}
                 {!hasSiteCapabilitiesToken() && (
-                  <div style={{ 
+            <div style={{ 
                     marginBottom: '1.5rem', 
-                    padding: '1rem', 
+              padding: '1rem',
                     backgroundColor: '#fff3cd', 
                     border: '1px solid #ffeaa7', 
                     borderRadius: '4px' 
-                  }}>
+            }}>
                     <h4 style={{ color: '#856404', margin: '0 0 0.5rem 0' }}>🔐 Site Capabilities Token Required</h4>
                     <p style={{ color: '#856404', margin: '0', fontSize: '0.9rem' }}>
                       To access Site Capabilities functions, you need to exchange a token for the site-capabilities-api service. 
                       Please go to the token management section above and exchange a token for site-capabilities-api.
                     </p>
-                  </div>
+              </div>
                 )}
                 
                 {hasSiteCapabilitiesToken() && (
@@ -1987,7 +2153,7 @@ function App() {
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                   <h3>Services for {filters.site}</h3>
-                  <button 
+              <button 
                     className="button secondary small"
                     onClick={() => {
                       setLoadingServiceData(true);
@@ -2004,8 +2170,8 @@ function App() {
                     disabled={loadingServiceData}
                   >
                     {loadingServiceData ? 'Refreshing...' : 'Refresh Status'}
-                  </button>
-                </div>
+              </button>
+            </div>
                 
                 {/* Additional Filters */}
                 <div className="filters">
@@ -2036,8 +2202,8 @@ function App() {
                         <option key={index} value={status}>{status}</option>
                       ))}
                     </select>
-                  </div>
-                </div>
+          </div>
+        </div>
 
                 {/* Status Legend */}
                 <div className="status-legend" style={{ marginBottom: '1rem', padding: '0.5rem', backgroundColor: '#f8f9fa', borderRadius: '0.25rem', fontSize: '0.85rem' }}>
@@ -2146,15 +2312,15 @@ function App() {
                 {/* Storage Resources */}
                 {filters.site && (
                   <div style={{ marginTop: '2rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                       <h3>Storage Resources for {filters.site}</h3>
-                      <button 
+              <button 
                         className="button secondary small"
                         onClick={() => loadStorageData(filters.site)}
                         disabled={loadingStorageData}
-                      >
+              >
                         {loadingStorageData ? 'Loading...' : 'Refresh Storage'}
-                      </button>
+              </button>
                     </div>
                     
                     {loadingStorageData ? (
@@ -2163,10 +2329,10 @@ function App() {
                       <div>
                         <div className="section-header"
                           onClick={() => setCollapsedSections({...collapsedSections, storage: !collapsedSections.storage})}
-                        >
+              >
                           <h4>Storage Resources ({storageData.length})</h4>
                           <span className="collapse-icon">{collapsedSections.storage ? '▼' : '▲'}</span>
-                        </div>
+            </div>
                         {!collapsedSections.storage && (
                           <div>
                             {Object.entries(getStorageBySite(storageData)).map(([siteName, storages]) => (
@@ -2215,7 +2381,7 @@ function App() {
                                                     <strong>{area.name}</strong> ({area.type})
                                                     {area.tier !== undefined && <span> - Tier {area.tier}</span>}
                                                     {area.relative_path && <div style={{ fontSize: '0.9em', color: '#666' }}>Path: {area.relative_path}</div>}
-                                                  </div>
+          </div>
                                                 ))}
                                               </td>
                                             </tr>
@@ -2259,14 +2425,14 @@ function App() {
                 
                 {/* Compute Resources */}
                 {serviceData?.compute && (
-                  <div>
+            <div>
                     <div 
                       className="section-header"
                       onClick={() => setCollapsedSections({...collapsedSections, compute: !collapsedSections.compute})}
                     >
                       <h4>Compute Resources ({getFilteredData(serviceData.compute, 'compute').length})</h4>
                       <span className="collapse-icon">{collapsedSections.compute ? '▼' : '▲'}</span>
-                    </div>
+                </div>
                     {!collapsedSections.compute && (
                       <div className="data-list">
                         {getFilteredData(serviceData.compute, 'compute').map((comp, index) => (
@@ -2278,9 +2444,9 @@ function App() {
                           </div>
                         ))}
                       </div>
-                    )}
-                  </div>
-                )}
+              )}
+            </div>
+          )}
               </div>
             ) : (
               <p>Select a site from the dropdown above to see available services.</p>
@@ -2291,8 +2457,8 @@ function App() {
             )}
 
             {/* Data Management Tab Content */}
-            {activeTab === 'data-management' && (
-              <div>
+          {activeTab === 'data-management' && (
+            <div>
                 
                 {/* Token Requirement Check */}
                 {!hasDataManagementToken() && (
@@ -2316,48 +2482,48 @@ function App() {
                   <div className="filters" style={{ marginBottom: '1.5rem' }}>
                     <h4>Select Namespace</h4>
                     <div className="filter-row">
-                      <select 
-                        value={selectedNamespace} 
-                        onChange={(e) => setSelectedNamespace(e.target.value)}
+                <select 
+                  value={selectedNamespace} 
+                  onChange={(e) => setSelectedNamespace(e.target.value)}
                         className="filter-select"
                         disabled={loadingNamespaces}
-                      >
+                >
                         <option value="">Select a namespace to view files...</option>
                         {namespaces.map((namespace, index) => (
                           <option key={index} value={namespace}>{namespace}</option>
-                        ))}
-                      </select>
-                      <button 
-                        className="button secondary small"
-                        onClick={loadNamespaces}
-                        disabled={loadingNamespaces}
-                        style={{ marginLeft: '0.5rem' }}
-                      >
+                  ))}
+                </select>
+                <button 
+                  className="button secondary small"
+                  onClick={loadNamespaces}
+                  disabled={loadingNamespaces}
+                  style={{ marginLeft: '0.5rem' }}
+                >
                         {loadingNamespaces ? 'Loading...' : 'Refresh Namespaces'}
-                      </button>
-                    </div>
+                </button>
+              </div>
                     {namespaceError && (
                       <div style={{ color: '#dc3545', fontSize: '0.9rem', marginTop: '0.5rem' }}>
                         {namespaceError}
-                      </div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  )}
+                </div>
+              )}
 
                 {/* Files List */}
                 {hasDataManagementToken() && selectedNamespace && (
                   <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                       <h4>Files in namespace: {selectedNamespace}</h4>
-                      <button 
-                        className="button secondary small"
+            <button 
+              className="button secondary small"
                         onClick={() => loadNamespaceFiles(selectedNamespace)}
                         disabled={loadingFiles}
-                      >
+            >
                         {loadingFiles ? 'Loading...' : 'Refresh Files'}
-                      </button>
-                    </div>
-                    
+            </button>
+          </div>
+
                     {loadingFiles ? (
                       <div className="status info">Loading files for namespace {selectedNamespace}...</div>
                     ) : filesError ? (
@@ -2411,7 +2577,7 @@ function App() {
                                     <td>
                                       <pre style={{ fontSize: '0.8rem', margin: 0, whiteSpace: 'pre-wrap' }}>
                                         {JSON.stringify(file.metadata, null, 2)}
-                                      </pre>
+              </pre>
                                     </td>
                                   </tr>
                                 )}
@@ -2422,18 +2588,18 @@ function App() {
                             </table>
                           </div>
                         ))}
-                      </div>
-                    ) : (
+            </div>
+          ) : (
                       <p>No files found in namespace {selectedNamespace}.</p>
-                    )}
-                  </div>
+          )}
+        </div>
                 )}
               </div>
             )}
-          </div>
-        </div>
+      </div>
+    </div>
     </>
   );
 }
 
-export default App; 
+export default App;

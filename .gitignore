@@ -64,3 +64,6 @@ ska-src-web-ui/frontend/dist/**/*.jsx
 # But keep source files in src/
 !ska-src-web-ui/frontend/src/**/*.js
 !ska-src-web-ui/frontend/src/**/*.jsx
+
+# Mac OS X
+.DS_Store
