@@ -2283,19 +2283,12 @@ function App() {
         </div>
         {/* Status/Message Bar */}
         {status && status.message && (
-          <div className={`status-bar ${status.type || ''}`} style={{
-            margin: '1.5rem 0 1.5rem 0',
-            padding: '1rem',
-            borderRadius: '6px',
-            background: status.type === 'error' ? '#ffeaea' : status.type === 'success' ? '#eaffea' : status.type === 'info' ? '#fff3cd' : '#f8f9fa',
-            color: status.type === 'error' ? '#dc3545' : status.type === 'success' ? '#28a745' : status.type === 'info' ? '#856404' : '#333',
-            border: status.type === 'error' ? '1px solid #dc3545' : status.type === 'success' ? '1px solid #28a745' : status.type === 'info' ? '1px solid #ffeaa7' : '1px solid #e0e0e0',
-            fontWeight: 500,
-            fontSize: '1rem',
-            textAlign: 'center',
+          <div className={`status ${status.type || 'info'}`} style={{
+            margin: '1.5rem auto',
             maxWidth: '1100px',
-            marginLeft: 'auto',
-            marginRight: 'auto'
+            textAlign: 'center',
+            fontWeight: 500,
+            fontSize: '1rem'
           }}>
             {status.message}
           </div>
@@ -2311,9 +2304,9 @@ function App() {
               <p><strong>Step 2:</strong> You'll be redirected to the authentication server to log in.</p>
               <p><strong>Step 3:</strong> After successful authentication, you'll be redirected back with a token.</p>
               {!areCoreSystemsOnline() && (
-                <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#fff3cd', border: '1px solid #ffeaa7', borderRadius: '4px' }}>
-                  <h4 style={{ color: '#856404', margin: '0 0 0.5rem 0' }}>⚠️ Core Systems Offline</h4>
-                  <p style={{ color: '#856404', margin: '0', fontSize: '0.9rem' }}>
+                <div className="status warning">
+                  <h4>⚠️ Core Systems Offline</h4>
+                  <p>
                     Token requests are disabled because one or more core systems (Authentication, Permissions, Backend) are currently offline.
                   </p>
                 </div>
@@ -2384,7 +2377,7 @@ function App() {
           {/* Right Column - Existing Tokens */}
           <div className="card right-column">
             <h2>Existing Tokens</h2>
-            <p style={{ fontSize: '0.9rem', color: '#6c757d', margin: '0.25rem 0 0 0' }}>
+            <p style={{ fontSize: '0.9rem', margin: '0.25rem 0 0 0' }}>
               {tokens.length} token{tokens.length !== 1 ? 's' : ''} loaded
             </p>
             <div style={{ display: 'flex', gap: '0.5rem', margin: '1rem 0' }}>
@@ -2421,27 +2414,22 @@ function App() {
               }}
               >
                 {tokens.map((token, index) => (
-                  <div key={token.file_name} className="device-flow-info" style={{ 
+                  <div key={token.file_name} className="token-card" style={{ 
                     width: '300px',
                     minWidth: '300px',
                     minHeight: '420px',
-                    padding: '1rem', 
-                    border: '1px solid #dee2e6', 
-                    borderRadius: '8px',
-                    backgroundColor: 'white',
                     position: 'relative',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                     flexShrink: 0
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                       <div>
                         <h4 style={{ margin: 0 }}>{serviceNameMap[token.service_name] || token.service_name || 'Unknown Service'}</h4>
-                        <div style={{ fontSize: '0.8rem', color: '#888' }}>File: {token.file_name}</div>
-                                                 {token.service_name === 'site-capabilities-api' && (
-                           <span style={{ color: '#28a745', fontWeight: 'bold', fontSize: '0.85rem' }}>★ Site Capabilities</span>
+                        <div style={{ fontSize: '0.8rem' }}>File: {token.file_name}</div>
+                         {token.service_name === 'site-capabilities-api' && (
+                           <span className="service-badge site-capabilities">★ Site Capabilities</span>
                          )}
                          {token.service_name === 'data-management-api' && (
-                           <span style={{ color: '#007bff', fontWeight: 'bold', fontSize: '0.85rem' }}>★ Data Management</span>
+                           <span className="service-badge data-management">★ Data Management</span>
                         )}
                       </div>
                     </div>
@@ -2528,44 +2516,16 @@ function App() {
             <h2>Service Functions</h2>
             
             {/* Tab Navigation */}
-            <div style={{ 
-              display: 'flex', 
-              borderBottom: '2px solid #e0e0e0', 
-              marginBottom: '1.5rem',
-              backgroundColor: '#f8f9fa',
-              borderRadius: '6px 6px 0 0'
-            }}>
+            <div className="tab-container">
               <button
+                className={`tab ${activeTab === 'site-capabilities' ? 'active' : ''}`}
                 onClick={() => handleTabSwitch('site-capabilities')}
-                style={{
-                  flex: 1,
-                  padding: '1rem',
-                  border: 'none',
-                  backgroundColor: activeTab === 'site-capabilities' ? '#E70068' : 'transparent',
-                  color: activeTab === 'site-capabilities' ? 'white' : '#333',
-                  fontWeight: activeTab === 'site-capabilities' ? 'bold' : 'normal',
-                  cursor: 'pointer',
-                  fontSize: '1rem',
-                  transition: 'all 0.2s',
-                  borderRadius: activeTab === 'site-capabilities' ? '6px 6px 0 0' : '0'
-                }}
               >
                 Site Capabilities
               </button>
               <button
+                className={`tab ${activeTab === 'data-management' ? 'active' : ''}`}
                 onClick={() => handleTabSwitch('data-management')}
-                style={{
-                  flex: 1,
-                  padding: '1rem',
-                  border: 'none',
-                  backgroundColor: activeTab === 'data-management' ? '#E70068' : 'transparent',
-                  color: activeTab === 'data-management' ? 'white' : '#333',
-                  fontWeight: activeTab === 'data-management' ? 'bold' : 'normal',
-                  cursor: 'pointer',
-                  fontSize: '1rem',
-                  transition: 'all 0.2s',
-                  borderRadius: activeTab === 'data-management' ? '6px 6px 0 0' : '0'
-                }}
               >
                 Data Management
               </button>
@@ -2588,13 +2548,7 @@ function App() {
                     ))}
                   </select>
                   ) : (
-                    <div style={{ 
-                      padding: '1rem', 
-                      backgroundColor: '#fff3cd', 
-                      border: '1px solid #ffeaa7', 
-                      borderRadius: '4px',
-                      color: '#856404'
-                    }}>
+                    <div className="status warning">
                       <strong>No sites available</strong><br/>
                       The site capabilities service is running but no sites are configured in the development environment. 
                       This is normal for development setups. In production, sites would be configured here.
@@ -2609,15 +2563,9 @@ function App() {
               <>
                 {/* Token Requirement Check */}
                 {!hasSiteCapabilitiesToken() && (
-                  <div style={{ 
-                    marginBottom: '1.5rem', 
-                    padding: '1rem', 
-                    backgroundColor: '#fff3cd', 
-                    border: '1px solid #ffeaa7', 
-                    borderRadius: '4px' 
-                  }}>
-                    <h4 style={{ color: '#856404', margin: '0 0 0.5rem 0' }}>🔐 Site Capabilities Token Required</h4>
-                    <p style={{ color: '#856404', margin: '0', fontSize: '0.9rem' }}>
+                  <div className="status warning">
+                    <h4>🔐 Site Capabilities Token Required</h4>
+                    <p>
                       To access Site Capabilities functions, you need to exchange a token for the site-capabilities-api service. 
                       Please go to the token management section above and exchange a token for site-capabilities-api.
                     </p>
@@ -2687,12 +2635,12 @@ function App() {
                 </div>
 
                 {/* Status Legend */}
-                <div className="status-legend" style={{ marginBottom: '1rem', padding: '0.5rem', backgroundColor: '#f8f9fa', borderRadius: '0.25rem', fontSize: '0.85rem' }}>
+                <div className="status-legend">
                   <strong>Status Legend:</strong>
-                  <span className="status-indicator up" style={{ marginLeft: '0.5rem' }}>up ●</span>
-                  <span className="status-indicator down" style={{ marginLeft: '0.5rem' }}>down ●</span>
-                  <span className="status-indicator unknown" style={{ marginLeft: '0.5rem' }}>unknown</span>
-                  <span style={{ marginLeft: '0.5rem', color: '#6c757d' }}>● = Real-time status</span>
+                  <span className="status-indicator up">up ●</span>
+                  <span className="status-indicator down">down ●</span>
+                  <span className="status-indicator unknown">unknown</span>
+                  <span className="legend-note">● = Real-time status</span>
                 </div>
 
                 {/* Enable/Disable Buttons Above Service List */}
@@ -2928,38 +2876,15 @@ function App() {
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button
                         onClick={() => setDataManagementSubTab('explore')}
-                        className={`tab-button ${dataManagementSubTab === 'explore' ? 'active' : ''}`}
-                        style={{
-                          padding: '0.75rem 1.5rem',
-                          border: 'none',
-                          background: dataManagementSubTab === 'explore' ? '#E70068' : '#f8f9fa',
-                          color: dataManagementSubTab === 'explore' ? 'white' : '#495057',
-                          fontWeight: dataManagementSubTab === 'explore' ? 'bold' : 'normal',
-                          cursor: 'pointer',
-                          borderRadius: '6px 6px 0 0',
-                          borderBottom: dataManagementSubTab === 'explore' ? '3px solid #E70068' : '3px solid transparent',
-                          transition: 'all 0.2s ease'
-                        }}
+                        className={`tab ${dataManagementSubTab === 'explore' ? 'active' : ''}`}
                       >
                         Data Explore
                       </button>
                       <button
                         onClick={() => setDataManagementSubTab('upload')}
-                        className={`tab-button ${dataManagementSubTab === 'upload' ? 'active' : ''}`}
+                        className={`tab ${dataManagementSubTab === 'upload' ? 'active' : ''}`}
                         disabled={!hasDataManagementToken() || !hasSiteCapabilitiesToken()}
-                        style={{
-                          padding: '0.75rem 1.5rem',
-                          border: 'none',
-                          background: dataManagementSubTab === 'upload' ? '#E70068' : '#f8f9fa',
-                          color: dataManagementSubTab === 'upload' ? 'white' : (!hasDataManagementToken() || !hasSiteCapabilitiesToken()) ? '#adb5bd' : '#495057',
-                          fontWeight: dataManagementSubTab === 'upload' ? 'bold' : 'normal',
-                          cursor: (!hasDataManagementToken() || !hasSiteCapabilitiesToken()) ? 'not-allowed' : 'pointer',
-                          borderRadius: '6px 6px 0 0',
-                          borderBottom: dataManagementSubTab === 'upload' ? '3px solid #E70068' : '3px solid transparent',
-                          transition: 'all 0.2s ease',
-                          opacity: (!hasDataManagementToken() || !hasSiteCapabilitiesToken()) ? 0.6 : 1
-                        }}
-                                                  title={(!hasDataManagementToken() || !hasSiteCapabilitiesToken()) ?  
+                        title={(!hasDataManagementToken() || !hasSiteCapabilitiesToken()) ?  
                           'Data Upload requires both Site Capabilities and Data Management tokens' : 
                           'Switch to Data Upload tab'
                         }
@@ -2969,16 +2894,8 @@ function App() {
                     </div>
                     
                     {/* Show info message when Data Upload is disabled */}
-                                            {(!hasDataManagementToken() || !hasSiteCapabilitiesToken()) && (
-                      <div style={{ 
-                        marginTop: '0.5rem', 
-                        padding: '0.5rem', 
-                        backgroundColor: '#fff3cd', 
-                        border: '1px solid #ffeaa7', 
-                        borderRadius: '4px',
-                        fontSize: '0.85rem',
-                        color: '#856404'
-                      }}>
+                    {(!hasDataManagementToken() || !hasSiteCapabilitiesToken()) && (
+                      <div className="status warning">
                         <strong>Data Upload Requirements:</strong> Both Site Capabilities and Data Management tokens are required to access the Data Upload functionality.
                       </div>
                     )}
@@ -3013,15 +2930,7 @@ function App() {
                       </button>
                     </div>
                     {namespaceError && (
-                        <div style={{ 
-                          fontSize: '0.9rem', 
-                          marginTop: '0.5rem',
-                          padding: '0.75rem',
-                          borderRadius: '4px',
-                          backgroundColor: namespaceError.includes('does not exist') ? '#fff3cd' : '#ffeaea',
-                          color: namespaceError.includes('does not exist') ? '#856404' : '#dc3545',
-                          border: namespaceError.includes('does not exist') ? '1px solid #ffeaa7' : '1px solid #dc3545'
-                        }}>
+                      <div className={`status ${namespaceError.includes('does not exist') ? 'warning' : 'error'}`}>
                         {namespaceError}
                       </div>
                     )}
@@ -3047,29 +2956,15 @@ function App() {
                     {loadingFiles ? (
                       <div className="status info">Loading files for namespace {selectedNamespace}...</div>
                     ) : filesError ? (
-                            <div style={{ 
-                              fontSize: '0.9rem',
-                              padding: '0.75rem',
-                              borderRadius: '4px',
-                              backgroundColor: filesError.includes('does not exist') ? '#fff3cd' : '#ffeaea',
-                              color: filesError.includes('does not exist') ? '#856404' : '#dc3545',
-                              border: filesError.includes('does not exist') ? '1px solid #ffeaa7' : '1px solid #dc3545'
-                            }}>
+                      <div className={`status ${filesError.includes('does not exist') ? 'warning' : 'error'}`}>
                         {filesError}
                       </div>
                     ) : namespaceFiles.length > 0 ? (
-                      <div style={{ 
-                        maxHeight: '600px', 
-                        overflowY: 'auto', 
-                        border: '1px solid #e0e0e0', 
-                        borderRadius: '6px',
-                          padding: '0.5rem',
-                        backgroundColor: '#f8f9fa'
-                      }}>
+                      <div className="files-table" style={{ maxHeight: '600px', overflowY: 'auto' }}>
                         {namespaceFiles.map((file, index) => (
-                            <div key={index} style={{ 
+                            <div key={index} className="file-row" style={{ 
                               padding: '0.5rem',
-                              borderBottom: index < namespaceFiles.length - 1 ? '1px solid #dee2e6' : 'none',
+                              borderBottom: index < namespaceFiles.length - 1 ? '1px solid var(--border-color)' : 'none',
                               fontSize: '0.9rem',
                               display: 'flex',
                               justifyContent: 'space-between',
@@ -3078,19 +2973,13 @@ function App() {
                               <div style={{ flex: 1 }}>
                             <strong>{file.name || file.id || 'Unknown File'}</strong>
                                 {file.size !== undefined && (
-                                  <span style={{ color: '#6c757d', marginLeft: '0.5rem' }}>
+                                  <span style={{ marginLeft: '0.5rem' }}>
                                     ({file.size} bytes)
                                   </span>
                                 )}
                               </div>
                                 {file.type && (
-                                <span style={{ 
-                                  fontSize: '0.8rem', 
-                                  color: '#6c757d',
-                                  backgroundColor: '#e9ecef',
-                                  padding: '0.2rem 0.4rem',
-                                  borderRadius: '3px'
-                                }}>
+                                <span className="file-type-badge">
                                   {file.type}
                                 </span>
                               )}
@@ -3098,14 +2987,7 @@ function App() {
                           ))}
                         </div>
                       ) : (
-                        <div style={{ 
-                          padding: '1rem', 
-                          textAlign: 'center', 
-                          color: '#6c757d',
-                          backgroundColor: '#f8f9fa',
-                          border: '1px solid #e0e0e0',
-                          borderRadius: '6px'
-                        }}>
+                        <div className="empty-files-message">
                           <p style={{ margin: '0 0 0.5rem 0' }}>
                             {filesError && filesError.includes('does not exist') 
                               ? `Namespace '${selectedNamespace}' is empty or doesn't exist yet.`
@@ -3122,16 +3004,11 @@ function App() {
                         {/* Right Column - Future Data Management Functions */}
                         <div>
                           <h4>Data Management Functions</h4>
-                          <div style={{ 
-                            padding: '1rem', 
-                            backgroundColor: '#f8f9fa', 
-                            border: '1px solid #e0e0e0', 
-                            borderRadius: '6px',
+                          <div className="data-management-functions-box" style={{ 
                             minHeight: '200px',
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#6c757d'
+                            justifyContent: 'center'
                           }}>
                             <p style={{ textAlign: 'center', margin: 0 }}>
                               Data management functions will be available here.<br/>
@@ -3164,18 +3041,11 @@ function App() {
                       {loadingIngestSites ? (
                         <div className="status info">Loading sites with ingest services...</div>
                       ) : sitesWithIngest.length > 0 ? (
-                        <div style={{ 
-                          maxHeight: '400px', 
-                          overflowY: 'auto', 
-                          border: '1px solid #e0e0e0', 
-                          borderRadius: '6px',
-                          padding: '0.5rem',
-                          backgroundColor: '#f8f9fa'
-                        }}>
+                        <div className="site-ingest-card" style={{ maxHeight: '400px', overflowY: 'auto' }}>
                           {sitesWithIngest.map((site, index) => (
                             <div key={index} style={{ 
                               padding: '0.75rem',
-                              borderBottom: index < sitesWithIngest.length - 1 ? '1px solid #dee2e6' : 'none',
+                              borderBottom: index < sitesWithIngest.length - 1 ? '1px solid var(--border-color)' : 'none',
                               borderRadius: '4px',
                               marginBottom: '0.25rem',
                               backgroundColor: 'transparent'
@@ -3183,21 +3053,21 @@ function App() {
                               <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>
                                 {site.name}
                               </div>
-                              <div style={{ fontSize: '0.8rem', color: '#6c757d', marginBottom: '0.5rem' }}>
+                              <div style={{ fontSize: '0.8rem', marginBottom: '0.5rem' }}>
                                 {site.ingestServices?.length || 0} ingest service(s)
                               </div>
                               {site.ingestServices?.map((service, serviceIndex) => (
-                                <div key={serviceIndex} style={{ 
+                                <div key={serviceIndex} className={`ingest-service-pill ${(selectedIngestSite === site.name && selectedIngestService === service.id) ? 'selected' : ''}`}
+                                style={{ 
                                   fontSize: '0.8rem', 
-                                  color: (selectedIngestSite === site.name && selectedIngestService === service.id) ? 'white' : '#495057', 
                                   marginTop: '0.25rem',
                                   display: 'flex',
                                   alignItems: 'center',
                                   cursor: 'pointer',
                                   padding: '0.25rem',
-                                  borderRadius: '3px',
-                                  backgroundColor: (selectedIngestSite === site.name && selectedIngestService === service.id) ? '#E70068' : 'transparent',
-                                  transition: 'background-color 0.2s ease'
+                                  transition: 'background-color 0.2s ease',
+                                  backgroundColor: (selectedIngestSite === site.name && selectedIngestService === service.id) ? 'var(--ska-magenta)' : 'transparent',
+                                  color: (selectedIngestSite === site.name && selectedIngestService === service.id) ? 'white' : 'var(--text-primary)'
                                 }}
                                 onClick={() => handleIngestServiceSelect(site.name, service.id)}
                                 >
@@ -3253,30 +3123,18 @@ function App() {
                       </div>
 
                       {/* File Selection */}
-                      <div style={{ marginBottom: '1rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                      <div className="file-selection">
+                        <label>
                           Select File:
                         </label>
                         <input
                           type="file"
                           id="file-upload-input"
                           onChange={handleFileSelect}
-                          style={{ 
-                            width: '100%', 
-                            padding: '0.5rem',
-                            border: '1px solid #ccc',
-                            borderRadius: '4px',
-                            backgroundColor: 'white'
-                          }}
+                          style={{ width: '100%' }}
                         />
                         {selectedUploadFile && (
-                          <div style={{ 
-                            marginTop: '0.5rem', 
-                            padding: '0.5rem', 
-                            backgroundColor: '#e8f5e8', 
-                            borderRadius: '4px',
-                            fontSize: '0.9rem'
-                          }}>
+                          <div className="selected-file">
                             <strong>Selected:</strong> {selectedUploadFile.name} ({(selectedUploadFile.size / 1024 / 1024).toFixed(2)} MB)
                   </div>
                 )}
@@ -3284,65 +3142,40 @@ function App() {
 
                       {/* Selected Ingest Service Display */}
                       {selectedIngestService && (
-                        <div style={{ 
-                          marginBottom: '1rem', 
-                          padding: '0.5rem', 
-                          backgroundColor: '#e3f2fd', 
-                          borderRadius: '4px',
-                          fontSize: '0.9rem'
-                        }}>
+                        <div className="selected-file">
                           <strong>Selected Ingest Service:</strong> {selectedIngestService} (Site: {selectedIngestSite})
               </div>
             )}
 
                       {/* Metadata Form */}
                       {selectedUploadFile && (
-                        <div style={{ marginBottom: '1rem' }}>
-                          <h5 style={{ margin: '0 0 0.5rem 0', color: '#495057' }}>Upload Metadata</h5>
-                          <div style={{ 
-                            padding: '0.75rem', 
-                            backgroundColor: '#f8f9fa', 
-                            border: '1px solid #e0e0e0', 
-                            borderRadius: '4px'
-                          }}>
+                        <div className="upload-metadata">
+                          <h5>Upload Metadata</h5>
+                          <div>
                             <div style={{ marginBottom: '0.75rem' }}>
-                              <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: '500', fontSize: '0.9rem' }}>
+                              <label>
                                 Namespace:
                               </label>
                               <input
                                 type="text"
                                 value={selectedNamespace}
                                 disabled
-                                style={{ 
-                                  width: '100%', 
-                                  padding: '0.5rem',
-                                  border: '1px solid #ccc',
-                                  borderRadius: '4px',
-                                  backgroundColor: '#e9ecef',
-                                  color: '#6c757d'
-                                }}
+                                style={{ width: '100%' }}
                               />
                             </div>
                             <div style={{ marginBottom: '0.75rem' }}>
-                              <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: '500', fontSize: '0.9rem' }}>
+                              <label>
                                 File Name:
                               </label>
                               <input
                                 type="text"
                                 value={selectedUploadFile.name}
                                 disabled
-                                style={{ 
-                                  width: '100%', 
-                                  padding: '0.5rem',
-                                  border: '1px solid #ccc',
-                                  borderRadius: '4px',
-                                  backgroundColor: '#e9ecef',
-                                  color: '#6c757d'
-                                }}
+                                style={{ width: '100%' }}
                               />
                             </div>
                             <div>
-                              <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: '500', fontSize: '0.9rem' }}>
+                              <label>
                                 Lifetime (seconds):
                               </label>
                               <input
@@ -3350,13 +3183,7 @@ function App() {
                                 value={uploadMetadata.lifetime}
                                 onChange={(e) => setUploadMetadata(prev => ({ ...prev, lifetime: parseInt(e.target.value) || 3600 }))}
                                 min="1"
-                                style={{ 
-                                  width: '100%', 
-                                  padding: '0.5rem',
-                                  border: '1px solid #ccc',
-                                  borderRadius: '4px',
-                                  backgroundColor: 'white'
-                                }}
+                                style={{ width: '100%' }}
                               />
                             </div>
                           </div>
@@ -3374,14 +3201,7 @@ function App() {
                       </button>
 
                       {/* Upload Requirements */}
-                      <div style={{ 
-                        marginTop: '1rem', 
-                        padding: '0.75rem', 
-                        backgroundColor: '#f8f9fa', 
-                        border: '1px solid #e0e0e0', 
-                        borderRadius: '4px',
-                        fontSize: '0.9rem'
-                      }}>
+                      <div className="upload-metadata">
                         <strong>Upload Requirements:</strong>
                         <ul style={{ margin: '0.5rem 0 0 1rem', padding: 0 }}>
                           <li>Select a site with ingest services</li>
