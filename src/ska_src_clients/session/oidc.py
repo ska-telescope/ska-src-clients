@@ -243,18 +243,15 @@ class OIDCSession(Session):
                                     logging.debug(" - Found a valid matching access token, proceeding with exchange")
                                     
                                     # Make direct HTTP request with timeout
-                                    exchange_url = f"{auth_api_url}/exchange"
-                                    headers = {
-                                        "Authorization": f"Bearer {access_token.get('token')}",
-                                        "Content-Type": "application/json"
-                                    }
-                                    data = {
-                                        "service": service_name,
+                                    exchange_url = f"{auth_api_url}/token/exchange/{service_name}"
+                                    params = {
                                         "version": version,
+                                        "try_use_cache": "true",
+                                        "access_token": access_token.get('token'),
                                         "refresh_token": refresh_token.get('token')
                                     }
                                     
-                                    response = requests.post(exchange_url, headers=headers, json=data, timeout=5)
+                                    response = requests.get(exchange_url, params=params, timeout=5)
                                     response.raise_for_status()
                                     token = response.json()
                                     
@@ -268,7 +265,9 @@ class OIDCSession(Session):
                                         self.access_tokens.pop(aud)
 
                                     # and also on disk
-                                    os.remove(refresh_token.get('path_on_disk'))
+                                    path_on_disk = refresh_token.get('path_on_disk')
+                                    if path_on_disk and os.path.exists(path_on_disk):
+                                        os.remove(path_on_disk)
 
                                     found_matching_access_token = True
                                     break
@@ -297,22 +296,21 @@ class OIDCSession(Session):
                                     self.refresh_tokens.pop(refresh_token_idx)
 
                                     # and on disk
-                                    os.remove(refresh_token.get('path_on_disk'))
+                                    path_on_disk = refresh_token.get('path_on_disk')
+                                    if path_on_disk and os.path.exists(path_on_disk):
+                                        os.remove(path_on_disk)
 
                                     # Finally, exchange this refreshed token.
                                     logging.debug(" - Exchanging refresh token")
-                                    exchange_url = f"{auth_api_url}/exchange"
-                                    headers = {
-                                        "Authorization": f"Bearer {refreshed_token.get('access_token')}",
-                                        "Content-Type": "application/json"
-                                    }
-                                    data = {
-                                        "service": service_name,
+                                    exchange_url = f"{auth_api_url}/token/exchange/{service_name}"
+                                    params = {
                                         "version": version,
+                                        "try_use_cache": "true",
+                                        "access_token": refreshed_token.get('access_token'),
                                         "refresh_token": refreshed_token.get('refresh_token')
                                     }
                                     
-                                    response = requests.post(exchange_url, headers=headers, json=data, timeout=5)
+                                    response = requests.get(exchange_url, params=params, timeout=5)
                                     response.raise_for_status()
                                     token = response.json()
                                     break
@@ -330,16 +328,14 @@ class OIDCSession(Session):
                         access_token_to_exchange = random_access_token.get('token')
                         
                         # Make direct HTTP request with timeout
-                        exchange_url = f"{auth_api_url}/exchange"
-                        headers = {
-                            "Authorization": f"Bearer {access_token_to_exchange}",
-                            "Content-Type": "application/json"
-                        }
-                        data = {
-                            "service": service_name
+                        exchange_url = f"{auth_api_url}/token/exchange/{service_name}"
+                        params = {
+                            "version": "latest",
+                            "try_use_cache": "true",
+                            "access_token": access_token_to_exchange
                         }
                         
-                        response = requests.post(exchange_url, headers=headers, json=data, timeout=5)
+                        response = requests.get(exchange_url, params=params, timeout=5)
                         response.raise_for_status()
                         token = response.json()
             except Exception as e:

@@ -597,9 +597,24 @@ function App() {
       const response = await axios.get(`${API_BASE}/auth/tokens`, {
         timeout: 10000 // 10 second timeout
       });
-      setTokens(response.data.tokens || []);
-      if (response.data.tokens?.length > 0) {
-        setStatus({ type: 'success', message: `Loaded ${response.data.tokens.length} tokens` });
+      const newTokens = response.data.tokens || [];
+      setTokens(newTokens);
+      
+      // Set only one token as active (the most recent one)
+      if (newTokens.length > 0) {
+        // Find the most recent token (latest expiration time)
+        const mostRecentToken = newTokens.reduce((latest, current) => {
+          const latestDate = new Date(latest.expires_utc);
+          const currentDate = new Date(current.expires_utc);
+          return currentDate > latestDate ? current : latest;
+        });
+        
+        // Set only this token as active, clear all others
+        setActiveTokens({
+          [mostRecentToken.service_name]: mostRecentToken.file_name
+        });
+        
+        setStatus({ type: 'success', message: `Loaded ${newTokens.length} tokens. ${mostRecentToken.service_name} token set as active.` });
       } else {
         setStatus({ type: 'info', message: 'No tokens found. Please request a new token to get started.' });
       }
@@ -686,12 +701,11 @@ function App() {
     }
   };
 
-  // Set active token for a service
+  // Set active token for a service (only one token can be active at a time)
   const setActiveToken = (serviceName, fileName) => {
-    setActiveTokens(prev => ({
-      ...prev,
+    setActiveTokens({
       [serviceName]: fileName
-    }));
+    });
   };
 
   // Check if core systems are online (required for any token exchange)
@@ -744,8 +758,10 @@ function App() {
   };
 
   // Exchange token for a service
-  const exchangeToken = async (serviceName, version = 'latest') => {
-    setClickedExchange(serviceName);
+  const exchangeToken = async (serviceName, version = 'latest', tokenFileName = null) => {
+    // Track which specific button was clicked (service + token file)
+    const clickedKey = `${serviceName}-${tokenFileName}`;
+    setClickedExchange(clickedKey);
     setTimeout(() => setClickedExchange(null), 500); // Remove animation after 0.5s
     
     // Check if core systems are online (required for any token exchange)
@@ -794,18 +810,19 @@ function App() {
           message: `Token exchanged successfully for ${serviceName}!` 
         });
         // Refresh tokens after successful exchange
-        loadTokens();
-        // Automatically set the new token as active for the exchanged service
-        // Wait for tokens to reload, then set active
-        setTimeout(() => {
-          setTokens(currentTokens => {
-            const newToken = currentTokens.find(t => t.service_name === serviceName);
-            if (newToken) {
-              setActiveTokens(prev => ({ ...prev, [serviceName]: newToken.file_name }));
-            }
-            return currentTokens;
+        await loadTokens();
+        // The loadTokens function now automatically sets the most recent token as active
+        // But we want to ensure the exchanged token is set as active instead
+        // Get the updated tokens and find the exchanged one
+        const updatedTokensResponse = await axios.get(`${API_BASE}/auth/tokens`);
+        const updatedTokens = updatedTokensResponse.data.tokens || [];
+        const newToken = updatedTokens.find(t => t.service_name === serviceName);
+        if (newToken) {
+          // Set only this token as active, clear all others
+          setActiveTokens({
+            [serviceName]: newToken.file_name
           });
-        }, 500);
+        }
       } else {
         setStatus({ 
           type: 'warning', 
@@ -1975,7 +1992,7 @@ function App() {
                         <h4 style={{ margin: 0 }}>{serviceNameMap[token.service_name] || token.service_name || 'Unknown Service'}</h4>
                         <div style={{ fontSize: '0.8rem', color: '#888' }}>File: {token.file_name}</div>
                         {activeTokens[token.service_name] === token.file_name && (
-                          <span style={{ color: '#28a745', fontWeight: 'bold', fontSize: '0.85rem' }}>Active</span>
+                          <span style={{ color: '#28a745', fontWeight: 'bold', fontSize: '0.85rem' }}>★ Active Token</span>
                         )}
                       </div>
                     </div>
@@ -2009,8 +2026,8 @@ function App() {
                           return (
                             <button 
                               key={service}
-                              className={`service-exchange-btn${clickedExchange === service ? ' clicked' : ''}`}
-                              onClick={() => exchangeToken(service)}
+                              className={`service-exchange-btn${clickedExchange === `${service}-${token.file_name}` ? ' clicked' : ''}`}
+                              onClick={() => exchangeToken(service, 'latest', token.file_name)}
                               disabled={isDisabled}
                               title={tooltip || (service === token.service_name ? 'Cannot exchange for same service' : '')}
                             >
@@ -2027,8 +2044,9 @@ function App() {
                         onClick={() => setActiveToken(token.service_name, token.file_name)}
                         disabled={activeTokens[token.service_name] === token.file_name}
                         style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                        title={activeTokens[token.service_name] === token.file_name ? 'This is already the active token' : 'Set this as the only active token'}
                       >
-                        Set Active
+                        {activeTokens[token.service_name] === token.file_name ? 'Active' : 'Set Active'}
                       </button>
                       <button 
                         className="button small"
@@ -2111,16 +2129,30 @@ function App() {
               <div className="filters">
                 <h4>Select Site</h4>
                 <div className="filter-row">
-                  <select 
-                    value={filters.site || ''} 
-                    onChange={(e) => setFilters({...filters, site: e.target.value})}
-                    className="filter-select"
-                  >
-                    <option value="">Select a site to view services...</option>
-                    {sitesList.map((site, index) => (
-                      <option key={index} value={site.node}>{site.name || site.node}</option>
-                    ))}
-                  </select>
+                  {sitesList.length > 0 ? (
+                    <select 
+                      value={filters.site || ''} 
+                      onChange={(e) => setFilters({...filters, site: e.target.value})}
+                      className="filter-select"
+                    >
+                      <option value="">Select a site to view services...</option>
+                      {sitesList.map((site, index) => (
+                        <option key={index} value={site.node}>{site.name || site.node}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div style={{ 
+                      padding: '1rem', 
+                      backgroundColor: '#fff3cd', 
+                      border: '1px solid #ffeaa7', 
+                      borderRadius: '4px',
+                      color: '#856404'
+                    }}>
+                      <strong>No sites available</strong><br/>
+                      The site capabilities service is running but no sites are configured in the development environment. 
+                      This is normal for development setups. In production, sites would be configured here.
+                    </div>
+                  )}
                 </div>
               </div>
             )}
