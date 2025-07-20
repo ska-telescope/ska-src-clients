@@ -3103,7 +3103,7 @@ function App() {
                       <h4>File Upload</h4>
                       
                       {/* Namespace Selection for Upload */}
-                      <div style={{ marginBottom: '1rem' }}>
+                      <div className="upload-input-container" style={{ marginBottom: '1rem' }}>
                         <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
                           Target Namespace:
                         </label>
@@ -3112,7 +3112,6 @@ function App() {
                           onChange={(e) => setSelectedNamespace(e.target.value)}
                           className="filter-select"
                           disabled={loadingNamespaces}
-                          style={{ width: '100%' }}
                         >
                           <option value="">Select a namespace for upload...</option>
                           {namespaces.map((namespace, index) => (
@@ -3167,7 +3166,7 @@ function App() {
                                 type="text"
                                 value={selectedNamespace}
                                 disabled
-                                style={{ width: '100%' }}
+                                style={{ width: 'calc(100% - 2px)', boxSizing: 'border-box' }}
                               />
                             </div>
                             <div style={{ marginBottom: '0.75rem' }}>
@@ -3178,7 +3177,7 @@ function App() {
                                 type="text"
                                 value={selectedUploadFile.name}
                                 disabled
-                                style={{ width: '100%' }}
+                                style={{ width: 'calc(100% - 2px)', boxSizing: 'border-box' }}
                               />
                             </div>
                             <div>
@@ -3190,7 +3189,7 @@ function App() {
                                 value={uploadMetadata.lifetime}
                                 onChange={(e) => setUploadMetadata(prev => ({ ...prev, lifetime: parseInt(e.target.value) || 3600 }))}
                                 min="1"
-                                style={{ width: '100%' }}
+                                style={{ width: 'calc(100% - 2px)', boxSizing: 'border-box' }}
                               />
                             </div>
                           </div>
@@ -3202,7 +3201,7 @@ function App() {
                         className="button primary"
                         onClick={handleFileUpload}
                         disabled={!selectedUploadFile || !selectedIngestSite || !selectedIngestService || !selectedNamespace}
-                        style={{ width: '100%', marginTop: '1rem' }}
+                        style={{ width: '100%', marginTop: '1rem', boxSizing: 'border-box' }}
                       >
                         Upload File
                       </button>
