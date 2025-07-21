@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import axios from 'axios';
 import './App.css';
 import skaLogo from './skao-logo.png';
@@ -181,6 +181,7 @@ function App() {
   const [namespaceError, setNamespaceError] = useState(null);
   const [filesError, setFilesError] = useState(null);
   const [namespaceLoadFailed, setNamespaceLoadFailed] = useState(false);
+  const [fileSearchTerm, setFileSearchTerm] = useState('');
 
   // Load SKAO preset after configuration is loaded (only once)
   useEffect(() => {
@@ -1340,6 +1341,19 @@ function App() {
       setLoadingFiles(false);
     }
   }, [hasDataManagementToken]);
+
+  // Filter files based on search term
+  const filteredFiles = useMemo(() => {
+    if (!fileSearchTerm.trim()) {
+      return namespaceFiles;
+    }
+    
+    const searchLower = fileSearchTerm.toLowerCase();
+    return namespaceFiles.filter(file => {
+      const fileName = (file.name || file.id || 'Unknown File').toLowerCase();
+      return fileName.includes(searchLower);
+    });
+  }, [namespaceFiles, fileSearchTerm]);
 
   // Load sites with ingest services for Data Upload
   const loadSitesWithIngest = useCallback(async () => {
@@ -3008,6 +3022,34 @@ function App() {
                       </button>
                     </div>
                     
+                    {/* Search Bar */}
+                    {namespaceFiles.length > 0 && (
+                      <div className="file-search-container">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <input
+                            type="text"
+                            placeholder="Search files by name..."
+                            value={fileSearchTerm}
+                            onChange={(e) => setFileSearchTerm(e.target.value)}
+                            className="file-search-input"
+                          />
+                          {fileSearchTerm && (
+                            <button
+                              onClick={() => setFileSearchTerm('')}
+                              className="file-search-clear"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                        {fileSearchTerm && (
+                          <div className="file-search-stats">
+                            Showing {filteredFiles.length} of {namespaceFiles.length} files
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
                     {loadingFiles ? (
                       <div className="status info">Loading files for namespace {selectedNamespace}...</div>
                     ) : filesError ? (
@@ -3016,32 +3058,38 @@ function App() {
                       </div>
                     ) : namespaceFiles.length > 0 ? (
                       <div className="files-table" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-                        {namespaceFiles.map((file, index) => (
+                        {filteredFiles.length > 0 ? (
+                          filteredFiles.map((file, index) => (
                             <div key={index} className="file-row" style={{ 
                               padding: '0.5rem',
-                              borderBottom: index < namespaceFiles.length - 1 ? '1px solid var(--border-color)' : 'none',
+                              borderBottom: index < filteredFiles.length - 1 ? '1px solid var(--border-color)' : 'none',
                               fontSize: '0.9rem',
                               display: 'flex',
                               justifyContent: 'space-between',
                               alignItems: 'center'
                             }}>
                               <div style={{ flex: 1 }}>
-                            <strong>{file.name || file.id || 'Unknown File'}</strong>
+                                <strong>{file.name || file.id || 'Unknown File'}</strong>
                                 {file.size !== undefined && (
                                   <span style={{ marginLeft: '0.5rem' }}>
                                     ({file.size} bytes)
                                   </span>
                                 )}
                               </div>
-                                {file.type && (
+                              {file.type && (
                                 <span className="file-type-badge">
                                   {file.type}
                                 </span>
                               )}
                             </div>
-                          ))}
-                        </div>
-                      ) : (
+                          ))
+                        ) : (
+                          <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                            No files match your search term "{fileSearchTerm}"
+                          </div>
+                        )}
+                      </div>
+                    ) : (
                         <div className="empty-files-message">
                           <p style={{ margin: '0 0 0.5rem 0' }}>
                             {filesError && filesError.includes('does not exist') 
