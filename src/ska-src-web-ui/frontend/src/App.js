@@ -1221,25 +1221,25 @@ function App() {
   const loadStorageData = useCallback(async (siteName = null) => {
     try {
       setLoadingStorageData(true);
-      setStatus({ type: 'info', message: 'Loading storage areas...' });
+      setStatus({ type: 'info', message: 'Loading storage information...' });
       
-      let url = `${API_BASE}/storage/areas`;
+      let url = `${API_BASE}/storage/`;
       if (siteName) {
         url += `?parent_node_name=${encodeURIComponent(siteName)}`;
       }
       
       const response = await axios.get(url);
       setStorageData(response.data.data || []);
-      setStatus({ type: 'success', message: `Loaded ${response.data.data?.length || 0} storage areas${siteName ? ` for ${siteName}` : ''}` });
+      setStatus({ type: 'success', message: `Loaded ${response.data.data?.length || 0} storage resources${siteName ? ` for ${siteName}` : ''}` });
     } catch (error) {
-      console.error('Failed to load storage areas:', error);
+      console.error('Failed to load storage information:', error);
       if (error.response?.status === 503) {
         setStatus({ 
           type: 'error', 
           message: 'Authentication server is currently unavailable. Please try again later.' 
         });
       } else {
-      setStatus({ type: 'error', message: `Failed to load storage areas: ${error.message}` });
+      setStatus({ type: 'error', message: `Failed to load storage information: ${error.message}` });
       }
     } finally {
       setLoadingStorageData(false);
@@ -2749,63 +2749,111 @@ function App() {
                 {filters.site && (
                   <div style={{ marginTop: '2rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                      <h3>Storage Areas for {filters.site}</h3>
+                      <h3>Storage Resources for {filters.site}</h3>
                       <button 
                         className="button secondary small"
                         onClick={() => loadStorageData(filters.site)}
                         disabled={loadingStorageData}
                       >
-                        {loadingStorageData ? 'Loading...' : 'Refresh Storage Areas'}
+                        {loadingStorageData ? 'Loading...' : 'Refresh Storage Resources'}
                       </button>
                     </div>
                     
                     {loadingStorageData ? (
-                      <div className="status info">Loading storage areas for {filters.site}...</div>
+                      <div className="status info">Loading storage resources for {filters.site}...</div>
                     ) : storageData ? (
                       <div>
                         <div className="section-header"
                           onClick={() => setCollapsedSections({...collapsedSections, storage: !collapsedSections.storage})}
                         >
-                          <h4>Storage Areas ({storageData.length})</h4>
+                          <h4>Storage Resources ({storageData.length})</h4>
                           <span className="collapse-icon">{collapsedSections.storage ? '▼' : '▲'}</span>
                         </div>
                         {!collapsedSections.storage && (
                           <div>
-                            {Object.entries(getStorageBySite(storageData)).map(([siteName, storageAreas]) => (
+                            {Object.entries(getStorageBySite(storageData)).map(([siteName, storages]) => (
                               <div key={siteName} className="site-storage-group">
-                                <h5 style={{ marginBottom: '0.5rem', color: '#E70068' }}>{siteName} ({storageAreas.length})</h5>
+                                <h5 style={{ marginBottom: '0.5rem', color: '#E70068' }}>{siteName} ({storages.length})</h5>
                                 <div className="data-list">
-                                  {storageAreas.map((area, index) => (
+                                  {storages.map((storage, index) => (
                                     <div key={index} className="data-item">
-                                      <strong>{area.name || area.id || 'Unknown Storage Area'}</strong>
+                                      <strong>{storage.name || storage.id || 'Unknown Storage'}</strong>
                                       <table className="service-details-table">
                                         <tbody>
-                                          {area.type && (
-                                            <tr><td>Type</td><td>{area.type}</td></tr>
+                                          {/* Storage-level information */}
+                                          {storage.host && (
+                                            <tr><td>Host</td><td>{storage.host}</td></tr>
                                           )}
-                                          {area.relative_path && (
-                                            <tr><td>Relative Path</td><td>{area.relative_path}</td></tr>
+                                          {storage.base_path && (
+                                            <tr><td>Base Path</td><td>{storage.base_path}</td></tr>
                                           )}
-                                          {area.tier !== undefined && (
-                                            <tr><td>Tier</td><td>{area.tier}</td></tr>
+                                          {storage.srm && (
+                                            <tr><td>SRM</td><td>{storage.srm}</td></tr>
                                           )}
-                                          {area.parent_storage_id && (
-                                            <tr><td>Parent Storage ID</td><td>{area.parent_storage_id}</td></tr>
+                                          {storage.device_type && (
+                                            <tr><td>Device Type</td><td>{storage.device_type}</td></tr>
                                           )}
-                                          {area.parent_node_name && (
-                                            <tr><td>Parent Node</td><td>{area.parent_node_name}</td></tr>
+                                          {storage.size_in_terabytes !== undefined && (
+                                            <tr><td>Size (TB)</td><td>{storage.size_in_terabytes}</td></tr>
                                           )}
-                                          {area.parent_site_name && (
-                                            <tr><td>Parent Site</td><td>{area.parent_site_name}</td></tr>
+                                          {storage.supported_protocols && storage.supported_protocols.length > 0 && (
+                                            <tr>
+                                              <td>Supported Protocols</td>
+                                              <td>
+                                                {storage.supported_protocols.map((protocol, idx) => (
+                                                  <div key={idx}>
+                                                    {protocol.prefix}://{protocol.port ? `:${protocol.port}` : ''}
+                                                  </div>
+                                                ))}
+                                              </td>
+                                            </tr>
                                           )}
-                                          {area.is_force_disabled && (
+                                          {storage.is_force_disabled && (
                                             <tr>
                                               <td>Status</td>
                                               <td style={{ color: '#dc3545' }}>Force Disabled</td>
                                             </tr>
                                           )}
-                                          {area.id && (
-                                            <tr><td>ID</td><td>{area.id}</td></tr>
+                                          {storage.id && (
+                                            <tr><td>Storage ID</td><td>{storage.id}</td></tr>
+                                          )}
+                                          
+                                          {/* Storage Areas */}
+                                          {storage.areas && storage.areas.length > 0 && (
+                                            <tr>
+                                              <td colSpan="2">
+                                                <div style={{ marginTop: '1rem' }}>
+                                                  <strong style={{ color: '#E70068' }}>Storage Areas ({storage.areas.length}):</strong>
+                                                  {storage.areas.map((area, areaIndex) => (
+                                                    <div key={areaIndex} style={{ marginTop: '0.5rem', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}>
+                                                      <strong>{area.name || area.id || 'Unknown Storage Area'}</strong>
+                                                      <table className="service-details-table" style={{ marginTop: '0.5rem' }}>
+                                                        <tbody>
+                                                          {area.type && (
+                                                            <tr><td>Type</td><td>{area.type}</td></tr>
+                                                          )}
+                                                          {area.relative_path && (
+                                                            <tr><td>Relative Path</td><td>{area.relative_path}</td></tr>
+                                                          )}
+                                                          {area.tier !== undefined && (
+                                                            <tr><td>Tier</td><td>{area.tier}</td></tr>
+                                                          )}
+                                                          {area.is_force_disabled && (
+                                                            <tr>
+                                                              <td>Status</td>
+                                                              <td style={{ color: '#dc3545' }}>Force Disabled</td>
+                                                            </tr>
+                                                          )}
+                                                          {area.id && (
+                                                            <tr><td>Area ID</td><td>{area.id}</td></tr>
+                                                          )}
+                                                        </tbody>
+                                                      </table>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              </td>
+                                            </tr>
                                           )}
                                         </tbody>
                                       </table>
