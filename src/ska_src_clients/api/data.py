@@ -205,7 +205,7 @@ class DataAPI(API):
 
     @handle_client_exceptions
     def upload_for_ingest(self, path, ingest_service_id, namespace, metadata_suffix='meta', extra_metadata={},
-                          protocol_prefix='https', verify=True, debug=False):
+                          protocol_prefix='https', host_override=None, port_override=None, verify=True, debug=False):
         """ Upload data for ingestion.
 
         :param str path: Local path to data directory to be uploaded.
@@ -214,6 +214,8 @@ class DataAPI(API):
         :param str metadata_suffix: The expected metadata suffix.
         :param str extra_metadata: Extra metadata to apply to each file (JSON).
         :param str protocol_prefix: The protocol prefix to use.
+        :param str host_override: Override the host from site capabilities (e.g., 'host.docker.internal' for DEVR).
+        :param str port_override: Override the port from site capabilities (e.g., '18444' for DEVR).
         :param bool verify: Verify a server's SSL certificate.
         :param bool debug: Debug mode?
         """
@@ -230,13 +232,20 @@ class DataAPI(API):
         data_ingest_service = client.get_service(service_id=ingest_service_id).json()
         associated_storage_area = client.get_storage_area(data_ingest_service.get('associated_storage_area_id')).json()
         
-        # Check if associated_storage_id is missing and use parent_storage_id as fallback
+        # Debug: Log the storage area configuration
+        logging.info(f"Storage area configuration: {associated_storage_area}")
+        
+        # Use the associated_storage_id from the storage area, or fall back to parent_storage_id
         storage_id = associated_storage_area.get('associated_storage_id')
-        if storage_id is None:
-            storage_id = associated_storage_area.get('parent_storage_id')
-            logging.info(f"Using parent_storage_id '{storage_id}' as fallback for missing associated_storage_id")
+        logging.info(f"associated_storage_id: {storage_id}")
         
         if storage_id is None:
+            # If associated_storage_id is not set, use parent_storage_id
+            storage_id = associated_storage_area.get('parent_storage_id')
+            logging.info(f"Using parent_storage_id '{storage_id}' as fallback for missing associated_storage_id")
+            
+        if storage_id is None:
+            logging.error(f"Storage area configuration missing both storage IDs: {associated_storage_area}")
             raise Exception("Neither associated_storage_id nor parent_storage_id found in storage area configuration")
         
         associated_storage = client.get_storage(storage_id).json()
@@ -257,6 +266,18 @@ class DataAPI(API):
             selected_protocol = random.choice(associated_storage.get('supported_protocols', []))
         prefix = selected_protocol.get('prefix')
         port = selected_protocol.get('port')
+        
+        # Apply host and port overrides if provided
+        if host_override:
+            logging.info(f"Overriding host from '{host}' to '{host_override}'")
+            host = host_override
+            # Disable SSL verification for development environments with host overrides
+            verify = False
+            logging.info("SSL verification disabled due to host override")
+        
+        if port_override:
+            logging.info(f"Overriding port from '{port}' to '{port_override}'")
+            port = port_override
 
         # get a token
         client = self.session.client_factory.get_data_management_client(is_authenticated=True)
@@ -274,6 +295,12 @@ class DataAPI(API):
             package_name=package_name,
             module_name=module_name
         ))
+        
+        # Debug: Log the WebDAV client configuration
+        logging.info(f"Creating WebDAV client with: prefix={prefix}, host={host}, port={port}, path={remote_path}")
+        webdav_url = f"{prefix}://{host}:{port}/{remote_path.lstrip('/')}"
+        logging.info(f"WebDAV URL will be: {webdav_url}")
+        
         selected_dm_client = getattr(module, class_name)(prefix=prefix, host=host, port=port, path=remote_path,
                                                          access_token=access_token, verify=verify)
 
@@ -281,6 +308,7 @@ class DataAPI(API):
         plan = UploadPlan()
 
         # add step for making namespace directory in staging area
+        logging.info(f"Creating namespace directory: {namespace}")
         plan.append_step(section_name='upload', fqn=selected_dm_client.mkdir, arguments={
             'remote_path': namespace
         })
@@ -288,6 +316,7 @@ class DataAPI(API):
         # add step to make unique directory for ingest
         ingest_directory_id = str(uuid.uuid4())
         remote_ingest_directory = os.path.join(namespace, ingest_directory_id)
+        logging.info(f"Creating ingest directory: {remote_ingest_directory}")
         plan.append_step(section_name='upload', fqn=selected_dm_client.mkdir, arguments={
             'remote_path': remote_ingest_directory
         })

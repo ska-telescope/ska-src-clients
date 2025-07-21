@@ -43,6 +43,14 @@ function App() {
     return saved ? JSON.parse(saved) : false;
   });
 
+  // Bearer token popup state
+  const [bearerTokenPopup, setBearerTokenPopup] = useState({
+    isOpen: false,
+    token: '',
+    fileName: '',
+    loading: false
+  });
+
   // API status monitoring
   const [apiStatus, setApiStatus] = useState({
     backend: { status: 'unknown', lastCheck: null, error: null },
@@ -169,8 +177,55 @@ function App() {
   const [selectedIngestService, setSelectedIngestService] = useState('');
   const [loadingIngestSites, setLoadingIngestSites] = useState(false);
   const [uploadMetadata, setUploadMetadata] = useState({
-    lifetime: 3600
+    lifetime: 3600,
+    dataset_name: ''
   });
+  
+  // Scientific metadata state
+  const [scientificMetadata, setScientificMetadata] = useState({
+    rucio_did_scope: '',
+    rucio_did_name: '',
+    dataproduct_type: '',
+    dataproduct_subtype: '',
+    calib_level: '',
+    obs_collection: '',
+    obs_id: '',
+    obs_publisher_did: '',
+    obs_title: '',
+    obs_creator_did: '',
+    target_class: '',
+    access_url: '',
+    access_format: '',
+    access_estsize: '',
+    target_name: '',
+    s_ra: '',
+    s_dec: '',
+    s_fov: '',
+    s_region: '',
+    s_resolution: '',
+    s_xel1: '',
+    s_xel2: '',
+    s_pixel_scale: '',
+    t_min: '',
+    t_max: '',
+    t_exptime: '',
+    t_resolution: '',
+    t_xel: '',
+    em_min: '',
+    em_max: '',
+    em_res_power: '',
+    em_xel: '',
+    em_ucd: '',
+    o_ucd: '',
+    pol_states: '',
+    pol_xel: '',
+    facility_name: '',
+    instrument_name: '',
+    preview: ''
+  });
+  
+  // Collapsible state for scientific metadata
+  const [showScientificMetadata, setShowScientificMetadata] = useState(false);
   
   // Data Management state
   const [namespaces, setNamespaces] = useState([]);
@@ -182,6 +237,11 @@ function App() {
   const [filesError, setFilesError] = useState(null);
   const [namespaceLoadFailed, setNamespaceLoadFailed] = useState(false);
   const [fileSearchTerm, setFileSearchTerm] = useState('');
+  const [uploadOverrides, setUploadOverrides] = useState({
+    protocol: '',
+    host: '',
+    port: ''
+  });
 
   // Load SKAO preset after configuration is loaded (only once)
   useEffect(() => {
@@ -870,6 +930,64 @@ function App() {
       }
       setStatus({ type: 'error', message: errorMessage });
     }
+  };
+
+  // Function to fetch and display bearer token
+  const showBearerToken = async (fileName) => {
+    try {
+      setBearerTokenPopup({
+        isOpen: true,
+        token: '',
+        fileName: fileName,
+        loading: true
+      });
+
+      const response = await axios.get(`${API_BASE}/auth/tokens/by-file/${fileName}/bearer`, {
+        timeout: 10000 // 10 second timeout
+      });
+
+      if (response.data && response.data.bearer_token) {
+        setBearerTokenPopup({
+          isOpen: true,
+          token: response.data.bearer_token,
+          fileName: fileName,
+          loading: false
+        });
+      } else {
+        setBearerTokenPopup({
+          isOpen: true,
+          token: 'Token not available',
+          fileName: fileName,
+          loading: false
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch bearer token:', error);
+      let errorMessage = 'Failed to fetch bearer token';
+      if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Request timed out. Please try again.';
+      } else if (error.response?.status === 404) {
+        errorMessage = `Token file ${fileName} not found`;
+      } else {
+        errorMessage = `${errorMessage}: ${error.response?.data?.detail || error.message}`;
+      }
+      setBearerTokenPopup({
+        isOpen: true,
+        token: errorMessage,
+        fileName: fileName,
+        loading: false
+      });
+    }
+  };
+
+  // Function to close bearer token popup
+  const closeBearerTokenPopup = () => {
+    setBearerTokenPopup({
+      isOpen: false,
+      token: '',
+      fileName: '',
+      loading: false
+    });
   };
 
   // Function to handle tab switching (no token activation needed)
@@ -1767,17 +1885,44 @@ function App() {
     }
   };
 
+  // Get default protocol, host, and port from site capabilities
+  const getDefaultUploadSettings = (siteName, serviceId) => {
+    const site = sitesWithIngest.find(s => s.name === siteName);
+    if (!site) return { protocol: '', host: '', port: '' };
+    
+    const service = site.ingestServices?.find(s => s.id === serviceId);
+    if (!service) return { protocol: '', host: '', port: '' };
+    
+    // Try to get storage information from the service
+    // This would typically come from the associated storage area
+    // For now, we'll use some defaults based on the service type
+    if (service.type === 'storm') {
+      return { protocol: 'https', host: 'storm1.local', port: '443' };
+    } else if (service.type === 'storm2') {
+      return { protocol: 'https', host: 'storm2.local', port: '443' };
+    }
+    
+    // Default fallback - use storm2.local for any other service type
+    return { protocol: 'https', host: 'storm2.local', port: '443' };
+  };
+
   // Handle ingest service selection
   const handleIngestServiceSelect = (siteName, serviceId) => {
     // If clicking the same service, de-select it
     if (selectedIngestSite === siteName && selectedIngestService === serviceId) {
       setSelectedIngestSite('');
       setSelectedIngestService('');
+      setUploadOverrides({ protocol: '', host: '', port: '' });
       setStatus({ type: 'info', message: 'Deselected ingest service' });
     } else {
       // Select the new service
       setSelectedIngestSite(siteName);
       setSelectedIngestService(serviceId);
+      
+      // Set default values for protocol, host, and port
+      const defaults = getDefaultUploadSettings(siteName, serviceId);
+      setUploadOverrides(defaults);
+      
       setStatus({ type: 'success', message: `Selected ingest service: ${serviceId} for site ${siteName}` });
     }
   };
@@ -1823,14 +1968,44 @@ function App() {
       const metadata = {
         namespace: selectedNamespace,
         name: selectedUploadFile.name,
-        lifetime: uploadMetadata.lifetime
+        lifetime: uploadMetadata.lifetime,
+        dataset_name: uploadMetadata.dataset_name || undefined
       };
+      
+      // Add scientific metadata if any fields are filled
+      const scientificMeta = {};
+      Object.keys(scientificMetadata).forEach(key => {
+        if (scientificMetadata[key] && scientificMetadata[key].trim() !== '') {
+          scientificMeta[key] = scientificMetadata[key];
+        }
+      });
+      
+      if (Object.keys(scientificMeta).length > 0) {
+        metadata.meta = scientificMeta;
+      }
       
       formData.append('extra_metadata', JSON.stringify(metadata));
       
-      // Send namespace and ingest_service_id as query parameters
+      // Prepare upload parameters
+      const uploadParams = new URLSearchParams({
+        namespace: selectedNamespace,
+        ingest_service_id: selectedIngestService
+      });
+      
+      // Add overrides if they are provided
+      if (uploadOverrides.protocol) {
+        uploadParams.append('protocol', uploadOverrides.protocol);
+      }
+      if (uploadOverrides.host) {
+        uploadParams.append('host', uploadOverrides.host);
+      }
+      if (uploadOverrides.port) {
+        uploadParams.append('port', uploadOverrides.port);
+      }
+      
+      // Send upload request with parameters
       const response = await axios.post(
-        `${API_BASE}/data/upload?namespace=${encodeURIComponent(selectedNamespace)}&ingest_service_id=${encodeURIComponent(selectedIngestService)}`, 
+        `${API_BASE}/data/upload?${uploadParams.toString()}`, 
         formData, 
         {
           headers: {
@@ -2503,6 +2678,14 @@ function App() {
                         title="Token is available for use"
                       >
                         Available
+                      </button>
+                      <button 
+                        className="button small"
+                        onClick={() => showBearerToken(token.file_name)}
+                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                        title="Show bearer token"
+                      >
+                        Show Token
                       </button>
                       <button 
                         className="button small"
@@ -3183,6 +3366,11 @@ function App() {
                                   />
                                   <span>
                                     {service.name || service.id} ({service.type})
+                                    {service.associated_storage_area_id && (
+                                      <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                                        Storage Area: {service.associated_storage_area_id}
+                                      </div>
+                                    )}
                                   </span>
                                 </div>
                               ))}
@@ -3246,8 +3434,56 @@ function App() {
                       {selectedIngestService && (
                         <div className="selected-file">
                           <strong>Selected Ingest Service:</strong> {selectedIngestService} (Site: {selectedIngestSite})
-              </div>
-            )}
+                        </div>
+                      )}
+
+                      {/* Upload Connection Overrides */}
+                      {selectedIngestService && (
+                        <div className="upload-overrides-container">
+                          <h5>Connection Settings (Override Defaults)</h5>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+                            <div>
+                              <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                Protocol:
+                              </label>
+                              <input
+                                type="text"
+                                value={uploadOverrides.protocol}
+                                onChange={(e) => setUploadOverrides(prev => ({ ...prev, protocol: e.target.value }))}
+                                placeholder="https"
+                                className="upload-override-input"
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                Host:
+                              </label>
+                              <input
+                                type="text"
+                                value={uploadOverrides.host}
+                                onChange={(e) => setUploadOverrides(prev => ({ ...prev, host: e.target.value }))}
+                                placeholder="storm1.local"
+                                className="upload-override-input"
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                Port:
+                              </label>
+                              <input
+                                type="text"
+                                value={uploadOverrides.port}
+                                onChange={(e) => setUploadOverrides(prev => ({ ...prev, port: e.target.value }))}
+                                placeholder="443"
+                                className="upload-override-input"
+                              />
+                            </div>
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+                            <strong>Note:</strong> For DEVR environment, use host.docker.internal:18444 for STORM2
+                          </div>
+                        </div>
+                      )}
 
                       {/* Metadata Form */}
                       {selectedUploadFile && (
@@ -3276,6 +3512,18 @@ function App() {
                                 style={{ width: 'calc(100% - 2px)', boxSizing: 'border-box' }}
                               />
                             </div>
+                            <div style={{ marginBottom: '0.75rem' }}>
+                              <label>
+                                Dataset Name (optional):
+                              </label>
+                              <input
+                                type="text"
+                                value={uploadMetadata.dataset_name}
+                                onChange={(e) => setUploadMetadata(prev => ({ ...prev, dataset_name: e.target.value }))}
+                                placeholder="Enter dataset name if this file belongs to a dataset"
+                                style={{ width: 'calc(100% - 2px)', boxSizing: 'border-box' }}
+                              />
+                            </div>
                             <div>
                               <label>
                                 Lifetime (seconds):
@@ -3289,6 +3537,458 @@ function App() {
                               />
                             </div>
                           </div>
+                        </div>
+                      )}
+
+                      {/* Optional Scientific Metadata Form */}
+                      {selectedUploadFile && (
+                        <div className="upload-metadata">
+                          <div 
+                            className="metadata-header"
+                            onClick={() => setShowScientificMetadata(!showScientificMetadata)}
+                            style={{ cursor: 'pointer', userSelect: 'none' }}
+                          >
+                            <h5 style={{ margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              Optional Scientific Metadata
+                              <span className="toggle-icon" style={{ 
+                                transform: showScientificMetadata ? 'rotate(90deg)' : 'rotate(0deg)',
+                                transition: 'transform 0.2s ease',
+                                fontSize: '1.2rem',
+                                color: 'var(--text-secondary)'
+                              }}>
+                                ▶
+                              </span>
+                            </h5>
+                          </div>
+                          
+                          {showScientificMetadata && (
+                            <>
+                              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1rem', marginTop: '1rem' }}>
+                                Fill in any relevant scientific metadata fields. Only filled fields will be included in the metadata file.
+                              </div>
+                          
+                          {/* Basic Information */}
+                          <div className="metadata-section">
+                            <h6>Basic Information</h6>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                              <div>
+                                <label>Rucio DID Scope:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.rucio_did_scope}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, rucio_did_scope: e.target.value }))}
+                                  placeholder="e.g., integration"
+                                />
+                              </div>
+                              <div>
+                                <label>Rucio DID Name:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.rucio_did_name}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, rucio_did_name: e.target.value }))}
+                                  placeholder="e.g., my_data_file"
+                                />
+                              </div>
+                              <div>
+                                <label>Data Product Type:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.dataproduct_type}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, dataproduct_type: e.target.value }))}
+                                  placeholder="e.g., image, spectrum"
+                                />
+                              </div>
+                              <div>
+                                <label>Data Product Subtype:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.dataproduct_subtype}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, dataproduct_subtype: e.target.value }))}
+                                  placeholder="e.g., continuum, line"
+                                />
+                              </div>
+                              <div>
+                                <label>Calibration Level:</label>
+                                <input
+                                  type="number"
+                                  value={scientificMetadata.calib_level}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, calib_level: e.target.value }))}
+                                  placeholder="0-3"
+                                  min="0"
+                                  max="3"
+                                />
+                              </div>
+                              <div>
+                                <label>Observing Collection:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.obs_collection}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, obs_collection: e.target.value }))}
+                                  placeholder="e.g., SKA1-LOW"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Observation Information */}
+                          <div className="metadata-section">
+                            <h6>Observation Information</h6>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                              <div>
+                                <label>Observation ID:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.obs_id}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, obs_id: e.target.value }))}
+                                  placeholder="e.g., obs_001"
+                                />
+                              </div>
+                              <div>
+                                <label>Publisher DID:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.obs_publisher_did}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, obs_publisher_did: e.target.value }))}
+                                  placeholder="Publisher identifier"
+                                />
+                              </div>
+                              <div>
+                                <label>Observation Title:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.obs_title}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, obs_title: e.target.value }))}
+                                  placeholder="e.g., M31 Continuum Survey"
+                                />
+                              </div>
+                              <div>
+                                <label>Creator DID:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.obs_creator_did}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, obs_creator_did: e.target.value }))}
+                                  placeholder="Creator identifier"
+                                />
+                              </div>
+                              <div>
+                                <label>Target Class:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.target_class}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, target_class: e.target.value }))}
+                                  placeholder="e.g., galaxy, star"
+                                />
+                              </div>
+                              <div>
+                                <label>Target Name:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.target_name}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, target_name: e.target.value }))}
+                                  placeholder="e.g., M31, NGC 1234"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Access Information */}
+                          <div className="metadata-section">
+                            <h6>Access Information</h6>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                              <div>
+                                <label>Access URL:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.access_url}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, access_url: e.target.value }))}
+                                  placeholder="https://..."
+                                />
+                              </div>
+                              <div>
+                                <label>Access Format:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.access_format}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, access_format: e.target.value }))}
+                                  placeholder="e.g., FITS, CSV"
+                                />
+                              </div>
+                              <div>
+                                <label>Estimated Size (bytes):</label>
+                                <input
+                                  type="number"
+                                  value={scientificMetadata.access_estsize}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, access_estsize: e.target.value }))}
+                                  placeholder="File size in bytes"
+                                />
+                              </div>
+                              <div>
+                                <label>Preview URL:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.preview}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, preview: e.target.value }))}
+                                  placeholder="Preview image URL"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Spatial Information */}
+                          <div className="metadata-section">
+                            <h6>Spatial Information</h6>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                              <div>
+                                <label>Right Ascension (deg):</label>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={scientificMetadata.s_ra}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, s_ra: e.target.value }))}
+                                  placeholder="0-360"
+                                />
+                              </div>
+                              <div>
+                                <label>Declination (deg):</label>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={scientificMetadata.s_dec}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, s_dec: e.target.value }))}
+                                  placeholder="-90 to 90"
+                                />
+                              </div>
+                              <div>
+                                <label>Field of View (deg):</label>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={scientificMetadata.s_fov}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, s_fov: e.target.value }))}
+                                  placeholder="Field of view"
+                                />
+                              </div>
+                              <div>
+                                <label>Spatial Region:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.s_region}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, s_region: e.target.value }))}
+                                  placeholder="Polygon string"
+                                />
+                              </div>
+                              <div>
+                                <label>Spatial Resolution (arcsec):</label>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={scientificMetadata.s_resolution}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, s_resolution: e.target.value }))}
+                                  placeholder="Resolution"
+                                />
+                              </div>
+                              <div>
+                                <label>Pixel Scale (arcsec/pixel):</label>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={scientificMetadata.s_pixel_scale}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, s_pixel_scale: e.target.value }))}
+                                  placeholder="Pixel scale"
+                                />
+                              </div>
+                              <div>
+                                <label>X Pixels (axis 1):</label>
+                                <input
+                                  type="number"
+                                  value={scientificMetadata.s_xel1}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, s_xel1: e.target.value }))}
+                                  placeholder="Number of pixels"
+                                />
+                              </div>
+                              <div>
+                                <label>Y Pixels (axis 2):</label>
+                                <input
+                                  type="number"
+                                  value={scientificMetadata.s_xel2}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, s_xel2: e.target.value }))}
+                                  placeholder="Number of pixels"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Temporal Information */}
+                          <div className="metadata-section">
+                            <h6>Temporal Information</h6>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                              <div>
+                                <label>Start Time (MJD):</label>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={scientificMetadata.t_min}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, t_min: e.target.value }))}
+                                  placeholder="Modified Julian Date"
+                                />
+                              </div>
+                              <div>
+                                <label>End Time (MJD):</label>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={scientificMetadata.t_max}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, t_max: e.target.value }))}
+                                  placeholder="Modified Julian Date"
+                                />
+                              </div>
+                              <div>
+                                <label>Exposure Time (s):</label>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={scientificMetadata.t_exptime}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, t_exptime: e.target.value }))}
+                                  placeholder="Total exposure time"
+                                />
+                              </div>
+                              <div>
+                                <label>Temporal Resolution (s):</label>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={scientificMetadata.t_resolution}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, t_resolution: e.target.value }))}
+                                  placeholder="Time resolution"
+                                />
+                              </div>
+                              <div>
+                                <label>Time Elements:</label>
+                                <input
+                                  type="number"
+                                  value={scientificMetadata.t_xel}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, t_xel: e.target.value }))}
+                                  placeholder="Number of time slices"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Spectral Information */}
+                          <div className="metadata-section">
+                            <h6>Spectral Information</h6>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                              <div>
+                                <label>Min Wavelength (m):</label>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={scientificMetadata.em_min}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, em_min: e.target.value }))}
+                                  placeholder="Minimum wavelength"
+                                />
+                              </div>
+                              <div>
+                                <label>Max Wavelength (m):</label>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={scientificMetadata.em_max}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, em_max: e.target.value }))}
+                                  placeholder="Maximum wavelength"
+                                />
+                              </div>
+                              <div>
+                                <label>Resolving Power:</label>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={scientificMetadata.em_res_power}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, em_res_power: e.target.value }))}
+                                  placeholder="λ/Δλ"
+                                />
+                              </div>
+                              <div>
+                                <label>Spectral Elements:</label>
+                                <input
+                                  type="number"
+                                  value={scientificMetadata.em_xel}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, em_xel: e.target.value }))}
+                                  placeholder="Number of spectral channels"
+                                />
+                              </div>
+                              <div>
+                                <label>Spectral UCD:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.em_ucd}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, em_ucd: e.target.value }))}
+                                  placeholder="e.g., em.wl"
+                                />
+                              </div>
+                              <div>
+                                <label>Observed UCD:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.o_ucd}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, o_ucd: e.target.value }))}
+                                  placeholder="e.g., phot.mag"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Polarization Information */}
+                          <div className="metadata-section">
+                            <h6>Polarization Information</h6>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                              <div>
+                                <label>Polarization States:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.pol_states}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, pol_states: e.target.value }))}
+                                  placeholder="e.g., IQUV"
+                                />
+                              </div>
+                              <div>
+                                <label>Polarization Elements:</label>
+                                <input
+                                  type="number"
+                                  value={scientificMetadata.pol_xel}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, pol_xel: e.target.value }))}
+                                  placeholder="Number of polarization elements"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Facility Information */}
+                          <div className="metadata-section">
+                            <h6>Facility Information</h6>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                              <div>
+                                <label>Facility Name:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.facility_name}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, facility_name: e.target.value }))}
+                                  placeholder="e.g., SKA1-LOW"
+                                />
+                              </div>
+                              <div>
+                                <label>Instrument Name:</label>
+                                <input
+                                  type="text"
+                                  value={scientificMetadata.instrument_name}
+                                  onChange={(e) => setScientificMetadata(prev => ({ ...prev, instrument_name: e.target.value }))}
+                                  placeholder="e.g., SKA1-LOW Array"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                            </>
+                          )}
                         </div>
                       )}
 
@@ -3320,6 +4020,74 @@ function App() {
             )}
           </div>
         </div>
+
+        {/* Bearer Token Popup Modal */}
+        {bearerTokenPopup.isOpen && (
+          <div className="modal-overlay" onClick={closeBearerTokenPopup}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>Bearer Token - {bearerTokenPopup.fileName}</h3>
+                <button 
+                  className="modal-close"
+                  onClick={closeBearerTokenPopup}
+                  title="Close"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="modal-body">
+                {bearerTokenPopup.loading ? (
+                  <div style={{ textAlign: 'center', padding: '2rem' }}>
+                    <div className="loading-spinner"></div>
+                    <p>Loading token...</p>
+                  </div>
+                ) : (
+                  <div>
+                    <p style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                      This is the raw bearer token for authentication. Copy it carefully and keep it secure.
+                    </p>
+                    <div className="token-display">
+                      <textarea
+                        value={bearerTokenPopup.token}
+                        readOnly
+                        style={{
+                          width: '100%',
+                          minHeight: '120px',
+                          fontFamily: 'monospace',
+                          fontSize: '0.8rem',
+                          padding: '0.5rem',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '4px',
+                          backgroundColor: 'var(--bg-secondary)',
+                          color: 'var(--text-primary)',
+                          resize: 'vertical'
+                        }}
+                      />
+                    </div>
+                    <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                      <button
+                        className="button secondary"
+                        onClick={() => {
+                          navigator.clipboard.writeText(bearerTokenPopup.token);
+                          setStatus({ type: 'success', message: 'Token copied to clipboard!' });
+                        }}
+                        disabled={!bearerTokenPopup.token || bearerTokenPopup.token === 'Token not available'}
+                      >
+                        Copy to Clipboard
+                      </button>
+                      <button
+                        className="button"
+                        onClick={closeBearerTokenPopup}
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
     </>
   );
 }

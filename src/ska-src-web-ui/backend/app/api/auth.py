@@ -189,6 +189,25 @@ async def delete_token_by_file(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/tokens/by-file/{file_name}/bearer")
+async def get_bearer_token_by_file(
+    file_name: str,
+    src_service: SRCClientService = Depends(get_src_service)
+):
+    """Get the raw bearer token for a specific token file."""
+    try:
+        # Get the full bearer token from the file
+        bearer_token = src_service.get_full_bearer_token_by_file(file_name)
+        if not bearer_token:
+            raise HTTPException(status_code=404, detail=f"Token file {file_name} not found or invalid")
+        
+        # Return the raw bearer token
+        return {"bearer_token": bearer_token}
+    except Exception as e:
+        logging.error(f"Error getting bearer token for {file_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/tokens/{service_name}/inspect", response_model=TokenInspectResponse)
 async def inspect_token(
     service_name: str,

@@ -112,6 +112,9 @@ async def upload_file(
     metadata_suffix: str = ".meta",
     extra_metadata: str = "{}",
     debug: bool = False,
+    protocol: str = None,
+    host: str = None,
+    port: str = None,
     src_service: SRCClientService = Depends(get_src_service)
 ):
     """Upload a file for ingest with complete flow reproduction."""
@@ -161,9 +164,17 @@ async def upload_file(
             # Step 4: Attempt upload with enhanced error handling
             try:
                 logging.info("Starting upload_for_ingest process")
+                logging.info(f"Override parameters: protocol={protocol}, host={host}, port={port}")
                 result = src_service.upload_for_ingest(
-                    temp_dir, ingest_service_id, namespace, 
-                    metadata_suffix, extra_metadata, debug
+                    path=temp_dir, 
+                    ingest_service_id=ingest_service_id, 
+                    namespace=namespace, 
+                    metadata_suffix=metadata_suffix, 
+                    extra_metadata=extra_metadata, 
+                    protocol_prefix=protocol, 
+                    host_override=host,
+                    port_override=port,
+                    debug=debug
                 )
                 
                 logging.info("Upload completed successfully")

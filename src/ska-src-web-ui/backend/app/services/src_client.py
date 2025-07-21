@@ -316,6 +316,33 @@ class SRCClientService:
                 logging.error(f"Error reading token file {token_path}: {e}")
         return tokens
 
+    def get_token_by_file(self, file_name: str) -> Optional[Dict[str, Any]]:
+        """Get token data by its file name."""
+        try:
+            tokens = self.list_tokens()
+            for token in tokens:
+                if token.get('file_name') == file_name:
+                    return token
+            return None
+        except Exception as e:
+            logging.error(f"Error getting token by file {file_name}: {e}")
+            return None
+
+    def get_full_bearer_token_by_file(self, file_name: str) -> Optional[str]:
+        """Get the full bearer token from a token file."""
+        try:
+            token_path = os.path.join(self.session.stored_token_directory, file_name)
+            if not os.path.exists(token_path):
+                return None
+            
+            with open(token_path, 'r') as f:
+                token_data = json.load(f)
+            
+            return token_data.get('access_token')
+        except Exception as e:
+            logging.error(f"Error reading full bearer token from {file_name}: {e}")
+            return None
+
     def delete_token_by_file(self, file_name: str) -> bool:
         """Delete a token by its file name."""
         token_path = os.path.join(self.session.stored_token_directory, file_name)
@@ -418,7 +445,8 @@ class SRCClientService:
     
     def upload_for_ingest(self, path: str, ingest_service_id: str, namespace: str, 
                          metadata_suffix: str = ".meta", extra_metadata: str = "{}", 
-                         debug: bool = False) -> Dict[str, Any]:
+                         protocol_prefix: str = None, host_override: str = None, 
+                         port_override: str = None, debug: bool = False) -> Dict[str, Any]:
         """Upload data for ingest with enhanced error handling and logging."""
         logging.info(f"Starting upload_for_ingest: path={path}, ingest_service_id={ingest_service_id}, namespace={namespace}")
         
@@ -450,7 +478,15 @@ class SRCClientService:
         try:
             logging.info("Calling data_api.upload_for_ingest")
             result = self.data_api.upload_for_ingest(
-                path, ingest_service_id, namespace, metadata_suffix, extra_metadata, debug
+                path=path, 
+                ingest_service_id=ingest_service_id, 
+                namespace=namespace, 
+                metadata_suffix=metadata_suffix, 
+                extra_metadata=extra_metadata, 
+                protocol_prefix=protocol_prefix, 
+                host_override=host_override,
+                port_override=port_override,
+                debug=debug
             )
             logging.info("Upload completed successfully")
             return result
