@@ -80,3 +80,10 @@ class StorageUploadFailed(CustomException):
         super().__init__(self.message)
 
 
+class NamespaceNotFound(CustomException):
+    def __init__(self, namespace):
+        self.message = "Namespace '{}' not found".format(namespace)
+        self.namespace = namespace
+        super().__init__(self.message)
+
+

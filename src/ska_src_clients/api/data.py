@@ -227,43 +227,62 @@ class DataAPI(API):
             if extra_metadata.get(key):
                 raise ExtraMetadataKeyConflict(key)
 
-        # get the ingestion storage area host and path
+        # get the ingestion storage area and parent storage configuration
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         data_ingest_service = client.get_service(service_id=ingest_service_id).json()
-        associated_storage_area = client.get_storage_area(data_ingest_service.get('associated_storage_area_id')).json()
+        storage_area = client.get_storage_area(data_ingest_service.get('associated_storage_area_id')).json()
         
         # Debug: Log the storage area configuration
-        logging.info(f"Storage area configuration: {associated_storage_area}")
+        logging.info(f"Storage area configuration: {storage_area}")
         
-        # Use the associated_storage_id from the storage area, or fall back to parent_storage_id
-        storage_id = associated_storage_area.get('associated_storage_id')
-        logging.info(f"associated_storage_id: {storage_id}")
-        
-        if storage_id is None:
-            # If associated_storage_id is not set, use parent_storage_id
-            storage_id = associated_storage_area.get('parent_storage_id')
-            logging.info(f"Using parent_storage_id '{storage_id}' as fallback for missing associated_storage_id")
+        # Get parent storage for host and protocols
+        parent_storage_id = storage_area.get('parent_storage_id')
+        if not parent_storage_id:
+            logging.error(f"No parent storage ID found for storage area: {storage_area}")
+            raise Exception("No parent storage ID found for storage area")
             
-        if storage_id is None:
-            logging.error(f"Storage area configuration missing both storage IDs: {associated_storage_area}")
-            raise Exception("Neither associated_storage_id nor parent_storage_id found in storage area configuration")
+        parent_storage = client.get_storage(parent_storage_id).json()
+        logging.info(f"Parent storage configuration: {parent_storage}")
         
-        associated_storage = client.get_storage(storage_id).json()
-
-        base_path = associated_storage.get('base_path')
-        relative_path = associated_storage_area.get('relative_path')
-        remote_path = os.path.join(base_path, relative_path.lstrip('/'))
-        host = associated_storage.get('host')
-
+        # Get host and protocols from parent storage
+        host = parent_storage.get('host')
+        supported_protocols = parent_storage.get('supported_protocols', [])
+        
+        if not host:
+            logging.error(f"No host found in parent storage: {parent_storage}")
+            raise Exception("No host found in parent storage")
+            
+        if not supported_protocols:
+            logging.error(f"No supported protocols found in parent storage: {parent_storage}")
+            raise Exception("No supported protocols found in parent storage")
+        
+        # Get base path from parent storage and relative path from storage area
+        base_path = parent_storage.get('base_path', '/')
+        relative_path = storage_area.get('relative_path', '/')
+        
+        # Combine base_path and relative_path to get the full remote path
+        if base_path.endswith('/') and relative_path.startswith('/'):
+            remote_path = base_path + relative_path[1:]
+        elif base_path.endswith('/') or relative_path.startswith('/'):
+            remote_path = base_path + relative_path
+        else:
+            remote_path = base_path + '/' + relative_path
+        
         # select a storage access protocol (either by choice or randomly)
         selected_protocol = None
+        
         if protocol_prefix:
-            for supported_protocol in associated_storage.get('supported_protocols', []):
+            for supported_protocol in supported_protocols:
                 if supported_protocol.get('prefix') == protocol_prefix:
                     selected_protocol = supported_protocol
                     break
         else:
-            selected_protocol = random.choice(associated_storage.get('supported_protocols', []))
+            selected_protocol = supported_protocols[0]
+        
+        if not selected_protocol:
+            logging.error(f"No suitable protocol found. Available protocols: {supported_protocols}")
+            raise Exception("No suitable protocol found")
+            
         prefix = selected_protocol.get('prefix')
         port = selected_protocol.get('port')
         
@@ -298,6 +317,11 @@ class DataAPI(API):
         
         # Debug: Log the WebDAV client configuration
         logging.info(f"Creating WebDAV client with: prefix={prefix}, host={host}, port={port}, path={remote_path}")
+        logging.info(f"Storage area ID: {data_ingest_service.get('associated_storage_area_id')}")
+        logging.info(f"Parent storage ID: {parent_storage_id}")
+        logging.info(f"Base path: {base_path}")
+        logging.info(f"Relative path: {relative_path}")
+        logging.info(f"Combined remote path: {remote_path}")
         webdav_url = f"{prefix}://{host}:{port}/{remote_path.lstrip('/')}"
         logging.info(f"WebDAV URL will be: {webdav_url}")
         
@@ -375,3 +399,5 @@ class DataAPI(API):
         if debug:
             plan.describe()
         plan.run(section_name='upload')
+
+
