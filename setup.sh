@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# SKA SRC Web UI Backend Setup Script
-# This script sets up the backend environment with all dependencies
+# SKA SRC Clients Setup Script
+# This script sets up the ska_src_clients package with CLI tools
 
 set -e  # Exit on any error
 
-echo "🚀 Setting up SKA SRC Web UI Backend..."
+echo "🚀 Setting up SKA SRC Clients..."
 
 # Colors for output
 RED='\033[0;31m'
@@ -33,23 +33,6 @@ if ! command -v python3 &> /dev/null; then
 fi
 
 print_status "Python version: $(python3 --version)"
-
-# Check if Node.js is available for frontend
-if ! command -v node &> /dev/null; then
-    print_warning "Node.js is required for the frontend but not installed."
-    print_warning "Please install Node.js (version 14 or higher) to use the frontend."
-    print_warning "You can still use the backend without the frontend."
-else
-    print_status "Node.js version: $(node --version)"
-fi
-
-# Check if npm is available
-if ! command -v npm &> /dev/null; then
-    print_warning "npm is required for the frontend but not installed."
-    print_warning "Please install npm to use the frontend."
-else
-    print_status "npm version: $(npm --version)"
-fi
 
 # Check if we're in the right directory
 if [ ! -f "pyproject.toml" ]; then
@@ -79,13 +62,6 @@ source venv/bin/activate
 print_status "Upgrading pip..."
 pip install --upgrade pip
 
-# Install backend requirements first (to avoid conflicts)
-print_status "Installing backend dependencies..."
-pip install -r src/ska-src-web-ui/backend/requirements-backend.txt
-
-# Build ska-src-clients package
-print_status "Building ska-src-clients package..."
-
 # Check if poetry is available
 if ! command -v poetry &> /dev/null; then
     print_warning "Poetry not found. Installing poetry..."
@@ -93,6 +69,7 @@ if ! command -v poetry &> /dev/null; then
 fi
 
 # Build the package
+print_status "Building ska-src-clients package..."
 poetry build
 
 # Install the built package with all dependencies
@@ -121,52 +98,24 @@ pip install "$WHEEL_FILE" \
 print_status "Testing CLI installation..."
 python -c "from ska_src_clients.cli.oper import cli; print('✅ CLI import successful!')"
 
-# Test backend installation
-print_status "Testing backend installation..."
-cd src/ska-src-web-ui/backend
-python -c "from app.services.src_client import SRCClientService; print('✅ Backend import successful!')"
-cd "$PROJECT_ROOT"
-
-print_status "Setting up .env file with correct SRCNET_CONFIG_PATH..."
-print_status "Current directory: $(pwd)"
-print_status "Checking if setup_env.py exists: $(ls -la src/ska-src-web-ui/backend/setup_env.py 2>/dev/null || echo 'File not found')"
-python src/ska-src-web-ui/backend/setup_env.py
-
-# Setup frontend if Node.js and npm are available
-if command -v node &> /dev/null && command -v npm &> /dev/null; then
-    print_status "Setting up frontend..."
-    cd src/ska-src-web-ui/frontend
-    
-    if [ -d "node_modules" ]; then
-        print_status "Frontend dependencies already installed, skipping..."
-    else
-        print_status "Installing frontend dependencies..."
-        npm install
-    fi
-    
-    cd "$PROJECT_ROOT"
-    print_status "✅ Frontend setup completed!"
-else
-    print_warning "Skipping frontend setup - Node.js or npm not available"
-fi
+# Test core library installation
+print_status "Testing core library installation..."
+python -c "from ska_src_clients.api.data import DataAPI; print('✅ Core library import successful!')"
 
 print_status "✅ Setup completed successfully!"
 echo ""
-echo "To start the backend server:"
-echo "  source venv/bin/activate"
-echo "  cd src/ska-src-web-ui/backend"
-echo "  python -m uvicorn main:app --reload --port 8000"
-echo ""
-echo "To start the frontend (in a new terminal):"
-echo "  cd src/ska-src-web-ui/frontend"
-echo "  npm start"
-echo ""
 echo "To use the CLI tools:"
 echo "  source venv/bin/activate"
-echo "  ska-src-clients --help"
+echo "  srcnet-oper --help"
 echo ""
-echo "Access points:"
-echo "  - Frontend: http://localhost:3000"
-echo "  - Backend API: http://localhost:8000"
-echo "  - API Docs: http://localhost:8000/docs"
-echo "  - Health check: http://localhost:8000/api/v1/auth/health" 
+echo "Available commands:"
+echo "  srcnet-oper api --help"
+echo "  srcnet-oper config --help"
+echo "  srcnet-oper data --help"
+echo "  srcnet-oper metadata --help"
+echo "  srcnet-oper node --help"
+echo "  srcnet-oper site --help"
+echo "  srcnet-oper token --help"
+echo "  srcnet-oper tui --help"
+echo ""
+echo "Configuration files are available in: etc/cfg/" 

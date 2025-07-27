@@ -8,51 +8,62 @@ __pycache__
 *.pyo
 *.pyd
 .Python
-venv/
-.venv/
-env/
-.env
-*.egg-info/
-dist/
-build/
-.pytest_cache/
+env
+pip-log.txt
+pip-delete-this-directory.txt
+.tox
 .coverage
-htmlcov/
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git
+.mypy_cache
+.pytest_cache
+.hypothesis
 
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# Virtual environments
+venv/
+env/
+ENV/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Docker
-Dockerfile*
-docker-compose*
-.dockerignore
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Web UI components (not needed for CLI)
+src/ska-src-web-ui/
 
 # Documentation
 docs/
-*.md
-!README.md
 
 # Tests
 tests/
-test_*
 
-# Logs
-*.log
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Development tools
+tools/
+*.md
+LICENSE
+VERSION
 
 # Temporary files
-tmp/
-temp/ 
+*.tmp
+*.temp 
