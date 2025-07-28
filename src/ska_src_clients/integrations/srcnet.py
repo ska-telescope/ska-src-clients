@@ -4,12 +4,21 @@ from ska_src_data_management_api.client.data_management import DataManagementCli
 from ska_src_permissions_api.client.permissions import PermissionsClient
 from ska_src_site_capabilities_api.client.site_capabilities import SiteCapabilitiesClient
 import requests
+import os
 
 
 class TimeoutSession(requests.Session):
     """Custom session that always includes a timeout."""
     def request(self, *args, **kwargs):
-        kwargs.setdefault('timeout', 5)  # 5 second timeout
+        # Get timeout values from environment or use defaults
+        site_capabilities_timeout = int(os.environ.get('SITE_CAPABILITIES_TIMEOUT', 30))
+        default_api_timeout = int(os.environ.get('DEFAULT_API_TIMEOUT', 15))
+        
+        # Use longer timeout for site-capabilities API which can be slow
+        if 'site-capabilities' in str(args) or 'site-capabilities' in str(kwargs):
+            kwargs.setdefault('timeout', site_capabilities_timeout)
+        else:
+            kwargs.setdefault('timeout', default_api_timeout)
         return super().request(*args, **kwargs)
 
 
