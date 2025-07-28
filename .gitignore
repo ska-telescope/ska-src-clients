@@ -36,3 +36,5 @@ docs/_templates
 
 etc/cfg/base.yml
 src/ska_src_clients/gui/db.sqlite3
+ska_src_clients/.DS_Store
+.DS_Store

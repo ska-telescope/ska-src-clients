@@ -1,108 +1,217 @@
 # SKA SRC Clients
 
-Command line interfaces to SRCNet APIs.
+A Python client library and CLI tools for interacting with the SKA SRC (Source) APIs.
 
-[TOC]
+## Features
 
-## Install
+- **CLI Tools**: Command-line interface for SRC operations
+- **Core Library**: Python library for programmatic access
+- **Docker Support**: Containerized environment for easy deployment
+- **Multiple APIs**: Support for Site Capabilities, Data Management, Authentication, and Permissions APIs
 
-### From remote
+## Installation
 
-```bash
-$ python3 -m pip install ska-src-clients --index-url https://gitlab.com/api/v4/groups/70683489/-/packages/pypi/simple
-```
+### Option 1: Local Installation (Recommended for Development)
 
-### From local
-
-```bash
-$ poetry build
-$ python3 -m pip install dist/ska_src_clients*.whl
-```
-
-### For development 
-
-Development should be done inside a poetry environment, e.g. 
+Use the provided setup script for a complete local installation:
 
 ```bash
-$ poetry shell
-$ poetry install
+# Make the script executable
+chmod +x setup.sh
+
+# Run the setup script
+./setup.sh
 ```
 
-**If changes have been made to any of the APIs, you may need to update the pinned requirements version for the API
-and uninstall/reinstall the package.**
+The setup script will:
+- Create a Python virtual environment
+- Install all dependencies using Poetry
+- Build and install the `ska_src_clients` package
+- Test the installation
+
+### Option 2: Docker Installation (Recommended for Production)
+
+Use Docker for a containerized environment:
+
+```bash
+# Make the helper script executable
+chmod +x docker-cli.sh
+
+# Build the Docker image
+./docker-cli.sh build
+
+# Test the installation
+./docker-cli.sh run --help
+```
 
 ## Usage
 
-The following command line interfaces are currently available:
- - srcnet-oper: Low level **oper**ational commands.
+### Local Installation
 
-### srcnet-oper
-
-#### SRCNet API authentication
-
-Most of the interfaces sit behind authorisation. Authorisation is granted by providing a token retrieved from 
-authenticating with the SRCNet APIs.
-
-To get a token, issue a request:
+After running `./setup.sh`, activate the virtual environment and use the CLI:
 
 ```bash
-$ srcnet-oper token request
+# Activate virtual environment
+source venv/bin/activate
+
+# Get help
+srcnet-oper --help
+
+# List available commands
+srcnet-oper --help
+
+# Example commands
+srcnet-oper site list
+srcnet-oper token list
+srcnet-oper data upload --help
 ```
 
-which will return you an url redirecting you to IAM. Logging in to IAM and returning the code and state to the CLI
-when prompted will give you an access token. 
+### Docker Installation
 
-Access and refresh tokens are stored locally on disk. By default the path is `/tmp/srcnet/user`.
-
-Valid access tokens can be listed with:
+Use the Docker helper script for all CLI operations:
 
 ```bash
-$ srcnet-oper token ls
+# Get help
+./docker-cli.sh run --help
+
+# List sites
+./docker-cli.sh run site list
+
+# List tokens
+./docker-cli.sh run token list
+
+# Data operations
+./docker-cli.sh run data upload --help
+
+# Interactive shell
+./docker-cli.sh shell
+
+# Clean up containers
+./docker-cli.sh clean
 ```
 
-After authorisation, you can proceed to run any of the commands (provided you have the required permission). A full 
-list of commands is available in the self-generated 
-[documentation](https://ska-telescope.gitlab.io/src/src-service-apis/ska-src-clients/srcnet-oper.html#Sub-commands), or 
-you can use the `--help` flag.
+## Available Commands
+
+The `srcnet-oper` CLI provides the following command groups:
+
+- **`api`** - Generic operations against the SRCNet APIs
+- **`config`** - Generic configuration operations
+- **`data`** - Data operations (upload, download, etc.)
+- **`metadata`** - Metadata operations for managing object metadata
+- **`node`** - Operations related to nodes
+- **`site`** - Operations related to sites
+- **`token`** - Token operations (request, exchange, list, etc.)
+- **`tui`** - Launch the Text User Interface
+
+## Configuration
+
+Configuration files are located in `etc/cfg/`:
+
+- `oper.yml` - Production configuration
+- `oper-dev.yml` - Development configuration
+- `oper-dev-rem.yml` - Remote development configuration
+
+The configuration includes:
+- API endpoints for all SRC services
+- Storage client configurations
+- Core service URLs
+
+## Docker Helper Script Commands
+
+The `docker-cli.sh` script provides the following commands:
+
+- **`build`** - Build the Docker image
+- **`run [ARGS]`** - Run CLI command (defaults to `--help`)
+- **`shell`** - Open interactive shell in container
+- **`clean`** - Remove containers and images
+- **`help`** - Show help
+
+## Examples
+
+### Basic Operations
 
 ```bash
-$ srcnet-oper --help
+# List all sites
+./docker-cli.sh run site list
+
+# Get information about a specific site
+./docker-cli.sh run site get <site-id>
+
+# List available tokens
+./docker-cli.sh run token list
+
+# Request a new token
+./docker-cli.sh run token request
+
+# List storage areas
+./docker-cli.sh run site storage list
 ```
 
-#### 
+### Data Operations
+
+```bash
+# Upload a file
+./docker-cli.sh run data upload <file-path> --namespace <namespace>
+
+# Download a file
+./docker-cli.sh run data download <namespace> <filename>
+
+# List files in a namespace
+./docker-cli.sh run data list <namespace>
+```
+
+### Interactive Development
+
+```bash
+# Open shell for interactive use
+./docker-cli.sh shell
+
+# Inside the shell, you can run any command
+srcnet-oper --help
+srcnet-oper site list
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Permission Denied**: Make sure the scripts are executable
+   ```bash
+   chmod +x setup.sh docker-cli.sh
+   ```
+
+2. **Docker Build Fails**: Check that Docker is running and you have sufficient disk space
+
+3. **Import Errors**: Ensure the virtual environment is activated (for local installation)
+   ```bash
+   source venv/bin/activate
+   ```
+
+4. **Configuration Issues**: Verify your configuration files in `etc/cfg/`
+
+### Getting Help
+
+- Run `./docker-cli.sh run --help` for general CLI help
+- Run `./docker-cli.sh run <command> --help` for specific command help
+- Use `./docker-cli.sh shell` for interactive debugging
 
 ## Development
 
-Makefile targets have been included to facilitate easier and more consistent development against this package. The 
-general recipe is as follows:
+### Local Development
 
-1. Depending on the fix type, create a new major/minor/patch branch, e.g. 
-    ```bash
-    $ make patch-branch NAME=some-name
-    ```
-    Note that this both creates and checkouts the branch.
-2. Make your changes.
-3. Add your changes to the branch:
-    ```bash
-   $ git add ...
-    ```
-4. Either commit the changes manually (if no version increment is needed) or bump the version and commit, entering a 
-   commit message when prompted:
-    ```bash
-   $ make bump-and-commit
-    ```
-5. Push the changes upstream when ready:
-    ```bash
-   $ make push
-    ```
+1. Clone the repository
+2. Run `./setup.sh` for local installation
+3. Activate the virtual environment: `source venv/bin/activate`
+4. Make your changes
+5. Test with `srcnet-oper --help`
 
-Note that the CI pipeline will fail if python packages with the same semantic version are committed to the GitLab 
-Package Registry.
+### Docker Development
 
-## Reference
+1. Clone the repository
+2. Run `./docker-cli.sh build`
+3. Use `./docker-cli.sh shell` for interactive development
+4. Test changes with `./docker-cli.sh run <command>`
 
-1. [CLI documentation](https://ska-telescope.gitlab.io/src/src-service-apis/ska-src-clients/index.html).
+## License
 
-## TODO:
-
-autocomplete: eval "$(_SRCNET_OPER_COMPLETE=bash_source srcnet-oper)" and user
+BSD-3-Clause License

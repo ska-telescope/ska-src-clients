@@ -1,0 +1,53 @@
+FROM python:3.11-slim
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Poetry
+RUN pip install poetry
+
+# Set working directory
+WORKDIR /app
+
+# Copy poetry configuration files
+COPY pyproject.toml poetry.lock* ./
+
+# Copy source code first
+COPY src/ ./src/
+COPY etc/ ./etc/
+
+# Configure Poetry to not create virtual environment (we're in a container)
+RUN poetry config virtualenvs.create false
+
+# Install dependencies (without dev dependencies)
+RUN poetry install --only main --no-interaction --no-ansi
+
+# Build and install the package
+RUN poetry build && \
+    pip install dist/*.whl \
+    --index-url https://pypi.org/simple \
+    --extra-index-url https://gitlab.com/api/v4/projects/48376510/packages/pypi/simple \
+    --extra-index-url https://gitlab.com/api/v4/projects/48060714/packages/pypi/simple \
+    --extra-index-url https://artefact.skao.int/repository/pypi-internal/simple
+
+# Create token directory
+RUN mkdir -p /tmp/srcnet/user
+
+# Set default environment
+ENV SRCNET_CONFIG_PATH=/app/etc/cfg/oper.yml
+ENV PYTHONPATH=/app/src
+
+# Test installation
+RUN python -c "from ska_src_clients.cli.oper import cli; print('✅ CLI installation successful')"
+
+# Default command
+CMD ["srcnet-oper", "--help"] 
