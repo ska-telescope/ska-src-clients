@@ -1,0 +1,23 @@
+services:
+  ska-src-clients:
+    build:
+      context: .
+      dockerfile: Dockerfile.cli
+    container_name: ska-src-clients-cli
+    volumes:
+      # Mount configuration files
+      - ./etc/cfg:/app/etc/cfg:ro
+      # Mount token directory for persistence
+      - ./tokens:/tmp/srcnet/user
+      # Mount current directory for file operations
+      - .:/workspace
+    working_dir: /workspace
+    environment:
+      - PYTHONPATH=/app/src
+      - SRCNET_CONFIG_PATH=/app/etc/cfg/oper.yml
+      - TERM=xterm-256color
+    # Default command - can be overridden
+    command: ["srcnet-oper", "--help"]
+    # Interactive mode for CLI usage
+    stdin_open: true
+    tty: true 
