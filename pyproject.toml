@@ -55,7 +55,7 @@ ska-src-authn-api = {version = "^0.4", allow-prereleases = false}
 ska-src-data-management-api = {version = "^0.6", allow-prereleases = false}
 ska-src-permissions-api = {version = "^0.1", allow-prereleases = false}
 ska-src-site-capabilities-api = {version = "^0.3", allow-prereleases = false}
-ska-src-api-compute = {version = "0.0.1+dev.c1b496046", allow-prereleases = false}
+ska-src-api-compute = {version = "0.0.2", allow-prereleases = false}
 
 [tool.poetry.dev-dependencies]
 black = "^23.3.0"
