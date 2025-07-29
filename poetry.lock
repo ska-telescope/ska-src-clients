@@ -1694,6 +1694,7 @@ optional = false
 python-versions = "*"
 groups = ["dev"]
 files = [
+    {file = "junit-xml-2-1.9.tar.gz", hash = "sha256:3b8d9635c5215f754c7807104f6493e3ea3bc9481e2d33db294560da3a1b00f7"},
     {file = "junit_xml_2-1.9-py2.py3-none-any.whl", hash = "sha256:05093d75fe11120ccd51293884b5ee334ff3bc4b5106647c2bcc928486600588"},
 ]
 
@@ -5098,4 +5099,4 @@ reference = "PyPI-public"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.8.1,<4.0.0"
-content-hash = "e5688ffa6100d5926525ba7ab149c85d3061d840a9ec26443243254fbaa9da40"
+content-hash = "06c8dbd82961d7aa0364b07e4bd2ddddf88f9760c95ef41e8e8d1831770c8c2f"
