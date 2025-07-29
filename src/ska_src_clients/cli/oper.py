@@ -6,6 +6,7 @@ import sys
 import click
 from trogon import tui
 
+from ska_src_clients.cli.subcommands.compute import compute
 from ska_src_clients.cli.subcommands import api, config, data, metadata, node, token, site
 from ska_src_clients.common.utility import load_config
 from ska_src_clients.tui.oper import OperApp
@@ -49,6 +50,7 @@ cli.add_command(node)
 cli.add_command(site)
 cli.add_command(token)
 cli.add_command(tui)
+cli.add_command(compute)
 
 if __name__ == '__main__':
     cli()

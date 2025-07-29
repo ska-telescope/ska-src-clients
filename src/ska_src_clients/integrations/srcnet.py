@@ -4,6 +4,8 @@ from ska_src_data_management_api.client.data_management import DataManagementCli
 from ska_src_permissions_api.client.permissions import PermissionsClient
 from ska_src_site_capabilities_api.client.site_capabilities import SiteCapabilitiesClient
 
+from ska_src_clients.client.compute import ComputeClient
+
 
 class SRCNetAPIClientFactory:
     def __init__(self, session):
@@ -47,6 +49,9 @@ class SRCNetAPIClientFactory:
             return self.get_permissions_client(is_authenticated=is_authenticated)
         elif service_name == "site-capabilities-api":
             return self.get_site_capabilities_client(is_authenticated=is_authenticated)
+        elif service_name == "compute-api":
+            return self.get_compute_api_client(is_authenticated=is_authenticated)
+        return None
 
     def get_data_management_client(self, is_authenticated=False):
         """ Get a data management client. """
@@ -62,3 +67,7 @@ class SRCNetAPIClientFactory:
         """ Get a site capabilities client. """
         return self._get_client(service_name="site-capabilities-api", client=SiteCapabilitiesClient,
                                 is_authenticated=is_authenticated)
+
+    def get_compute_api_client(self, is_authenticated=False):
+        """ Get a compute API client. """
+        return self._get_client(service_name="compute-api", client=ComputeClient, is_authenticated=is_authenticated)
