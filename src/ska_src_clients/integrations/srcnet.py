@@ -4,7 +4,7 @@ from ska_src_data_management_api.client.data_management import DataManagementCli
 from ska_src_permissions_api.client.permissions import PermissionsClient
 from ska_src_site_capabilities_api.client.site_capabilities import SiteCapabilitiesClient
 
-from ska_src_clients.client.compute import ComputeClient
+from ska_src_api_compute.client.compute import ComputeClient
 
 
 class SRCNetAPIClientFactory:
