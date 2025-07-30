@@ -275,12 +275,8 @@ class DataAPI(API):
             'remote_path': namespace
         })
         
-        # add step to make unique directory for ingest
-        ingest_directory_id = str(uuid.uuid4())
-        remote_ingest_directory = os.path.join(namespace, ingest_directory_id)
-        plan.append_step(section_name='upload', fqn=selected_dm_client.mkdir, arguments={
-            'remote_path': remote_ingest_directory
-        })
+        # Upload directly to namespace directory (no random subfolder)
+        remote_ingest_directory = namespace
         logging.info("Ingest directory: {}".format(remote_ingest_directory))
 
         # go through each directory and add steps to upload data and metadata to plan
@@ -320,7 +316,6 @@ class DataAPI(API):
                     tmp_metadata_file.write(json.dumps(
                         {
                             'namespace': namespace,
-                            'ingest_service_id': ingest_service_id,
                             **metadata,
                             **extra_metadata
                         }
