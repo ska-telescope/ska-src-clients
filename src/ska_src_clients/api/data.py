@@ -205,7 +205,7 @@ class DataAPI(API):
 
     @handle_client_exceptions
     def upload_for_ingest(self, path, ingest_service_id, namespace, metadata_suffix='meta', extra_metadata={},
-                          protocol_prefix='https', verify=True, debug=False):
+                          protocol_prefix='https', host_override=None, port_override=None, verify=True, debug=False):
         """ Upload data for ingestion.
 
         :param str path: Local path to data directory to be uploaded.
@@ -229,12 +229,12 @@ class DataAPI(API):
         client = self.session.client_factory.get_site_capabilities_client(is_authenticated=True)
         data_ingest_service = client.get_service(service_id=ingest_service_id).json()
         associated_storage_area = client.get_storage_area(data_ingest_service.get('associated_storage_area_id')).json()
-        associated_storage = client.get_storage(associated_storage_area.get('associated_storage_id')).json()
+        associated_storage = client.get_storage(associated_storage_area.get('parent_storage_id')).json()
 
         base_path = associated_storage.get('base_path')
         relative_path = associated_storage_area.get('relative_path')
         remote_path = os.path.join(base_path, relative_path.lstrip('/'))
-        host = associated_storage.get('host')
+        host = host_override if host_override is not None else associated_storage.get('host')
 
         # select a storage access protocol (either by choice or randomly)
         selected_protocol = None
@@ -246,7 +246,7 @@ class DataAPI(API):
         else:
             selected_protocol = random.choice(associated_storage.get('supported_protocols', []))
         prefix = selected_protocol.get('prefix')
-        port = selected_protocol.get('port')
+        port = port_override if port_override is not None else selected_protocol.get('port')
 
         # get a token
         client = self.session.client_factory.get_data_management_client(is_authenticated=True)
