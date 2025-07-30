@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ska-src-clients"
-version = "0.1.27"
+version = "0.1.29"
 description = "SKA SRC Client"
 authors = ["Rob Barnsley", "Shraddha Bajare"]
 license = "BSD-3-Clause"
@@ -32,8 +32,12 @@ url = "https://gitlab.com/api/v4/projects/48060714/packages/pypi/simple"
 name = "authn_api"
 url = "https://gitlab.com/api/v4/projects/48376510/packages/pypi/simple"
 
+[[tool.poetry.source]]
+name = "compute_api"
+url = "https://gitlab.com/api/v4/projects/70988088/packages/pypi/simple"
+
 [tool.poetry.dependencies]
-python = ">=3.8.1,<4.0.0"
+python = ">=3.10.0,<4.0.0"
 docker = "5.0.3"
 Django = "4.2"
 qrcode = "7.4.2"
@@ -51,6 +55,7 @@ ska-src-authn-api = {version = "^0.4", allow-prereleases = false}
 ska-src-data-management-api = {version = "^0.6", allow-prereleases = false}
 ska-src-permissions-api = {version = "^0.1", allow-prereleases = false}
 ska-src-site-capabilities-api = {version = "^0.3", allow-prereleases = false}
+ska-src-api-compute = {version = "0.0.2", allow-prereleases = false}
 
 [tool.poetry.dev-dependencies]
 black = "^23.3.0"
