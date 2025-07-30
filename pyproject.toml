@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ska-src-clients"
-version = "0.1.27"
+version = "0.1.29"
 description = "SKA SRC Client"
 authors = ["Rob Barnsley", "Shraddha Bajare"]
 license = "BSD-3-Clause"
