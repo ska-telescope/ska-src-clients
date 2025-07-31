@@ -8,15 +8,18 @@ class MetadataAPI(API):
         super().__init__(**kwargs)
 
     @handle_client_exceptions
-    def get_metadata(self, namespace, name, plugin):
+    def get_metadata(self, namespace, name, plugin=None):
         """ Get metadata.
 
         :param str namespace: The data namespace.
         :param str name: The data identifier name.
-        :param str plugin: The name of the plugin to use (Rucio only).
+        :param str plugin: The name of the plugin to use (Rucio only). If None, no plugin parameter is passed.
         """
         client = self.session.client_factory.get_data_management_client(is_authenticated=True)
-        return client.get_metadata(namespace=namespace, name=name, plugin=plugin).json()
+        if plugin is not None:
+            return client.get_metadata(namespace=namespace, name=name, plugin=plugin).json()
+        else:
+            return client.get_metadata(namespace=namespace, name=name).json()
 
     @handle_client_exceptions
     def set_metadata(self, namespace, name, metadata):

@@ -198,10 +198,7 @@ class DataAPI(API):
         client = self.session.client_factory.get_data_management_client(is_authenticated=True)
         replicas_with_site = client.locate_replicas_of_file(
             namespace=namespace, name=name, sort=sort, ip_address=ip_address)
-        replicas = []
-        for entry in replicas_with_site.json():
-            replicas = replicas + entry.get('replicas', [])
-        return replicas
+        return replicas_with_site.json()
 
     @handle_client_exceptions
     def upload_for_ingest(self, path, ingest_service_id, namespace, metadata_suffix='meta', extra_metadata={},
@@ -312,14 +309,15 @@ class DataAPI(API):
                             raise MetadataKeyConflict(key)
 
                 # construct temporary metadata file with extra metadata
+                final_metadata = {
+                    'namespace': namespace,
+                    **metadata,
+                    **extra_metadata
+                }
+                logging.info(f"Final metadata file content before upload: {json.dumps(final_metadata, indent=2)}")
+                
                 with tempfile.NamedTemporaryFile(mode='w', delete=False) as tmp_metadata_file:
-                    tmp_metadata_file.write(json.dumps(
-                        {
-                            'namespace': namespace,
-                            **metadata,
-                            **extra_metadata
-                        }
-                    ))
+                    tmp_metadata_file.write(json.dumps(final_metadata))
                     plan.append_step(section_name='upload', fqn=selected_dm_client.upload, arguments={
                         'from_local_path': tmp_metadata_file.name,
                         'to_remote_path': os.path.join(this_root_relpath, os.path.basename(file))
@@ -331,3 +329,22 @@ class DataAPI(API):
         if debug:
             plan.describe()
         plan.run(section_name='upload')
+
+    @handle_client_exceptions
+    def remove_data(self, from_storage_area_uuid: str, dids: list = None) -> str:
+        """Remove data from a storage area.
+
+        :param str from_storage_area_uuid: The storage area uuid to remove data from.
+        :param list dids: The list of DIDs to remove. If None, removes all data from the storage area.
+
+        :return: A requests response.
+        :rtype: requests.models.Response
+        """
+        if dids is None:
+            dids = []
+        
+        dm_client = self.session.client_factory.get_data_management_client(is_authenticated=True)
+        return dm_client.make_data_removal_request(
+            from_storage_area_uuid=from_storage_area_uuid,
+            dids=dids
+        ).json()
