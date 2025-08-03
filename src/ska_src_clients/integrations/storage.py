@@ -51,7 +51,7 @@ class WebDAVStorageClient(StorageInterface):
             'webdav_hostname': webdav_url,
             'webdav_login': None,  # We'll use token authentication
             'webdav_password': None,
-            'webdav_timeout': 30,
+            'webdav_timeout': 300,  # Increased timeout to 5 minutes for large files
             'webdav_verbose': True,
             'webdav_verify': verify,  # Use the verify parameter
         }
