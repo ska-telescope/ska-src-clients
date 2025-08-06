@@ -232,6 +232,8 @@ class DataAPI(API):
         relative_path = associated_storage_area.get('relative_path')
         remote_path = os.path.join(base_path, relative_path.lstrip('/'))
         host = host_override if host_override is not None else associated_storage.get('host')
+        
+
 
         # select a storage access protocol (either by choice or randomly)
         selected_protocol = None

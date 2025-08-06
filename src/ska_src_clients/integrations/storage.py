@@ -32,11 +32,11 @@ class WebDAVStorageClient(StorageInterface):
             prefix = 'https'
         
         # Use the original hostname directly since we have proper host mapping
-        webdav_url = "{prefix}://{host}:{port}/{path}".format(
+        # For WebDAV, we need to construct the URL without the path
+        webdav_url = "{prefix}://{host}:{port}".format(
             prefix=prefix,
             host=host,  # Use original hostname (storm1.local, storm2.local)
-            port=port,
-            path=path.lstrip('/'))
+            port=port)
         
         print(f"DEBUG: WebDAV URL: {webdav_url}")
         print(f"DEBUG: Host: {host}")
@@ -45,6 +45,9 @@ class WebDAVStorageClient(StorageInterface):
         print(f"DEBUG: Access token provided: {access_token is not None}")
         if access_token:
             print(f"DEBUG: Access token preview: {access_token[:20]}...")
+        
+        # Configure SSL certificates for the WebDAV client
+        ssl_config = self._configure_ssl_certificates(verify)
         
         # Configure webdavclient3
         webdav_options = {
@@ -56,8 +59,17 @@ class WebDAVStorageClient(StorageInterface):
             'webdav_verify': verify,  # Use the verify parameter
         }
         
+        # Add SSL configuration if available
+        if ssl_config:
+            webdav_options.update(ssl_config)
+            print(f"DEBUG: SSL configuration applied: {ssl_config}")
+        
         # Create the client first
         self.client = WebDAVClient(webdav_options)
+        
+        # Configure SSL context on the session if available
+        if hasattr(self.client, 'session') and self.client.session:
+            self._configure_session_ssl(self.client.session, verify)
         
         # Try to set the Authorization header directly on the session
         if access_token and hasattr(self.client, 'session'):
@@ -69,6 +81,85 @@ class WebDAVStorageClient(StorageInterface):
             print(f"DEBUG: WARNING: Could not set Authorization header - no session attribute found")
         
         self.base_path = path.lstrip('/')
+    
+    def _configure_ssl_certificates(self, verify):
+        """Configure SSL certificates for the WebDAV client."""
+        ssl_config = {}
+        
+        try:
+            import os
+            
+            # Check for environment variables set by the main application
+            ssl_cert_file = os.environ.get('SSL_CERT_FILE')
+            ssl_cert_dir = os.environ.get('SSL_CERT_DIR')
+            requests_ca_bundle = os.environ.get('REQUESTS_CA_BUNDLE')
+            
+            print(f"DEBUG: SSL_CERT_FILE: {ssl_cert_file}")
+            print(f"DEBUG: SSL_CERT_DIR: {ssl_cert_dir}")
+            print(f"DEBUG: REQUESTS_CA_BUNDLE: {requests_ca_bundle}")
+            
+            # Use the most specific certificate configuration available
+            if requests_ca_bundle and os.path.exists(requests_ca_bundle):
+                ssl_config['webdav_verify'] = requests_ca_bundle
+                print(f"DEBUG: Using REQUESTS_CA_BUNDLE: {requests_ca_bundle}")
+            elif ssl_cert_file and os.path.exists(ssl_cert_file):
+                ssl_config['webdav_verify'] = ssl_cert_file
+                print(f"DEBUG: Using SSL_CERT_FILE: {ssl_cert_file}")
+            elif ssl_cert_dir and os.path.exists(ssl_cert_dir):
+                # For directory-based certificates, we need to handle this differently
+                # as webdav3 doesn't directly support capath
+                print(f"DEBUG: SSL_CERT_DIR available: {ssl_cert_dir}")
+                # We'll handle this in the session configuration
+            else:
+                print(f"DEBUG: No SSL certificate configuration found, using verify={verify}")
+                ssl_config['webdav_verify'] = verify
+            
+        except Exception as e:
+            print(f"DEBUG: Error configuring SSL certificates: {e}")
+            ssl_config['webdav_verify'] = verify
+        
+        return ssl_config
+    
+    def _configure_session_ssl(self, session, verify):
+        """Configure SSL context on the requests session."""
+        try:
+            import ssl
+            import os
+            
+            # Create a custom SSL context
+            ssl_context = ssl.create_default_context()
+            
+            # Set certificate verification
+            if not verify:
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+                print("DEBUG: SSL verification disabled")
+            else:
+                # Try to load certificates from environment variables
+                ssl_cert_file = os.environ.get('SSL_CERT_FILE')
+                ssl_cert_dir = os.environ.get('SSL_CERT_DIR')
+                
+                if ssl_cert_file and os.path.exists(ssl_cert_file):
+                    ssl_context.load_verify_locations(cafile=ssl_cert_file)
+                    print(f"DEBUG: Loaded SSL certificates from file: {ssl_cert_file}")
+                elif ssl_cert_dir and os.path.exists(ssl_cert_dir):
+                    ssl_context.load_verify_locations(capath=ssl_cert_dir)
+                    print(f"DEBUG: Loaded SSL certificates from directory: {ssl_cert_dir}")
+                else:
+                    print("DEBUG: Using default SSL context")
+            
+            # Apply the SSL context to the session
+            if hasattr(session, 'mount'):
+                from urllib3.util.ssl_ import create_urllib3_context
+                adapter = session.adapters.get('https://')
+                if adapter:
+                    adapter.poolmanager.connection_pool_kw['ssl_context'] = ssl_context
+                    print("DEBUG: Applied custom SSL context to session")
+            
+        except Exception as e:
+            print(f"DEBUG: Error configuring session SSL: {e}")
+            # Fall back to default behavior
+            pass
 
     def download(self, progress, progress_args, from_remote_path, to_local_path):
         try:
@@ -95,8 +186,12 @@ class WebDAVStorageClient(StorageInterface):
         """
         print(f"DEBUG: mkdir called with remote_path: {remote_path}")
         
+        # Construct the full path by combining base_path with remote_path
+        full_path = os.path.join(self.base_path, remote_path.lstrip('/')).replace('\\', '/')
+        print(f"DEBUG: Full path for mkdir: {full_path}")
+        
         # Create directories recursively
-        path_parts = remote_path.strip('/').split('/')
+        path_parts = full_path.strip('/').split('/')
         current_path = ""
         
         for part in path_parts:
@@ -130,14 +225,21 @@ class WebDAVStorageClient(StorageInterface):
         try:
             print(f"DEBUG: Uploading from {from_local_path} to {to_remote_path}")
             
+            # Construct the full path by combining base_path with to_remote_path
+            full_remote_path = os.path.join(self.base_path, to_remote_path.lstrip('/')).replace('\\', '/')
+            print(f"DEBUG: Full remote path for upload: {full_remote_path}")
+            
             # Ensure the target directory exists
-            target_dir = os.path.dirname(to_remote_path)
+            target_dir = os.path.dirname(full_remote_path)
             if target_dir:
-                self.mkdir(target_dir)
+                # For the target directory, we need to use the relative path for mkdir
+                relative_target_dir = os.path.dirname(to_remote_path)
+                if relative_target_dir:
+                    self.mkdir(relative_target_dir)
             
             # Upload the file
-            self.client.upload_sync(remote_path=to_remote_path, local_path=from_local_path)
-            print(f"DEBUG: Successfully uploaded {from_local_path} to {to_remote_path}")
+            self.client.upload_sync(remote_path=full_remote_path, local_path=from_local_path)
+            print(f"DEBUG: Successfully uploaded {from_local_path} to {full_remote_path}")
         except Exception as e:
             print(f"DEBUG: Upload failed: {e}")
             raise StorageUploadFailed(e)
