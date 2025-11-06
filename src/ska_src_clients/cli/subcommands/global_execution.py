@@ -1,13 +1,13 @@
-""" subcommand for compute """
+""" subcommand for global execution compute operations. """
 
 import click
 
-from ska_src_clients.api.compute import ComputeAPI
+from ska_src_clients.api.global_execution import GlobalExecutionAPI
 from ska_src_clients.common.utility import format_output
 
 
 @click.group(help="Generic configuration operations.")
-def compute():
+def global_execution():
     """Generic configuration operations."""
 
 
@@ -21,7 +21,7 @@ def create_job_parameters(param:dict) -> dict:
 
 
 
-@compute.command(help="Submit a job to the Compute API.")
+@global_execution.command(help="Submit a job to the Global Execution API.")
 @click.option('--container_image', required=True, help='On which container image to run the job.')
 @click.option('--script', required=True, help='Script to run in the container.')
 @click.option('--job_count', default=None, help='Number of jobs to run (default: 1).')
@@ -51,16 +51,16 @@ def submit(ctx,
         "no_build": no_build,
         "no_separate_log": no_separate_log
     })
-    result = ComputeAPI(session=ctx.obj['session']).submit_job(container_image=container_image, script=script,
-                                                               parameters=parameters)
+    result = GlobalExecutionAPI(session=ctx.obj['session']).submit_job(container_image=container_image, script=script,
+                                                                       parameters=parameters)
     format_output(result, json_output=True)
 
 
 
-@compute.command(help="Get the status of a job from the Compute API.")
+@global_execution.command(help="Get the status of a job from the Global Execution API.")
 @click.argument('job_id')
 @click.pass_context
 def status(ctx, job_id):
-    """Get the status of a job from the Compute API."""
-    result = ComputeAPI(session=ctx.obj['session']).get_job_status(job_id=job_id)
+    """Get the status of a job from the Global Execution API."""
+    result = GlobalExecutionAPI(session=ctx.obj['session']).get_job_status(job_id=job_id)
     format_output(result, json_output=True)

@@ -49,7 +49,7 @@ class SRCNetAPIClientFactory:
             return self.get_permissions_client(is_authenticated=is_authenticated)
         elif service_name == "site-capabilities-api":
             return self.get_site_capabilities_client(is_authenticated=is_authenticated)
-        elif service_name == "compute-api":
+        elif service_name == "global-execution-api":
             return self.get_compute_api_client(is_authenticated=is_authenticated)
         return None
 
@@ -70,4 +70,4 @@ class SRCNetAPIClientFactory:
 
     def get_compute_api_client(self, is_authenticated=False):
         """ Get a compute API client. """
-        return self._get_client(service_name="compute-api", client=ComputeClient, is_authenticated=is_authenticated)
+        return self._get_client(service_name="global-execution-api", client=ComputeClient, is_authenticated=is_authenticated)
