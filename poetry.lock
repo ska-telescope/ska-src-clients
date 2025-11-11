@@ -3923,15 +3923,15 @@ url = "https://artefact.skao.int/repository/pypi-internal/simple"
 reference = "ska-nexus"
 
 [[package]]
-name = "ska-src-api-compute"
-version = "0.0.2+dev.ce145d2af"
-description = "Compute API for SKA SRC"
+name = "ska-src-api-global-execution"
+version = "0.0.5+dev.cc3d7d50f"
+description = "Global Execution API for SKA SRC"
 optional = false
 python-versions = ">=3.10.0,<4.0.0"
 groups = ["main"]
 files = [
-    {file = "ska_src_api_compute-0.0.2+dev.ce145d2af-py3-none-any.whl", hash = "sha256:b6fa961e5a5fba4e57689a9c863097aab81d0ce93ab761206abb641eb465ac19"},
-    {file = "ska_src_api_compute-0.0.2+dev.ce145d2af.tar.gz", hash = "sha256:e536f9ccec2b154d2abaa28872629a824f68a8e007bd32236646f2795154d763"},
+    {file = "ska_src_api_global_execution-0.0.5+dev.cc3d7d50f-py3-none-any.whl", hash = "sha256:58c0568909c0132dff77e9bffb74583cb491b758944a5601688ebb0d448beded"},
+    {file = "ska_src_api_global_execution-0.0.5+dev.cc3d7d50f.tar.gz", hash = "sha256:f33944206a61d7376a41f9e298611bd0de1267f9d5a55dcf8f66d19d2bb503d9"},
 ]
 
 [package.dependencies]
@@ -5222,4 +5222,4 @@ reference = "PyPI-public"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10.0,<4.0.0"
-content-hash = "253a206161fff79479f741b0836c8990533e210110e1ebd2699a6683bf3bf610"
+content-hash = "1f870cb3ef92cba27714038dfb6e51b8fc68839578f3f3bb0f9a8e0b3a33b08d"

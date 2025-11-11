@@ -97,6 +97,7 @@ The `srcnet-oper` CLI provides the following command groups:
 - **`api`** - Generic operations against the SRCNet APIs
 - **`config`** - Generic configuration operations
 - **`data`** - Data operations (upload, download, etc.)
+- **`global-execution`** - Compute Jobs on Global Executions API
 - **`metadata`** - Metadata operations for managing object metadata
 - **`node`** - Operations related to nodes
 - **`site`** - Operations related to sites

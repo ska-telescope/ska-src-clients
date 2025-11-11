@@ -6,9 +6,9 @@ from ska_src_clients.api.global_execution import GlobalExecutionAPI
 from ska_src_clients.common.utility import format_output
 
 
-@click.group(help="Generic configuration operations.")
+@click.group(help="Compute Jobs on Global Executions API.")
 def global_execution():
-    """Generic configuration operations."""
+    """Compute Jobs on Global Executions API."""
 
 
 def create_job_parameters(param:dict) -> dict:
