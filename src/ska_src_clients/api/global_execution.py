@@ -10,17 +10,19 @@ class GlobalExecutionAPI(API):
         super().__init__(**kwargs)
 
     @handle_client_exceptions
-    def submit_job(self, container_image: str, script: str, parameters: dict = None):
+    def submit_job(self, container_image: str, script: str, parameters: str = "", system_parameters: dict = None):
         """Submit a job to the Global Execution API.
-        :param parameters:
-        :param script:
         :param str container_image: The Docker image to use for the job.
+        :param script:
+        :param parameters: Additional parameters for the script.
+        :param system_parameters:
         :return: The response from the Global Execution API.
         """
         job_request = {
             "container_image": container_image,
             "script": script,
-            "parameters": parameters or {}
+            "parameters": parameters,
+            "system_parameters": system_parameters or {}
         }
         print(f"Submitting job with request: {job_request}")
         client = self.session.client_factory.get_client_from_service_name("global-execution-api", is_authenticated=True)

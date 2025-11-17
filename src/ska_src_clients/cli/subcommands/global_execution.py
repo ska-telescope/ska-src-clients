@@ -24,9 +24,10 @@ def create_job_parameters(param:dict) -> dict:
 @global_execution.command(help="Submit a job to the Global Execution API.")
 @click.option('--container_image', required=True, help='On which container image to run the job.')
 @click.option('--script', required=True, help='Script to run in the container.')
+@click.option('--parameters', required=False, help='Additional parameters which will be appended after the script.')
 @click.option('--job_count', default=None, help='Number of jobs to run (default: 1).')
 @click.option('--vo', default=None, help='Virtual Organization (VO) to use (default: wlcg).')
-@click.option('--queue_name', default=None, help='Queue name to submit the job to.')
+@click.option('--src_node', default=None, help='SRC node name to submit the job to.')
 @click.option('--prod_source_label', default=None, help='Production source label for the job.')
 @click.option('--working_group', default=None, help='Working group to associate with the job.')
 @click.option('--no_build', is_flag=False, help='Do not build the container image before running the job.')
@@ -35,24 +36,26 @@ def create_job_parameters(param:dict) -> dict:
 def submit(ctx,
            container_image,
            script,
+           parameters,
            job_count,
            vo,
-           queue_name,
+           src_node,
            prod_source_label,
            working_group,
            no_build,
            no_separate_log):
-    parameters = create_job_parameters({
+    system_parameters = create_job_parameters({
         "job_count": job_count,
         "vo": vo,
-        "queue_name": queue_name,
+        "src_node": src_node,
         "prod_source_label": prod_source_label,
         "working_group": working_group,
         "no_build": no_build,
         "no_separate_log": no_separate_log
     })
     result = GlobalExecutionAPI(session=ctx.obj['session']).submit_job(container_image=container_image, script=script,
-                                                                       parameters=parameters)
+                                                                       parameters=parameters,
+                                                                       system_parameters=system_parameters)
     format_output(result, json_output=True)
 
 
